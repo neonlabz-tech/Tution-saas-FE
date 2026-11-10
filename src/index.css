@@ -1,0 +1,197 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Plus Jakarta Sans", "DM Sans", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-primary: #4f46e5;
+  --color-secondary: #14b8a6;
+  --color-accent: #f59e0b;
+  --color-sidebar: #111827;
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 6px 20px -6px rgb(16 24 40 / 0.07);
+  --shadow-pop: 0 24px 60px -12px rgb(16 24 40 / 0.3);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+}
+
+:root {
+  --canvas: #f7f8fc;
+  --surface: #ffffff;
+  --surface-2: #f1f3f9;
+  --ink: #111827;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --brand: color-mix(in oklab, var(--color-primary) 88%, black);
+  color-scheme: light;
+}
+
+.dark {
+  --canvas: #0a0e1a;
+  --surface: #121829;
+  --surface-2: #1a2236;
+  --ink: #f1f5f9;
+  --muted: #94a3b8;
+  --line: #242e47;
+  --brand: color-mix(in oklab, var(--color-primary) 45%, white);
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--canvas);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.015em;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-primary) 30%, transparent);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted) 40%, transparent) transparent;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  opacity: 0.6;
+  cursor: pointer;
+}
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+/* Decorative mesh used in hero cards */
+.bg-mesh {
+  background-color: #312e81;
+  background-image:
+    radial-gradient(at 12% 18%, rgb(99 102 241 / 0.95) 0px, transparent 50%),
+    radial-gradient(at 88% 8%, rgb(20 184 166 / 0.65) 0px, transparent 45%),
+    radial-gradient(at 78% 92%, rgb(245 158 11 / 0.5) 0px, transparent 45%),
+    radial-gradient(at 8% 95%, rgb(139 92 246 / 0.8) 0px, transparent 50%);
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+.sidebar-glow {
+  background-image:
+    radial-gradient(circle at 0% 0%, rgb(79 70 229 / 0.28), transparent 45%),
+    radial-gradient(circle at 100% 100%, rgb(20 184 166 / 0.16), transparent 40%);
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+}
+
+/* FullCalendar theming */
+.fc {
+  --fc-border-color: var(--line);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--surface-2);
+  --fc-list-event-hover-bg-color: var(--surface-2);
+  --fc-today-bg-color: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  --fc-now-indicator-color: #f43f5e;
+  --fc-button-bg-color: var(--surface);
+  --fc-button-border-color: var(--line);
+  --fc-button-text-color: var(--ink);
+  --fc-button-hover-bg-color: var(--surface-2);
+  --fc-button-hover-border-color: var(--line);
+  --fc-button-active-bg-color: var(--color-primary);
+  --fc-button-active-border-color: var(--color-primary);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+}
+.fc .fc-toolbar-title {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.fc .fc-button {
+  border-radius: 0.75rem;
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: capitalize;
+  padding: 0.45rem 0.8rem;
+  box-shadow: none !important;
+}
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  color: #fff;
+}
+.fc .fc-button-group > .fc-button {
+  border-radius: 0;
+}
+.fc .fc-button-group > .fc-button:first-child {
+  border-radius: 0.75rem 0 0 0.75rem;
+}
+.fc .fc-button-group > .fc-button:last-child {
+  border-radius: 0 0.75rem 0.75rem 0;
+}
+.fc .fc-event {
+  border-radius: 8px;
+  padding: 1px 3px;
+  cursor: pointer;
+  border: none;
+}
+.fc .fc-col-header-cell-cushion,
+.fc .fc-daygrid-day-number,
+.fc .fc-list-day-text,
+.fc .fc-list-day-side-text,
+.fc .fc-timegrid-slot-label-cushion {
+  color: var(--ink);
+  text-decoration: none;
+}
+.fc-theme-standard .fc-list,
+.fc-theme-standard td,
+.fc-theme-standard th {
+  border-color: var(--line);
+}
+.fc .fc-list-event td {
+  background: transparent;
+}
+@media (max-width: 640px) {
+  .fc .fc-toolbar {
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+}
