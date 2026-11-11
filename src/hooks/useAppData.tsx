@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type {
   AttendanceRecord,
   AttendanceStatus,
@@ -10,6 +10,7 @@ import type {
   Transaction,
 } from "@/types";
 import { buildMockData } from "@/data/mock";
+import { teachersApi, type TeacherListItem, type TeachersMetrics } from "@/lib/api";
 import { makeRef, todayISO, uid } from "@/lib/utils";
 
 type SaveStudent = Omit<Student, "id" | "ref">;
@@ -26,7 +27,10 @@ interface PaymentInput {
 
 interface AppData {
   students: Student[];
-  teachers: Teacher[];
+  teachers: TeacherListItem[];
+  teacherMetrics: TeachersMetrics;
+  teachersLoading: boolean;
+  refreshTeachers: () => Promise<void>;
   modules: Module[];
   attendance: AttendanceRecord[];
   transactions: Transaction[];
@@ -44,8 +48,8 @@ interface AppData {
 
   saveStudent: (data: SaveStudent, id?: string) => Student;
   deleteStudent: (id: string) => void;
-  saveTeacher: (data: SaveTeacher, moduleIds: string[], id?: string) => Teacher;
-  deleteTeacher: (id: string) => void;
+  saveTeacher: (data: SaveTeacher, moduleIds: string[], id?: string) => Promise<Teacher>;
+  deleteTeacher: (id: string) => Promise<void>;
   saveModule: (data: SaveModule, id?: string) => Module;
   deleteModule: (id: string) => void;
   setModuleStudents: (moduleId: string, studentIds: string[]) => void;
@@ -65,12 +69,47 @@ const Ctx = createContext<AppData | null>(null);
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const [seed] = useState(buildMockData);
   const [students, setStudents] = useState(seed.students);
-  const [teachers, setTeachers] = useState(seed.teachers);
-  const [modules, setModules] = useState(seed.modules);
+  const [teachers, setTeachers] = useState<TeacherListItem[]>([]);
+  const [teacherMetrics, setTeacherMetrics] = useState<TeachersMetrics>({
+    totalTeachers: 0,
+    activeTeachers: 0,
+    weeklyTeachingHours: 0,
+    teachersWithoutModules: 0,
+  });
+  const [teachersLoading, setTeachersLoading] = useState(true);
+  const [modules, setModules] = useState(() => seed.modules.map((m) => ({ ...m, teacherId: null as string | null })));
   const [attendance, setAttendance] = useState(seed.attendance);
   const [transactions, setTransactions] = useState(seed.transactions);
   const [classes, setClasses] = useState(seed.classes);
   const [notices, setNotices] = useState(seed.notices);
+
+  const refreshTeachers = useCallback(async () => {
+    setTeachersLoading(true);
+    try {
+      const res = await teachersApi.list();
+      const moduleToTeacher = new Map<string, string>();
+      for (const teacher of res.data) {
+        const ids =
+          teacher.assignedModules.length > 0
+            ? teacher.assignedModules.map((m) => m.id)
+            : (teacher.moduleIds ?? []);
+        for (const modId of ids) {
+          moduleToTeacher.set(modId, teacher.id);
+        }
+      }
+      setTeachers(res.data);
+      setTeacherMetrics(res.metrics);
+      setModules((prev) => prev.map((m) => ({ ...m, teacherId: moduleToTeacher.get(m.id) ?? null })));
+    } finally {
+      setTeachersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshTeachers().catch(() => {
+      /* backend offline; keep empty state */
+    });
+  }, [refreshTeachers]);
 
   const feeMap = useMemo(() => {
     const fees = new Map(modules.map((m) => [m.id, m.fee]));
@@ -91,7 +130,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       set((p) => (exists ? p.map((x) => (x.id === item.id ? item : x)) : [item, ...p]));
 
     return {
-      students, teachers, modules, attendance, transactions, classes, notices,
+      students, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, attendance, transactions, classes, notices,
       getStudent: (id) => students.find((s) => s.id === id),
       getTeacher: (id) => (id ? teachers.find((t) => t.id === id) : undefined),
       getModule: (id) => modules.find((m) => m.id === id),
@@ -119,17 +158,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         setAttendance((p) => p.filter((a) => a.studentId !== id));
       },
 
-      saveTeacher: (data, moduleIds, id) => {
-        const tid = id ?? `TCH-${String(teachers.reduce((mx, t) => Math.max(mx, Number(t.id.split("-")[1]) || 0), 0) + 1).padStart(3, "0")}`;
-        const item: Teacher = { ...data, id: tid };
-        upsert(setTeachers, item, !!id);
-        setModules((p) => p.map((m) => (moduleIds.includes(m.id) ? { ...m, teacherId: tid } : m.teacherId === tid ? { ...m, teacherId: null } : m)));
-        return item;
+      saveTeacher: async (data, moduleIds, id) => {
+        const saved = id
+          ? await teachersApi.update(id, { ...data, moduleIds })
+          : await teachersApi.create({ ...data, moduleIds });
+        await refreshTeachers();
+        return saved;
       },
-      deleteTeacher: (id) => {
-        setTeachers((p) => p.filter((t) => t.id !== id));
-        setModules((p) => p.map((m) => (m.teacherId === id ? { ...m, teacherId: null } : m)));
+      deleteTeacher: async (id) => {
+        await teachersApi.remove(id);
         setClasses((p) => p.filter((c) => c.teacherId !== id));
+        await refreshTeachers();
       },
 
       saveModule: (data, id) => {
@@ -202,7 +241,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       },
       deleteNotice: (id) => setNotices((p) => p.filter((n) => n.id !== id)),
     };
-  }, [students, teachers, modules, attendance, transactions, classes, notices, feeMap, paidMap]);
+  }, [students, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, attendance, transactions, classes, notices, feeMap, paidMap]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

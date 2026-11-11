@@ -30,14 +30,14 @@ export function DashboardLayout() {
   return (
     <div className="min-h-screen">
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
-      <motion.div initial={false} animate={{ paddingLeft: 0 }} className={`min-h-screen transition-[padding] duration-300 ${collapsed ? "lg:pl-[84px]" : "lg:pl-[272px]"}`}>
+      <div className={`min-h-screen transition-[padding] duration-300 ${collapsed ? "lg:pl-[84px]" : "lg:pl-[272px]"}`}>
         <Topbar onMenu={() => setMobileOpen(true)} collapsed={collapsed} onToggleCollapse={() => setCollapsed((c) => !c)} />
         <main className="mx-auto w-full max-w-[1500px] p-4 sm:p-6 lg:p-8">
           <motion.div key={pathname} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: "easeOut" }}>
             <Outlet />
           </motion.div>
         </main>
-      </motion.div>
+      </div>
     </div>
   );
 }
