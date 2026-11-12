@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, Bell, BookOpen, CalendarClock, ChevronRight, GraduationCap, Menu, Moon, PanelLeft, Search, Sun, UserCog, Users, Wallet, X } from "lucide-react";
 import { ALL_NAV } from "@/lib/nav";
 import { useAppData } from "@/hooks/useAppData";
+import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { Avatar, Badge } from "@/components/ui/primitives";
 import { Dropdown } from "@/components/ui/overlays";
@@ -119,10 +120,16 @@ function Notifications() {
 
 export function Topbar({ onMenu, collapsed, onToggleCollapse }: { onMenu: () => void; collapsed: boolean; onToggleCollapse: () => void }) {
   const { pathname } = useLocation();
+  const nav = useNavigate();
   const { dark, toggle } = useTheme();
+  const { user, logout } = useAuth();
   const toast = useToast();
   const [searchOpen, setSearchOpen] = useState(false);
   const current = ALL_NAV.find((n) => n.route === pathname) ?? ALL_NAV[0];
+  const displayName = user?.fullName ?? "Amara Perera";
+  const shortName = displayName.split(" ")[0] + (displayName.split(" ")[1] ? ` ${displayName.split(" ")[1][0]}.` : "");
+  const displayEmail = user?.email ?? "amara@brightfuture.lk";
+  const displayRole = user?.role ? user.role.replace("_", " ") : "Admin";
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-canvas/80 backdrop-blur-xl">
       <div className="flex h-[72px] items-center gap-3 px-4 sm:px-6 lg:px-8">
@@ -158,10 +165,10 @@ export function Topbar({ onMenu, collapsed, onToggleCollapse }: { onMenu: () => 
           width="w-60"
           trigger={({ toggle: t }) => (
             <button onClick={t} aria-label="Profile menu" className="flex items-center gap-2 rounded-xl border border-line bg-surface p-1 pr-1 sm:pr-3">
-              <Avatar name="Amara Perera" size="sm" />
+              <Avatar name={displayName} size="sm" />
               <span className="hidden text-left leading-tight sm:block">
-                <span className="block text-xs font-bold">Amara P.</span>
-                <span className="block text-[10px] text-muted">Admin</span>
+                <span className="block text-xs font-bold">{shortName}</span>
+                <span className="block text-[10px] capitalize text-muted">{displayRole}</span>
               </span>
             </button>
           )}
@@ -169,10 +176,10 @@ export function Topbar({ onMenu, collapsed, onToggleCollapse }: { onMenu: () => 
           {(close) => (
             <div className="p-2">
               <div className="mb-1 flex items-center gap-3 rounded-xl bg-surface-2 p-3">
-                <Avatar name="Amara Perera" />
+                <Avatar name={displayName} />
                 <div className="min-w-0 leading-tight">
-                  <p className="truncate text-sm font-bold">Amara Perera</p>
-                  <p className="truncate text-[11px] text-muted">amara@brightfuture.lk</p>
+                  <p className="truncate text-sm font-bold">{displayName}</p>
+                  <p className="truncate text-[11px] text-muted">{displayEmail}</p>
                 </div>
               </div>
               <Link to="/dashboard/settings" onClick={close} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:bg-surface-2">
@@ -181,7 +188,10 @@ export function Topbar({ onMenu, collapsed, onToggleCollapse }: { onMenu: () => 
               <button
                 onClick={() => {
                   close();
-                  toast.info("Logout is a UI demo — there is no authentication backend yet.");
+                  void logout().then(() => {
+                    nav("/login");
+                    toast.success("Logged out");
+                  });
                 }}
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-500 hover:bg-rose-500/10"
               >

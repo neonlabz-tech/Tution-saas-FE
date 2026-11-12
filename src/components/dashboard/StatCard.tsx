@@ -30,10 +30,15 @@ export function StatCard({
 }) {
   const id = `sp-${label.replace(/\W/g, "")}`;
   const good = delta === undefined ? true : deltaGoodWhenUp ? delta >= 0 : delta <= 0;
+  const hasSpark = Boolean(
+    spark &&
+      spark.length > 1 &&
+      Math.max(...spark) > Math.min(...spark),
+  );
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05, duration: 0.4 }}>
-      <Card className="group relative overflow-hidden p-5 transition hover:-translate-y-0.5 hover:shadow-pop">
-        <div className="flex items-start justify-between">
+    <motion.div className="h-full" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05, duration: 0.4 }}>
+      <Card className="group relative flex h-full flex-col overflow-hidden p-5 transition hover:-translate-y-0.5 hover:shadow-pop">
+        <div className="relative z-10 flex items-start justify-between">
           <div className={cn("flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg", gradient)}>
             <Icon className="h-5 w-5" />
           </div>
@@ -44,10 +49,12 @@ export function StatCard({
             </span>
           )}
         </div>
-        <p className="mt-4 text-xs font-medium text-muted">{label}</p>
-        <p className="num mt-0.5 truncate text-[22px] font-bold leading-tight text-ink">{value}</p>
-        {sub && <p className="mt-0.5 truncate text-[11px] text-muted">{sub}</p>}
-        {spark && spark.length > 1 && (
+        <div className="relative z-10 mt-4">
+          <p className="text-xs font-medium text-muted">{label}</p>
+          <p className="num mt-0.5 truncate text-[22px] font-bold leading-tight text-ink">{value}</p>
+          <p className="mt-0.5 min-h-[16px] truncate text-[11px] text-muted">{sub ?? ""}</p>
+        </div>
+        {hasSpark && spark && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 opacity-70">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={spark.map((v) => ({ v }))} margin={{ top: 4, bottom: 0, left: 0, right: 0 }}>

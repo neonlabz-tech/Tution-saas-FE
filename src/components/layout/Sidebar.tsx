@@ -5,6 +5,7 @@ import { NAV_GROUPS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/hooks/useAuth";
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
@@ -28,6 +29,9 @@ export function Logo({ compact = false }: { compact?: boolean }) {
 function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: boolean; onNavigate?: () => void; onCollapse?: () => void }) {
   const toast = useToast();
   const nav = useNavigate();
+  const { user, logout } = useAuth();
+  const displayName = user?.fullName ?? "Amara Perera";
+  const displayRole = user?.role ? user.role.replace("_", " ") : "Administrator";
   return (
     <div className="sidebar-glow flex h-full flex-col bg-sidebar text-slate-300">
       <div className={cn("flex h-[72px] shrink-0 items-center", collapsed ? "justify-center gap-1 px-2" : "justify-between px-5")}>
@@ -83,11 +87,11 @@ function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: bool
 
       <div className="shrink-0 border-t border-white/10 p-3">
         <div className={cn("flex items-center gap-3 rounded-2xl bg-white/5 p-2.5", collapsed && "flex-col bg-transparent p-0")}>
-          <Avatar name="Amara Perera" size="md" />
+          <Avatar name={displayName} size="md" />
           {!collapsed && (
             <div className="min-w-0 flex-1 leading-tight">
-              <p className="truncate text-sm font-semibold text-white">Amara Perera</p>
-              <p className="truncate text-[11px] text-slate-400">Administrator</p>
+              <p className="truncate text-sm font-semibold text-white">{displayName}</p>
+              <p className="truncate text-[11px] capitalize text-slate-400">{displayRole}</p>
             </div>
           )}
           <div className={cn("flex gap-1", collapsed && "flex-col")}>
@@ -102,7 +106,18 @@ function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: bool
             >
               <Settings className="h-4 w-4" />
             </button>
-            <button title="Log out" aria-label="Log out" onClick={() => toast.info("Logout is a UI demo — there is no authentication backend yet.")} className="rounded-lg p-2 text-slate-400 hover:bg-rose-500/20 hover:text-rose-300">
+            <button
+              title="Log out"
+              aria-label="Log out"
+              onClick={() => {
+                void logout().then(() => {
+                  onNavigate?.();
+                  nav("/login");
+                  toast.success("Logged out");
+                });
+              }}
+              className="rounded-lg p-2 text-slate-400 hover:bg-rose-500/20 hover:text-rose-300"
+            >
               <LogOut className="h-4 w-4" />
             </button>
           </div>

@@ -162,7 +162,6 @@ export default function TeachersPage() {
                     </div>
                     <div className="mt-4 flex flex-wrap gap-1.5">
                       {w.mods.length ? w.mods.map((m) => <Badge key={m.id} tone="primary">{m.name}</Badge>) : <Badge>No modules assigned</Badge>}
-                      {t.batches.map((b) => <Badge key={b} tone="teal">{b}</Badge>)}
                     </div>
                     <div className="mt-5 rounded-2xl bg-surface-2/70 p-3.5">
                       <div className="grid grid-cols-2 gap-2 text-center">
