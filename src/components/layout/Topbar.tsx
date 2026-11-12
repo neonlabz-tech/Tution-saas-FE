@@ -32,7 +32,7 @@ function GlobalSearch({ className = "" }: { className?: string }) {
         onFocus={() => setFocus(true)}
         onBlur={() => setTimeout(() => setFocus(false), 150)}
         placeholder="Search students, teachers, modules…"
-        className="h-10 w-full rounded-xl border border-line bg-surface-2/60 pl-10 pr-3 text-sm placeholder:text-muted/80 focus:border-primary focus:bg-surface focus:outline-none focus:ring-4 focus:ring-primary/10"
+        className="h-10 w-full rounded-xl border border-line bg-surface-2/60 pl-10 pr-3 text-sm placeholder:text-muted/80 transition focus:border-blue-500 focus:bg-surface focus:outline-none focus:ring-4 focus:ring-blue-500/15"
       />
       {focus && q.trim().length >= 2 && (
         <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-line bg-surface shadow-pop">

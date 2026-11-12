@@ -3,19 +3,20 @@ import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { BookOpen, CalendarClock, Clock, Mail, Pencil, Phone, Plus, Trash2, Users, Video } from "lucide-react";
 import type { Teacher } from "@/types";
-import { Avatar, Badge, Button, Card, EmptyState, InfoRow, PageHeader, ProgressBar, SearchInput, Select, StatusBadge } from "@/components/ui/primitives";
+import { Avatar, Badge, Button, Card, EmptyState, InfoRow, PageHeader, SearchInput, Select, StatusBadge } from "@/components/ui/primitives";
 import { ConfirmDialog, Drawer } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
 import { BATCHES } from "@/data/mock";
 import { TeacherFormModal } from "@/components/teachers/TeacherFormModal";
+import { teachersApi, type TeacherListItem, type TeacherProfileResponse } from "@/lib/api";
 import { fmtDate, fmtTime, todayISO } from "@/lib/utils";
 
 const HOURS_PER_MODULE = 3;
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function TeachersPage() {
-  const { teachers, modules, students, classes, teacherModules, deleteTeacher } = useAppData();
+  const { teachers, teacherMetrics, teacherModules, modules, students, classes, deleteTeacher } = useAppData();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");
@@ -24,6 +25,7 @@ export default function TeachersPage() {
   const [status, setStatus] = useState("all");
   const [form, setForm] = useState<{ open: boolean; item: Teacher | null }>({ open: false, item: null });
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<TeacherProfileResponse | null>(null);
   const [delId, setDelId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,10 +35,50 @@ export default function TeachersPage() {
     } else if (params.get("q")) setQ(params.get("q")!);
   }, [params, setParams]);
 
-  const workload = (t: Teacher) => {
+  useEffect(() => {
+    if (!detailId) {
+      setProfile(null);
+      return;
+    }
+    let active = true;
+    teachersApi
+      .get(detailId)
+      .then((res) => {
+        if (active) setProfile(res);
+      })
+      .catch(() => {
+        if (active) setProfile(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [detailId, teachers]);
+
+  const workload = (t: TeacherListItem) => {
+    if (t.assignedModules?.length && t.workload) {
+      return {
+        mods: t.assignedModules.map((m) => ({
+          id: m.id,
+          code: m.code,
+          name: m.name,
+          studentCount: m.studentCount,
+        })),
+        students: t.workload.studentsCount,
+        hours: t.workload.hoursPerWeek,
+      };
+    }
     const mods = teacherModules(t.id);
     const studentSet = new Set(students.filter((s) => s.moduleIds.some((id) => mods.some((m) => m.id === id))).map((s) => s.id));
-    return { mods, students: studentSet.size, hours: mods.length * HOURS_PER_MODULE };
+    return {
+      mods: mods.map((m) => ({
+        id: m.id,
+        code: m.code,
+        name: m.name,
+        studentCount: students.filter((s) => s.moduleIds.includes(m.id)).length,
+      })),
+      students: studentSet.size,
+      hours: mods.length * HOURS_PER_MODULE,
+    };
   };
 
   const data = useMemo(() => {
@@ -44,22 +86,23 @@ export default function TeachersPage() {
     return teachers.filter(
       (t) =>
         (!s || t.fullName.toLowerCase().includes(s) || t.specialization.toLowerCase().includes(s) || t.id.toLowerCase().includes(s)) &&
-        (moduleId === "all" || modules.find((m) => m.id === moduleId)?.teacherId === t.id) &&
+        (moduleId === "all" || t.assignedModules?.some((m) => m.id === moduleId) || modules.find((m) => m.id === moduleId)?.teacherId === t.id) &&
         (batch === "all" || t.batches.includes(batch)) &&
         (status === "all" || t.status === status),
     );
   }, [teachers, modules, q, moduleId, batch, status]);
 
-  const totalHours = teachers.reduce((s, t) => s + teacherModules(t.id).length * HOURS_PER_MODULE, 0);
-  const active = teachers.filter((t) => t.status === "active").length;
-  const unassigned = modules.filter((m) => !m.teacherId).length;
-  const detail = detailId ? teachers.find((t) => t.id === detailId) : undefined;
+  const totalHours = teacherMetrics.weeklyTeachingHours;
+  const active = teacherMetrics.activeTeachers;
+  const teachersWithoutModules = teacherMetrics.teachersWithoutModules;
+  const detail = profile ?? (detailId ? teachers.find((t) => t.id === detailId) : undefined);
   const dw = detail ? workload(detail) : null;
   const schedule = useMemo(() => {
+    if (profile?.upcomingSchedule) return profile.upcomingSchedule;
     if (!detail) return [];
     const today = todayISO();
     return classes.filter((c) => c.teacherId === detail.id && c.start.slice(0, 10) >= today && c.status !== "cancelled").sort((a, b) => a.start.localeCompare(b.start)).slice(0, 8);
-  }, [classes, detail]);
+  }, [profile, classes, detail]);
   const delT = delId ? teachers.find((t) => t.id === delId) : undefined;
 
   return (
@@ -68,10 +111,10 @@ export default function TeachersPage() {
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { l: "Total teachers", v: teachers.length, i: Users, c: "from-indigo-500 to-violet-500" },
+          { l: "Total teachers", v: teacherMetrics.totalTeachers, i: Users, c: "from-indigo-500 to-violet-500" },
           { l: "Active now", v: active, i: Clock, c: "from-teal-500 to-emerald-500" },
           { l: "Weekly teaching hours", v: totalHours, i: CalendarClock, c: "from-amber-500 to-orange-500" },
-          { l: "Modules without teacher", v: unassigned, i: BookOpen, c: "from-rose-500 to-pink-500" },
+          { l: "Teachers without modules", v: teachersWithoutModules, i: BookOpen, c: "from-rose-500 to-pink-500" },
         ].map((k) => (
           <Card key={k.l} className="flex items-center gap-4 p-4">
             <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white ${k.c}`}><k.i className="h-5 w-5" /></div>
@@ -112,23 +155,19 @@ export default function TeachersPage() {
                       <Avatar name={t.fullName} size="lg" />
                       <div className="min-w-0 flex-1">
                         <h3 className="truncate font-heading text-base font-bold">{t.fullName}</h3>
-                        <p className="truncate text-xs text-muted">{t.specialization}</p>
+                        <p className="truncate text-xs text-muted">{t.specialization || "—"}</p>
                         <p className="num mt-1 text-[11px] text-muted">{t.id}</p>
                       </div>
                       <StatusBadge status={t.status} />
                     </div>
                     <div className="mt-4 flex flex-wrap gap-1.5">
                       {w.mods.length ? w.mods.map((m) => <Badge key={m.id} tone="primary">{m.name}</Badge>) : <Badge>No modules assigned</Badge>}
+                      {t.batches.map((b) => <Badge key={b} tone="teal">{b}</Badge>)}
                     </div>
                     <div className="mt-5 rounded-2xl bg-surface-2/70 p-3.5">
-                      <div className="mb-2 flex items-center justify-between text-xs">
-                        <span className="font-semibold text-muted">Workload</span>
-                        <span className="num font-bold">{w.hours}h / week</span>
-                      </div>
-                      <ProgressBar value={(w.hours / 12) * 100} tone={w.hours > 8 ? "rose" : w.hours > 5 ? "amber" : "teal"} />
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+                      <div className="grid grid-cols-2 gap-2 text-center">
                         <div><p className="num text-lg font-bold">{w.mods.length}</p><p className="text-[11px] text-muted">Modules</p></div>
-                        <div><p className="num text-lg font-bold">{w.students}</p><p className="text-[11px] text-muted">Students</p></div>
+                        <div><p className="num text-lg font-bold">{t.batches.length}</p><p className="text-[11px] text-muted">Batches</p></div>
                       </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
@@ -155,7 +194,7 @@ export default function TeachersPage() {
               <Avatar name={detail.fullName} size="xl" />
               <div className="min-w-0">
                 <h3 className="font-heading text-xl font-extrabold">{detail.fullName}</h3>
-                <p className="text-sm text-muted">{detail.qualification}</p>
+                <p className="text-sm text-muted">{detail.qualification || "—"}</p>
                 <div className="mt-2"><StatusBadge status={detail.status} /></div>
               </div>
             </div>
@@ -166,12 +205,12 @@ export default function TeachersPage() {
             <div className="rounded-2xl border border-line p-4">
               <InfoRow label="Email"><span className="inline-flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 text-muted" />{detail.email}</span></InfoRow>
               <InfoRow label="Phone"><span className="num inline-flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-muted" />{detail.phone}</span></InfoRow>
-              <InfoRow label="Specialization">{detail.specialization}</InfoRow>
+              <InfoRow label="Specialization">{detail.specialization || "—"}</InfoRow>
               <InfoRow label="Joined">{fmtDate(detail.joiningDate)}</InfoRow>
-              <InfoRow label="Batches"><span className="flex flex-wrap justify-end gap-1">{detail.batches.map((b) => <Badge key={b} tone="teal">{b}</Badge>)}</span></InfoRow>
+              <InfoRow label="Batches"><span className="flex flex-wrap justify-end gap-1">{detail.batches.length ? detail.batches.map((b) => <Badge key={b} tone="teal">{b}</Badge>) : <span className="text-muted">—</span>}</span></InfoRow>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              {[["Modules", dw.mods.length], ["Students", dw.students], ["Hours / wk", dw.hours]].map(([l, v]) => (
+              {[["Modules", dw.mods.length], ["Batches", detail.batches.length], ["Hours / wk", dw.hours]].map(([l, v]) => (
                 <div key={l as string} className="rounded-2xl bg-surface-2 p-3 text-center"><p className="num text-xl font-bold">{v}</p><p className="text-[11px] text-muted">{l}</p></div>
               ))}
             </div>
@@ -182,7 +221,7 @@ export default function TeachersPage() {
                 {dw.mods.map((m) => (
                   <div key={m.id} className="flex items-center justify-between rounded-xl bg-surface-2 px-3.5 py-2.5">
                     <div><p className="text-sm font-semibold">{m.name}</p><p className="num text-[11px] text-muted">{m.code}</p></div>
-                    <Badge tone="primary">{students.filter((s) => s.moduleIds.includes(m.id)).length} students</Badge>
+                    <Badge tone="primary">{m.studentCount} students</Badge>
                   </div>
                 ))}
               </div>
@@ -216,11 +255,16 @@ export default function TeachersPage() {
         title="Delete teacher?"
         text={<>Removing <b>{delT?.fullName}</b> unassigns their modules and deletes their scheduled online classes.</>}
         onConfirm={() => {
-          if (delId) {
-            deleteTeacher(delId);
-            if (detailId === delId) setDetailId(null);
-            toast.success("Teacher deleted");
-          }
+          if (!delId) return;
+          const targetId = delId;
+          void deleteTeacher(targetId)
+            .then(() => {
+              if (detailId === targetId) setDetailId(null);
+              toast.success("Teacher deleted");
+            })
+            .catch((err) => {
+              toast.error(err instanceof Error ? err.message : "Failed to delete teacher");
+            });
         }}
       />
     </>

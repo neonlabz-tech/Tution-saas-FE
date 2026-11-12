@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronsLeft, LogOut, Settings, X } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, LogOut, Settings, X } from "lucide-react";
 import { NAV_GROUPS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/primitives";
@@ -30,11 +30,16 @@ function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: bool
   const nav = useNavigate();
   return (
     <div className="sidebar-glow flex h-full flex-col bg-sidebar text-slate-300">
-      <div className={cn("flex h-[72px] shrink-0 items-center", collapsed ? "justify-center" : "justify-between px-5")}>
+      <div className={cn("flex h-[72px] shrink-0 items-center", collapsed ? "justify-center gap-1 px-2" : "justify-between px-5")}>
         <Logo compact={collapsed} />
-        {!collapsed && onCollapse && (
-          <button onClick={onCollapse} aria-label="Collapse sidebar" className="hidden rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white lg:block">
-            <ChevronsLeft className="h-4 w-4" />
+        {onCollapse && (
+          <button
+            onClick={onCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="hidden cursor-pointer rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white lg:block"
+          >
+            {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
           </button>
         )}
       </div>
