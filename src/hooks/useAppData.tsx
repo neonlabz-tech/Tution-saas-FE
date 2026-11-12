@@ -10,6 +10,7 @@ import type {
   Transaction,
 } from "@/types";
 import { buildMockData } from "@/data/mock";
+import { useAuth } from "@/hooks/useAuth";
 import { teachersApi, type TeacherListItem, type TeachersMetrics } from "@/lib/api";
 import { makeRef, todayISO, uid } from "@/lib/utils";
 
@@ -67,6 +68,7 @@ interface AppData {
 const Ctx = createContext<AppData | null>(null);
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
+  const { token } = useAuth();
   const [seed] = useState(buildMockData);
   const [students, setStudents] = useState(seed.students);
   const [teachers, setTeachers] = useState<TeacherListItem[]>([]);
@@ -76,7 +78,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     weeklyTeachingHours: 0,
     teachersWithoutModules: 0,
   });
-  const [teachersLoading, setTeachersLoading] = useState(true);
+  const [teachersLoading, setTeachersLoading] = useState(false);
   const [modules, setModules] = useState(() => seed.modules.map((m) => ({ ...m, teacherId: null as string | null })));
   const [attendance, setAttendance] = useState(seed.attendance);
   const [transactions, setTransactions] = useState(seed.transactions);
@@ -84,6 +86,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [notices, setNotices] = useState(seed.notices);
 
   const refreshTeachers = useCallback(async () => {
+    if (!token) {
+      setTeachers([]);
+      return;
+    }
     setTeachersLoading(true);
     try {
       const res = await teachersApi.list();
@@ -103,13 +109,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setTeachersLoading(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
+    if (!token) {
+      setTeachers([]);
+      return;
+    }
     void refreshTeachers().catch(() => {
       /* backend offline; keep empty state */
     });
-  }, [refreshTeachers]);
+  }, [token, refreshTeachers]);
 
   const feeMap = useMemo(() => {
     const fees = new Map(modules.map((m) => [m.id, m.fee]));
