@@ -5,8 +5,8 @@ import type { Notice } from "@/types";
 import { Modal } from "@/components/ui/overlays";
 import { Button, Field, Input, MultiSelect, Select, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
-import { useAppData } from "@/hooks/useAppData";
 import { BATCHES } from "@/data/mock";
+import { noticesApi } from "@/lib/api";
 import { addDays, toISO, todayISO } from "@/lib/utils";
 
 const schema = z
@@ -22,8 +22,7 @@ const schema = z
   .refine((v) => v.expiryDate >= v.publishDate, { path: ["expiryDate"], message: "Expiry must be on or after the publish date" });
 type Values = z.infer<typeof schema>;
 
-function Inner({ item, onClose }: { item: Notice | null; onClose: () => void }) {
-  const { saveNotice } = useAppData();
+function Inner({ item, onClose, onSaved }: { item: Notice | null; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const {
     register,
@@ -35,9 +34,14 @@ function Inner({ item, onClose }: { item: Notice | null; onClose: () => void }) 
     defaultValues: item ? { ...item } : { title: "", description: "", batches: [], publishDate: todayISO(), expiryDate: toISO(addDays(new Date(), 7)), priority: "medium", status: "published" },
   });
   const onSubmit = (v: Values) => {
-    saveNotice(v, item?.id);
-    toast.success(item ? "Notice updated" : v.status === "draft" ? "Notice saved as draft" : "Notice published");
-    onClose();
+    const save = item ? noticesApi.update(item.id, v) : noticesApi.create(v);
+    save
+      .then(() => {
+        toast.success(item ? "Notice updated" : v.status === "draft" ? "Notice saved as draft" : "Notice published");
+        onSaved();
+        onClose();
+      })
+      .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Could not save notice"));
   };
   return (
     <form id="notice-form" onSubmit={handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2">
@@ -54,7 +58,7 @@ function Inner({ item, onClose }: { item: Notice | null; onClose: () => void }) 
   );
 }
 
-export function NoticeFormModal({ open, item, onClose }: { open: boolean; item: Notice | null; onClose: () => void }) {
+export function NoticeFormModal({ open, item, onClose, onSaved }: { open: boolean; item: Notice | null; onClose: () => void; onSaved: () => void }) {
   return (
     <Modal
       open={open}
@@ -68,7 +72,7 @@ export function NoticeFormModal({ open, item, onClose }: { open: boolean; item: 
         </>
       }
     >
-      <Inner item={item} onClose={onClose} />
+      <Inner item={item} onClose={onClose} onSaved={onSaved} />
     </Modal>
   );
 }
