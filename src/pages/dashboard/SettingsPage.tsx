@@ -209,13 +209,8 @@ export default function SettingsPage() {
             </Button>
 
             <div className="mt-4 rounded-xl border border-line bg-surface-2 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold">Password Reset via Email</p>
-                  <p className="text-xs text-muted">
-                    Send a secure one-time password reset link to <strong className="text-ink">{profile.email}</strong>
-                  </p>
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold">Password Reset via Email</p>
                 <Button
                   variant="soft"
                   size="sm"
