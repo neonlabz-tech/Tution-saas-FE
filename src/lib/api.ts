@@ -178,7 +178,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(message);
   }
 
-  return (await res.json()) as T;
+  const json = (await res.json()) as unknown;
+  if (
+    json !== null &&
+    typeof json === "object" &&
+    "success" in json &&
+    "data" in json &&
+    (json as { success: unknown }).success === true
+  ) {
+    return (json as { data: T }).data;
+  }
+  return json as T;
 }
 
 export const authApi = {
