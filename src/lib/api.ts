@@ -3,32 +3,6 @@ import type { Notice, OnlineClass, Teacher } from "@/types";
 const envApiUrl = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_URL;
 const API_BASE = envApiUrl?.replace(/\/+$/, "") || "http://localhost:4000";
 
-const TOKEN_STORAGE_KEY = "eduflow-token";
-
-export function getAuthToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setAuthToken(token: string) {
-  try {
-    localStorage.setItem(TOKEN_STORAGE_KEY, token);
-  } catch {
-    /* ignore */
-  }
-}
-
-export function clearAuthToken() {
-  try {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
 export type UserRole = "super_admin" | "admin" | "teacher" | "student";
 
 export interface AuthUser {
@@ -180,12 +154,11 @@ export interface DeleteTeacherResponse {
 export type TeacherPayload = Omit<Teacher, "id"> & { moduleIds: string[] };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getAuthToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   });
@@ -241,6 +214,20 @@ export const authApi = {
       body: JSON.stringify(payload),
     });
   },
+
+  forgotPassword(payload: { email: string }) {
+    return request<{ message: string; devResetUrl?: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  resetPassword(payload: { token: string; newPassword: string }) {
+    return request<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
 };
 
 export const overviewApi = {
@@ -254,6 +241,132 @@ export const overviewApi = {
 
   getActivityFeeds() {
     return request<OverviewResponse["activityFeeds"]>("/overview/activity-feeds");
+  },
+};
+
+export interface InstituteSettings {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  about: string;
+  logo: string | null;
+}
+
+export interface AppearanceSettings {
+  mode: "light" | "dark" | "system";
+  accent: "indigo" | "violet" | "teal" | "rose";
+}
+
+export interface NotificationToggles {
+  payments: boolean;
+  overdue: boolean;
+  absence: boolean;
+  classes: boolean;
+  notices: boolean;
+}
+
+export interface NotificationChannels {
+  email: boolean;
+  push: boolean;
+  sms: boolean;
+}
+
+export interface SettingsResponse {
+  institute: InstituteSettings;
+  appearance: AppearanceSettings;
+  notifications: NotificationToggles;
+  channels: NotificationChannels;
+  profile: {
+    id: string;
+    fullName: string;
+    email: string;
+    role: UserRole;
+  };
+}
+
+export interface NotificationItem {
+  id: string;
+  type: "notice" | "class" | "payment" | "student" | "system";
+  title: string;
+  subtitle: string;
+  link: string;
+  read: boolean;
+  persisted: boolean;
+}
+
+export const notificationsApi = {
+  list() {
+    return request<{ items: NotificationItem[]; unreadCount: number }>("/notifications");
+  },
+
+  create(payload: {
+    type?: NotificationItem["type"];
+    title: string;
+    subtitle?: string;
+    link?: string;
+  }) {
+    return request<NotificationItem>("/notifications", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  markAsRead(id: string) {
+    return request<{ id: string; read: true }>(`/notifications/${encodeURIComponent(id)}/read`, {
+      method: "PATCH",
+    });
+  },
+
+  markAllAsRead() {
+    return request<{ updatedCount: number }>("/notifications/read-all", {
+      method: "PATCH",
+    });
+  },
+};
+
+export const settingsApi = {
+  get() {
+    return request<SettingsResponse>("/settings");
+  },
+
+  updateInstitute(payload: Partial<InstituteSettings>) {
+    return request<InstituteSettings>("/settings/institute", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateAppearance(payload: Partial<AppearanceSettings>) {
+    return request<AppearanceSettings>("/settings/appearance", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateProfile(payload: {
+    fullName?: string;
+    email?: string;
+    newPassword?: string;
+    confirmPassword?: string;
+  }) {
+    return request<SettingsResponse["profile"]>("/settings/profile", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateNotifications(payload: {
+    notifications?: Partial<NotificationToggles>;
+    channels?: Partial<NotificationChannels>;
+  }) {
+    return request<{
+      notifications: NotificationToggles;
+      channels: NotificationChannels;
+    }>("/settings/notifications", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
   },
 };
 

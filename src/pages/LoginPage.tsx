@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Lock, LogIn, Mail } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Lock, LogIn, Mail } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button, Card, Field, Input } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { authApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface FormErrors {
@@ -35,6 +36,13 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const [view, setView] = useState<"login" | "forgot">("login");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotError, setForgotError] = useState<string | undefined>();
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [devResetUrl, setDevResetUrl] = useState<string | undefined>();
 
   if (!loading && user) {
     return <Navigate to="/dashboard" replace />;
@@ -80,6 +88,27 @@ export default function LoginPage() {
     }
   };
 
+  const onForgotSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const err = validateEmail(forgotEmail);
+    if (err) {
+      setForgotError(err);
+      return;
+    }
+    setForgotError(undefined);
+    setForgotSubmitting(true);
+    try {
+      const res = await authApi.forgotPassword({ email: forgotEmail.trim() });
+      toast.success(res.message);
+      setForgotSent(true);
+      setDevResetUrl(res.devResetUrl);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send reset link");
+    } finally {
+      setForgotSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
       <Card className="flex min-h-[480px] w-full max-w-[360px] flex-col justify-center px-7 py-12 shadow-pop sm:px-8 sm:py-14">
@@ -96,72 +125,170 @@ export default function LoginPage() {
               <p className="text-xs text-muted">{config?.instituteName ?? "Bright Future Institute"}</p>
             </div>
           </div>
-          <h2 className="font-heading text-2xl font-extrabold">Welcome back</h2>
+          <h2 className="font-heading text-2xl font-extrabold">
+            {view === "login" ? "Welcome back" : "Reset Password"}
+          </h2>
           <p className="mt-1 text-sm text-muted">
-            Enter your email and password to access the dashboard.
+            {view === "login"
+              ? "Enter your email and password to access the dashboard."
+              : "Enter your admin email to receive a password reset link."}
           </p>
         </div>
 
-        <form onSubmit={onSubmit} noValidate className="space-y-5">
-          <Field label="Email" error={errors.email}>
-            <div className="relative">
-              <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => handleEmailChange(e.target.value)}
-                onBlur={() =>
-                  setErrors((prev) => ({
-                    ...prev,
-                    email: validateEmail(email),
-                  }))
-                }
-                placeholder="Enter your email"
-                aria-invalid={Boolean(errors.email)}
-                className={cn(
-                  "pl-10",
-                  errors.email && "border-rose-500 focus:border-rose-500 focus:ring-rose-500/15",
-                )}
-              />
-            </div>
-          </Field>
+        {view === "forgot" ? (
+          forgotSent ? (
+            <div className="space-y-5 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-heading text-base font-bold">Link sent!</p>
+                <p className="mt-1 text-xs text-muted">
+                  If <strong className="text-ink">{forgotEmail}</strong> is an active administrator, a password reset link has been dispatched.
+                </p>
+              </div>
 
-          <Field label="Password" error={errors.password}>
-            <div className="relative">
-              <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <Input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => handlePasswordChange(e.target.value)}
-                onBlur={() =>
-                  setErrors((prev) => ({
-                    ...prev,
-                    password: validatePassword(password),
-                  }))
-                }
-                placeholder="Enter your password"
-                aria-invalid={Boolean(errors.password)}
-                className={cn(
-                  "pl-10 pr-10",
-                  errors.password && "border-rose-500 focus:border-rose-500 focus:ring-rose-500/15",
-                )}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((s) => !s)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+              {devResetUrl && (
+                <div className="rounded-xl border border-primary/20 bg-primary/10 p-3 text-left">
+                  <p className="text-[11px] font-semibold text-brand">Dev test link:</p>
+                  <a
+                    href={devResetUrl}
+                    className="mt-1 block break-all text-xs text-brand underline"
+                  >
+                    Click to reset password
+                  </a>
+                </div>
+              )}
+
+              <Button
+                variant="soft"
+                className="w-full"
+                onClick={() => {
+                  setView("login");
+                  setForgotSent(false);
+                  setDevResetUrl(undefined);
+                }}
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+                <ArrowLeft className="h-4 w-4" /> Back to sign in
+              </Button>
             </div>
-          </Field>
+          ) : (
+            <form onSubmit={onForgotSubmit} noValidate className="space-y-5">
+              <Field label="Admin Email" error={forgotError}>
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                  <Input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => {
+                      setForgotEmail(e.target.value);
+                      if (forgotError) setForgotError(validateEmail(e.target.value));
+                    }}
+                    placeholder="Enter your email"
+                    aria-invalid={Boolean(forgotError)}
+                    className={cn(
+                      "pl-10",
+                      forgotError && "border-rose-500 focus:border-rose-500 focus:ring-rose-500/15",
+                    )}
+                  />
+                </div>
+              </Field>
 
-          <Button type="submit" className="w-full" disabled={submitting}>
-            <LogIn className="h-4 w-4" />
-            {submitting ? "Please wait..." : "Sign in"}
-          </Button>
-        </form>
+              <Button type="submit" className="w-full" disabled={forgotSubmitting}>
+                <KeyRound className="h-4 w-4" />
+                {forgotSubmitting ? "Sending link..." : "Send reset link"}
+              </Button>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView("login");
+                    setForgotError(undefined);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted hover:text-ink transition"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back to sign in
+                </button>
+              </div>
+            </form>
+          )
+        ) : (
+          <form onSubmit={onSubmit} noValidate className="space-y-5">
+            <Field label="Email" error={errors.email}>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => handleEmailChange(e.target.value)}
+                  onBlur={() =>
+                    setErrors((prev) => ({
+                      ...prev,
+                      email: validateEmail(email),
+                    }))
+                  }
+                  placeholder="Enter your email"
+                  aria-invalid={Boolean(errors.email)}
+                  className={cn(
+                    "pl-10",
+                    errors.email && "border-rose-500 focus:border-rose-500 focus:ring-rose-500/15",
+                  )}
+                />
+              </div>
+            </Field>
+
+            <Field label="Password" error={errors.password}>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => handlePasswordChange(e.target.value)}
+                  onBlur={() =>
+                    setErrors((prev) => ({
+                      ...prev,
+                      password: validatePassword(password),
+                    }))
+                  }
+                  placeholder="Enter your password"
+                  aria-invalid={Boolean(errors.password)}
+                  className={cn(
+                    "pl-10 pr-10",
+                    errors.password && "border-rose-500 focus:border-rose-500 focus:ring-rose-500/15",
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <div className="mt-1 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView("forgot");
+                    setForgotEmail(email);
+                    setForgotError(undefined);
+                    setForgotSent(false);
+                  }}
+                  className="text-xs font-semibold text-brand hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            </Field>
+
+            <Button type="submit" className="w-full" disabled={submitting}>
+              <LogIn className="h-4 w-4" />
+              {submitting ? "Please wait..." : "Sign in"}
+            </Button>
+          </form>
+        )}
       </Card>
     </div>
   );

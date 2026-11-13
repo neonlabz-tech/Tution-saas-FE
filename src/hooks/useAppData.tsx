@@ -11,7 +11,7 @@ import type {
 } from "@/types";
 import { buildMockData } from "@/data/mock";
 import { useAuth } from "@/hooks/useAuth";
-import { teachersApi, type TeacherListItem, type TeachersMetrics } from "@/lib/api";
+import { notificationsApi, teachersApi, type TeacherListItem, type TeachersMetrics } from "@/lib/api";
 import { makeRef, todayISO, uid } from "@/lib/utils";
 
 type SaveStudent = Omit<Student, "id" | "ref">;
@@ -68,7 +68,7 @@ interface AppData {
 const Ctx = createContext<AppData | null>(null);
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
-  const { token } = useAuth();
+  const { user } = useAuth();
   const [seed] = useState(buildMockData);
   const [students, setStudents] = useState(seed.students);
   const [teachers, setTeachers] = useState<TeacherListItem[]>([]);
@@ -86,7 +86,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [notices, setNotices] = useState(seed.notices);
 
   const refreshTeachers = useCallback(async () => {
-    if (!token) {
+    if (!user) {
       setTeachers([]);
       return;
     }
@@ -109,17 +109,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setTeachersLoading(false);
     }
-  }, [token]);
+  }, [user]);
 
   useEffect(() => {
-    if (!token) {
+    if (!user) {
       setTeachers([]);
       return;
     }
     void refreshTeachers().catch(() => {
       /* backend offline; keep empty state */
     });
-  }, [token, refreshTeachers]);
+  }, [user, refreshTeachers]);
 
   const feeMap = useMemo(() => {
     const fees = new Map(modules.map((m) => [m.id, m.fee]));
@@ -161,6 +161,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const n = students.reduce((mx, s) => Math.max(mx, Number(s.id.split("-")[2]) || 0), 0) + 1;
         const item: Student = { ...data, id: `STU-${year}-${String(n).padStart(3, "0")}`, ref: makeRef() };
         upsert(setStudents, item, false);
+
+        void notificationsApi
+          .create({
+            type: "student",
+            title: `New Student Registration: ${item.fullName}`,
+            subtitle: `Enrolled in ${item.batch || "batch"} (${item.id})`,
+            link: "/dashboard/students",
+          })
+          .catch(() => {});
+
         return item;
       },
       deleteStudent: (id) => {
@@ -233,6 +243,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           method,
         };
         setTransactions((p) => [item, ...p].sort((a, b) => b.date.localeCompare(a.date)));
+
+        void notificationsApi
+          .create({
+            type: "payment",
+            title: `Payment received: LKR ${amount.toLocaleString()}`,
+            subtitle: `${s ? s.fullName : "Student"} · ${method ? method.toUpperCase() : "Cash"}${note ? ` (${note})` : ""}`,
+            link: "/dashboard/finance",
+          })
+          .catch(() => {});
+
         return item;
       },
 

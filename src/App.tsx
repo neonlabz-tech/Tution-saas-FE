@@ -6,6 +6,7 @@ import { AppDataProvider } from "@/hooks/useAppData";
 import { ToastProvider } from "@/components/ui/toast";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import LoginPage from "@/pages/LoginPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import OverviewPage from "@/pages/dashboard/OverviewPage";
 import StudentsPage from "@/pages/dashboard/StudentsPage";
 import TeachersPage from "@/pages/dashboard/TeachersPage";
@@ -44,6 +45,7 @@ export default function App() {
             <HashRouter>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route
                   path="/dashboard"

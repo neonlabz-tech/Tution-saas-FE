@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, Bell, BookOpen, CalendarClock, ChevronRight, GraduationCap, Menu, Moon, PanelLeft, Search, Sun, UserCog, Users, Wallet, X } from "lucide-react";
 import { ALL_NAV } from "@/lib/nav";
@@ -8,7 +8,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { Avatar, Badge } from "@/components/ui/primitives";
 import { Dropdown } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
-import { fmtTime, todayISO } from "@/lib/utils";
+import { notificationsApi, type NotificationItem } from "@/lib/api";
+import { todayISO } from "@/lib/utils";
 
 function GlobalSearch({ className = "" }: { className?: string }) {
   const { students, teachers, modules } = useAppData();
@@ -66,30 +67,97 @@ function GlobalSearch({ className = "" }: { className?: string }) {
 }
 
 function Notifications() {
-  const { notices, classes, students, outstanding } = useAppData();
+  const { user } = useAuth();
+  const { notices } = useAppData();
+  const toast = useToast();
+  const [backendItems, setBackendItems] = useState<NotificationItem[]>([]);
+  const [localReadIds, setLocalReadIds] = useState<Set<string>>(() => new Set());
+  const inFlightRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user) {
+      setBackendItems([]);
+      return;
+    }
+    let active = true;
+    notificationsApi
+      .list()
+      .then((res) => {
+        if (!active) return;
+        setBackendItems(res.items);
+      })
+      .catch(() => {
+        /* keep empty list if offline */
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
   const items = useMemo(() => {
     const today = todayISO();
-    const list: { id: string; icon: typeof Bell; tone: string; title: string; sub: string }[] = [];
-    notices
-      .filter((n) => n.status === "published" && n.expiryDate >= today && n.priority === "high")
-      .slice(0, 2)
-      .forEach((n) => list.push({ id: n.id, icon: AlertTriangle, tone: "bg-rose-500/10 text-rose-500", title: n.title, sub: "High priority notice" }));
-    classes
-      .filter((c) => c.status === "scheduled" && c.start.slice(0, 10) >= today)
-      .sort((a, b) => a.start.localeCompare(b.start))
-      .slice(0, 2)
-      .forEach((c) => list.push({ id: c.id, icon: CalendarClock, tone: "bg-primary/10 text-brand", title: c.title, sub: `${c.start.slice(0, 10) === today ? "Today" : c.start.slice(5, 10)} · ${fmtTime(c.start)}` }));
-    const owing = students.filter((s) => s.status === "active" && outstanding(s.id) > 100000).length;
-    list.push({ id: "pay", icon: Wallet, tone: "bg-amber-500/10 text-amber-500", title: `${owing} students have large outstanding balances`, sub: "Finance reminder" });
-    return list;
-  }, [notices, classes, students, outstanding]);
+    const seenTitles = new Set(backendItems.map((i) => i.title.toLowerCase()));
+    const localExpiring: NotificationItem[] = notices
+      .filter((n) => n.status === "published" && n.expiryDate === today && !seenTitles.has(n.title.toLowerCase()))
+      .map((n) => {
+        const id = `local_exp_${n.id}`;
+        return {
+          id,
+          type: "notice",
+          title: n.title,
+          subtitle: "Notice expires today",
+          link: "/dashboard/notices",
+          read: localReadIds.has(id),
+          persisted: false,
+        };
+      });
+    return [...backendItems, ...localExpiring];
+  }, [backendItems, notices, localReadIds]);
+
+  const unreadCount = items.filter((i) => !i.read).length;
+
+  const handleNotificationClick = async (item: NotificationItem, close: () => void) => {
+    close();
+    if (item.read || inFlightRef.current.has(item.id)) return;
+
+    if (item.id.startsWith("local_exp_")) {
+      setLocalReadIds((prev) => {
+        const next = new Set(prev);
+        next.add(item.id);
+        return next;
+      });
+      return;
+    }
+
+    inFlightRef.current.add(item.id);
+    setBackendItems((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, read: true } : entry)));
+    try {
+      await notificationsApi.markAsRead(item.id);
+    } catch {
+      setBackendItems((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, read: false } : entry)));
+      toast.error("Failed to mark notification as read");
+    } finally {
+      inFlightRef.current.delete(item.id);
+    }
+  };
+
+  const metaFor = (type: NotificationItem["type"]) => {
+    if (type === "student") return { icon: GraduationCap, tone: "bg-emerald-500/10 text-emerald-500" };
+    if (type === "notice") return { icon: AlertTriangle, tone: "bg-rose-500/10 text-rose-500" };
+    if (type === "class") return { icon: CalendarClock, tone: "bg-primary/10 text-brand" };
+    if (type === "payment") return { icon: Wallet, tone: "bg-amber-500/10 text-amber-500" };
+    return { icon: Bell, tone: "bg-primary/10 text-brand" };
+  };
+
   return (
     <Dropdown
       width="w-80"
       trigger={({ toggle }) => (
         <button onClick={toggle} aria-label="Notifications" className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-surface text-muted transition hover:text-ink">
           <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-surface" />
+          {unreadCount > 0 && (
+            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-surface" />
+          )}
         </button>
       )}
     >
@@ -97,20 +165,40 @@ function Notifications() {
         <div>
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <p className="font-heading text-sm font-bold">Notifications</p>
-            <Badge tone="primary">{items.length} new</Badge>
+            <div className="flex items-center gap-2">
+              <Badge tone="primary">{unreadCount} new</Badge>
+              <button
+                type="button"
+                onClick={close}
+                aria-label="Close notifications"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
           <div className="max-h-80 overflow-y-auto">
-            {items.map((i) => (
-              <Link key={i.id} to="/dashboard/notices" onClick={close} className="flex gap-3 px-4 py-3 hover:bg-surface-2">
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${i.tone}`}>
-                  <i.icon className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <span className="line-clamp-2 block text-sm font-semibold leading-snug">{i.title}</span>
-                  <span className="mt-0.5 block text-[11px] text-muted">{i.sub}</span>
-                </span>
-              </Link>
-            ))}
+            {items.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-muted">No notifications</p>
+            ) : (
+              items.map((i) => {
+                const m = metaFor(i.type);
+                return (
+                  <Link key={i.id} to={i.link} onClick={() => void handleNotificationClick(i, close)} className="flex items-start gap-3 px-4 py-3 hover:bg-surface-2">
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${m.tone}`}>
+                      <m.icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-2 block text-sm font-semibold leading-snug">{i.title}</span>
+                      <span className="mt-0.5 block text-[11px] text-muted">{i.subtitle}</span>
+                    </span>
+                    {!i.read && (
+                      <span aria-label="Unread notification" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
+                    )}
+                  </Link>
+                );
+              })
+            )}
           </div>
         </div>
       )}
