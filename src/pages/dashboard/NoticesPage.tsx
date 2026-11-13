@@ -6,17 +6,18 @@ import type { Notice } from "@/types";
 import { Badge, Button, Card, EmptyState, InfoRow, PageHeader, SearchInput, Select, StatusBadge, Tabs } from "@/components/ui/primitives";
 import { ConfirmDialog, Modal } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
-import { useAppData } from "@/hooks/useAppData";
 import { BATCHES } from "@/data/mock";
 import { NoticeFormModal } from "@/components/notices/NoticeFormModal";
+import { noticesApi } from "@/lib/api";
 import { cn, diffDays, fmtDate, todayISO } from "@/lib/utils";
 
 type Filter = "all" | "active" | "expired" | "draft";
 const PRIORITY_BAR = { high: "bg-rose-500", medium: "bg-amber-500", low: "bg-teal-500" };
 
 export default function NoticesPage() {
-  const { notices, deleteNotice } = useAppData();
   const toast = useToast();
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [loading, setLoading] = useState(true);
   const [params, setParams] = useSearchParams();
   const [filter, setFilter] = useState<Filter>("all");
   const [priority, setPriority] = useState("all");
@@ -26,6 +27,16 @@ export default function NoticesPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [delId, setDelId] = useState<string | null>(null);
   const today = todayISO();
+
+  const loadNotices = () => {
+    setLoading(true);
+    noticesApi.list()
+      .then(setNotices)
+      .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Could not load notices"))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadNotices(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (params.get("new") === "1") { setForm({ open: true, item: null }); setParams({}, { replace: true }); }
@@ -59,7 +70,9 @@ export default function NoticesPage() {
         </div>
       </div>
 
-      {list.length === 0 ? (
+      {loading ? (
+        <Card><EmptyState icon={<Megaphone className="h-6 w-6" />} title="Loading notices" text="Fetching announcements from the server." /></Card>
+      ) : list.length === 0 ? (
         <Card><EmptyState icon={<Megaphone className="h-6 w-6" />} title="No notices found" text="Nothing matches these filters." action={<Button onClick={() => setForm({ open: true, item: null })}><Plus className="h-4 w-4" /> Create notice</Button>} /></Card>
       ) : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -92,7 +105,7 @@ export default function NoticesPage() {
         </div>
       )}
 
-      <NoticeFormModal open={form.open} item={form.item} onClose={() => setForm((f) => ({ ...f, open: false }))} />
+      <NoticeFormModal open={form.open} item={form.item} onClose={() => setForm((f) => ({ ...f, open: false }))} onSaved={loadNotices} />
 
       <Modal
         open={!!detail}
@@ -117,8 +130,14 @@ export default function NoticesPage() {
         open={!!delN}
         onClose={() => setDelId(null)}
         title="Delete notice?"
-        text={<>“{delN?.title}” will be permanently removed from the demo data.</>}
-        onConfirm={() => { if (delId) { deleteNotice(delId); setDetailId(null); toast.success("Notice deleted"); } }}
+        text={<>“{delN?.title}” will be permanently removed.</>}
+        onConfirm={() => {
+          if (!delId) return;
+          const id = delId;
+          noticesApi.remove(id)
+            .then(() => { setNotices((current) => current.filter((notice) => notice.id !== id)); setDetailId((current) => (current === id ? null : current)); toast.success("Notice deleted"); })
+            .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Could not delete notice"));
+        }}
       />
     </>
   );
