@@ -111,10 +111,30 @@ function Notifications() {
           persisted: false,
         };
       });
-    return [...backendItems, ...localExpiring];
+    const combined = [...backendItems, ...localExpiring];
+    return combined.sort((a, b) => {
+      if (a.read === b.read) return 0;
+      return a.read ? 1 : -1;
+    });
   }, [backendItems, notices, localReadIds]);
 
   const unreadCount = items.filter((i) => !i.read).length;
+
+  const handleMarkAllAsRead = async () => {
+    if (unreadCount === 0) return;
+    setBackendItems((prev) => prev.map((entry) => ({ ...entry, read: true })));
+    setLocalReadIds((prev) => {
+      const next = new Set(prev);
+      items.forEach((item) => next.add(item.id));
+      return next;
+    });
+    try {
+      await notificationsApi.markAllAsRead();
+      toast.success("All notifications marked as read");
+    } catch {
+      toast.error("Failed to mark all as read");
+    }
+  };
 
   const handleNotificationClick = async (item: NotificationItem, close: () => void) => {
     close();
@@ -164,9 +184,22 @@ function Notifications() {
       {(close) => (
         <div>
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <p className="font-heading text-sm font-bold">Notifications</p>
             <div className="flex items-center gap-2">
-              <Badge tone="primary">{unreadCount} new</Badge>
+              <p className="font-heading text-sm font-bold">Notifications</p>
+              <Badge tone={unreadCount > 0 ? "primary" : "neutral"}>
+                {unreadCount > 0 ? `${unreadCount} new` : "All read"}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleMarkAllAsRead}
+                  className="text-xs font-semibold text-brand transition hover:underline"
+                >
+                  Mark all as read
+                </button>
+              )}
               <button
                 type="button"
                 onClick={close}
@@ -177,19 +210,28 @@ function Notifications() {
               </button>
             </div>
           </div>
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto divide-y divide-line/40">
             {items.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-muted">No notifications</p>
             ) : (
               items.map((i) => {
                 const m = metaFor(i.type);
                 return (
-                  <Link key={i.id} to={i.link} onClick={() => void handleNotificationClick(i, close)} className="flex items-start gap-3 px-4 py-3 hover:bg-surface-2">
+                  <Link
+                    key={i.id}
+                    to={i.link}
+                    onClick={() => void handleNotificationClick(i, close)}
+                    className={`flex items-start gap-3 px-4 py-3 transition hover:bg-surface-2 ${
+                      i.read ? "opacity-70 bg-transparent" : "bg-primary/[0.04]"
+                    }`}
+                  >
                     <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${m.tone}`}>
                       <m.icon className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="line-clamp-2 block text-sm font-semibold leading-snug">{i.title}</span>
+                      <span className={`line-clamp-2 block text-sm leading-snug ${i.read ? "font-normal text-muted" : "font-semibold text-ink"}`}>
+                        {i.title}
+                      </span>
                       <span className="mt-0.5 block text-[11px] text-muted">{i.subtitle}</span>
                     </span>
                     {!i.read && (
