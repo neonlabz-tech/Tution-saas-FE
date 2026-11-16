@@ -292,3 +292,31 @@ export const teachersApi = {
     });
   },
 };
+
+export type NoticePayload = Omit<Notice, "id">;
+
+export const noticesApi = {
+  list() {
+    return request<Notice[]>("/notices");
+  },
+
+  create(payload: NoticePayload) {
+    return request<Notice>("/notices", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  update(id: string, payload: NoticePayload) {
+    return request<Notice>(`/notices/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  remove(id: string) {
+    return request<{ deleted: boolean; id: string }>(`/notices/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
+};
