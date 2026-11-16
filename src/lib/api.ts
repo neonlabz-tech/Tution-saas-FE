@@ -1,6 +1,6 @@
 import type { Notice, OnlineClass, Teacher } from "@/types";
 
-const envApiUrl = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_URL;
+const envApiUrl = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.NEXT_PUBLIC_SERVER_URL;
 const API_BASE = envApiUrl?.replace(/\/+$/, "") || "http://localhost:4000";
 
 const TOKEN_STORAGE_KEY = "eduflow-token";
