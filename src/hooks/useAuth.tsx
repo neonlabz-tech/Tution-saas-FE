@@ -35,6 +35,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (user) {
+      setLoading(false);
+      return;
+    }
+
     let active = true;
     setLoading(true);
     authApi
