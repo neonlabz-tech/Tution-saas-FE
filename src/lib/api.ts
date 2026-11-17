@@ -195,7 +195,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     let message = `Request failed (${res.status})`;
     try {
-      const body = (await res.json()) as { message?: string | string[] };
+      const body = (await res.json()) as { message?: string | string[]; data?: { message?: string } };
       if (Array.isArray(body.message)) message = body.message.join(", ");
       else if (typeof body.message === "string") message = body.message;
     } catch {
@@ -204,7 +204,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(message);
   }
 
-  return (await res.json()) as T;
+  const json = (await res.json()) as { success?: boolean; data?: T } | T;
+  return (json as { success?: boolean; data?: T }).data ?? (json as T);
 }
 
 export const authApi = {
