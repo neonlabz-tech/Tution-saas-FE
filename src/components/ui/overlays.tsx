@@ -110,38 +110,66 @@ export function ConfirmDialog({
   title,
   text,
   confirmLabel = "Delete",
+  confirmLoadingLabel = "Working…",
+  confirmVariant = "danger",
+  loading = false,
 }: {
   open: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   title: string;
   text: ReactNode;
   confirmLabel?: string;
+  confirmLoadingLabel?: string;
+  confirmVariant?: "primary" | "danger";
+  loading?: boolean;
 }) {
+  const [pending, setPending] = useState(false);
+  const busy = Boolean(loading || pending);
+
+  const handleClose = () => {
+    if (!busy) onClose();
+  };
+
+  const handleConfirm = async () => {
+    if (busy) return;
+    try {
+      const result = onConfirm();
+      if (result && typeof (result as Promise<void>).then === "function") {
+        setPending(true);
+        await result;
+      }
+      onClose();
+    } catch {
+      /* Caller handles error feedback; keep dialog open so user can retry or cancel */
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       size="sm"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={handleClose} disabled={busy}>
             Cancel
           </Button>
-          <Button
-            variant="danger"
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
-          >
-            {confirmLabel}
+          <Button variant={confirmVariant} onClick={() => void handleConfirm()} disabled={busy}>
+            {busy ? confirmLoadingLabel : confirmLabel}
           </Button>
         </>
       }
     >
       <div className="flex gap-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500">
+        <div
+          className={cn(
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
+            confirmVariant === "danger" ? "bg-rose-500/10 text-rose-500" : "bg-amber-500/10 text-amber-500",
+          )}
+        >
           <AlertTriangle className="h-5 w-5" />
         </div>
         <div>
