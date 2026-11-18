@@ -1,6 +1,6 @@
 // Shared domain types. These mirror the document shapes a future MongoDB API would return.
 
-export type StudentStatus = "active" | "inactive" | "graduated";
+export type StudentStatus = "pending" | "active" | "inactive" | "graduated";
 export interface Student {
   id: string; // e.g. STU-2025-001
   ref: string; // opaque QR reference (contains no personal data)
@@ -15,6 +15,187 @@ export interface Student {
   moduleIds: string[];
   enrollmentDate: string;
   status: StudentStatus;
+}
+
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface ApiErrorDetail {
+  field: string;
+  message: string;
+}
+
+export type SortOrder = "asc" | "desc";
+
+export type StudentSortBy =
+  | "fullName"
+  | "id"
+  | "batch"
+  | "enrollmentDate"
+  | "status"
+  | "createdAt"
+  | "feeTotal"
+  | "paidTotal"
+  | "outstanding";
+
+export interface StudentQueryParams {
+  q?: string;
+  batch?: string;
+  moduleId?: string;
+  status?: StudentStatus | "all";
+  page?: number;
+  limit?: number;
+  sortBy?: StudentSortBy;
+  sortOrder?: SortOrder;
+}
+
+export interface StudentModuleRef {
+  id: string;
+  code: string;
+  name: string;
+  fee: number;
+  duration?: string;
+  status?: ModuleStatus;
+}
+
+export interface StudentListItem extends Student {
+  qrPayload?: string;
+  qrRotatedAt?: string | null;
+  modules?: StudentModuleRef[];
+  feeTotal?: number;
+  paidTotal?: number;
+  outstanding?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface StudentListSummary {
+  total: number;
+  activeCount: number;
+  filteredTotal: number;
+}
+
+export interface StudentListResponse {
+  items: StudentListItem[];
+  pagination: PaginationMeta;
+  summary: StudentListSummary;
+}
+
+export interface StudentAttendanceSummary {
+  rate: number;
+  present: number;
+  late: number;
+  absent: number;
+  excused?: number;
+  total?: number;
+}
+
+export interface StudentAttendanceRecord {
+  id: string;
+  studentId: string;
+  moduleId: string;
+  moduleName?: string;
+  moduleCode?: string;
+  date: string;
+  status: AttendanceStatus;
+  method: "manual" | "qr";
+}
+
+export interface StudentPaymentRecord {
+  id: string;
+  type?: TxType;
+  category: string;
+  amount: number;
+  date: string;
+  description: string;
+  studentId?: string;
+  method?: string;
+}
+
+export interface StudentDetail extends Student {
+  qrPayload?: string;
+  qrRotatedAt?: string | null;
+  modules: StudentModuleRef[];
+  feeTotal: number;
+  paidTotal: number;
+  outstanding: number;
+  attendanceSummary: StudentAttendanceSummary;
+  attendanceRecords: StudentAttendanceRecord[];
+  payments: StudentPaymentRecord[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateStudentDto {
+  fullName: string;
+  email: string;
+  phone: string;
+  dob: string;
+  address: string;
+  guardianName: string;
+  guardianPhone: string;
+  batch: string;
+  moduleIds: string[];
+  enrollmentDate?: string;
+  status?: StudentStatus;
+}
+
+export type UpdateStudentDto = Partial<CreateStudentDto>;
+
+export interface RotateQrResponse {
+  id: string;
+  ref: string;
+  qrPayload: string;
+  qrRotatedAt: string;
+}
+
+export interface DeleteStudentResponse {
+  deleted: boolean;
+  id: string;
+  deletedAttendanceCount?: number;
+  preservedTransactionsCount?: number;
+}
+
+export type StudentPaymentStatus = "paid" | "partial" | "unpaid";
+
+export interface StudentPaymentSummary {
+  id: string;
+  fullName: string;
+  batch: string;
+  status: StudentStatus;
+  feeTotal: number;
+  paidTotal: number;
+  outstanding: number;
+  paymentStatus?: StudentPaymentStatus;
+  lastPaymentDate?: string | null;
+  lastPaymentAmount?: number | null;
+}
+
+export interface StudentPaymentsListResponse {
+  items: StudentPaymentSummary[];
+  pagination: PaginationMeta;
+  summary: {
+    debtorCount: number;
+    totalOutstanding: number;
+  };
+}
+
+export interface RecordStudentPaymentDto {
+  studentId: string;
+  amount: number;
+  method: string;
+  category?: string;
+  date?: string;
+  description?: string;
+}
+
+export interface RecordStudentPaymentResponse {
+  transaction: Transaction;
+  studentSummary: StudentPaymentSummary;
 }
 
 export type TeacherStatus = "active" | "on-leave" | "inactive";

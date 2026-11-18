@@ -1,7 +1,9 @@
-import type { Notice, OnlineClass, Teacher } from "@/types";
+import type { FieldValues, Path, UseFormSetError } from "react-hook-form";
+import type { ApiErrorDetail, Notice, OnlineClass, Teacher } from "@/types";
 
-const envApiUrl = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_URL;
-const API_BASE = envApiUrl?.replace(/\/+$/, "") || "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "")
+  : `${(import.meta.env.VITE_SERVER_URL ?? "http://localhost:4000").replace(/\/+$/, "")}/api`;
 
 const TOKEN_STORAGE_KEY = "eduflow-token";
 
@@ -179,7 +181,44 @@ export interface DeleteTeacherResponse {
 
 export type TeacherPayload = Omit<Teacher, "id"> & { moduleIds: string[] };
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export class ApiError extends Error {
+  status: number;
+  details?: ApiErrorDetail[];
+
+  constructor(status: number, message: string, details?: ApiErrorDetail[]) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.details = details;
+  }
+}
+
+export function applyApiValidationErrors<TFieldValues extends FieldValues>(
+  err: unknown,
+  setError: UseFormSetError<TFieldValues>,
+): boolean {
+  if (!(err instanceof ApiError) || !err.details?.length) return false;
+  let mapped = false;
+  for (const detail of err.details) {
+    if (detail.field && detail.message) {
+      setError(detail.field as Path<TFieldValues>, { type: "server", message: detail.message });
+      mapped = true;
+    }
+  }
+  return mapped;
+}
+
+interface ApiEnvelope<T> {
+  success?: boolean;
+  message?: string | string[];
+  data?: T;
+  details?: ApiErrorDetail[];
+}
+
+export async function requestWithMeta<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<{ data: T; message?: string }> {
   const token = getAuthToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -190,22 +229,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
 
-  if (!res.ok) {
+  let body: ApiEnvelope<T> | T | null = null;
+  try {
+    body = (await res.json()) as ApiEnvelope<T> | T;
+  } catch {
+    body = null;
+  }
+
+  const envelope = body && typeof body === "object" ? (body as ApiEnvelope<T>) : null;
+  const failedEnvelope = envelope !== null && envelope.success === false;
+
+  if (!res.ok || failedEnvelope) {
     if (res.status === 401 && !path.startsWith("/auth/login") && typeof window !== "undefined") {
       window.dispatchEvent(new Event("eduflow:unauthorized"));
     }
     let message = `Request failed (${res.status})`;
-    try {
-      const body = (await res.json()) as { message?: string | string[] };
-      if (Array.isArray(body.message)) message = body.message.join(", ");
-      else if (typeof body.message === "string") message = body.message;
-    } catch {
-      /* ignore non-JSON error bodies */
+    if (envelope) {
+      if (Array.isArray(envelope.message)) message = envelope.message.join(", ");
+      else if (typeof envelope.message === "string" && envelope.message) message = envelope.message;
     }
-    throw new Error(message);
+    const details = Array.isArray(envelope?.details) ? envelope.details : undefined;
+    throw new ApiError(res.status, message, details);
   }
 
-  return (await res.json()) as T;
+  const message = typeof envelope?.message === "string" ? envelope.message : undefined;
+  const data = envelope && "data" in envelope && envelope.data !== undefined ? envelope.data : (body as T);
+  return { data, message };
+}
+
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const { data } = await requestWithMeta<T>(path, init);
+  return data;
 }
 
 export const authApi = {
