@@ -17,7 +17,7 @@ export interface Student {
   status: StudentStatus;
 }
 
-export type TeacherStatus = "active" | "on-leave" | "inactive";
+export type TeacherStatus = "active" | "inactive";
 export interface Teacher {
   id: string;
   fullName: string;
@@ -41,6 +41,11 @@ export interface Module {
   teacherId: string | null;
   batches: string[];
   status: ModuleStatus;
+  teacher?: { id: string; fullName: string } | null;
+  enrolledCount?: number;
+  revenuePotential?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type AttendanceStatus = "present" | "absent" | "late" | "excused";

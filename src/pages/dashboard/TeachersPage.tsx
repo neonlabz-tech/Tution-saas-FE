@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BookOpen, CalendarClock, Clock, Mail, Pencil, Phone, Plus, Trash2, Users, Video } from "lucide-react";
+import { BookOpen, Clock, Eye, LayoutGrid, List, Mail, Pencil, Phone, Plus, Trash2, Users, UserX, Video } from "lucide-react";
 import type { Teacher } from "@/types";
-import { Avatar, Badge, Button, Card, EmptyState, InfoRow, PageHeader, SearchInput, Select, StatusBadge } from "@/components/ui/primitives";
+import { Avatar, Badge, Button, Card, EmptyState, InfoRow, PageHeader, SearchInput, Select, StatusBadge, Tabs } from "@/components/ui/primitives";
+import { DataTable, type Columns } from "@/components/ui/data-table";
 import { ConfirmDialog, Drawer } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
@@ -19,6 +20,7 @@ export default function TeachersPage() {
   const { teachers, teacherMetrics, teacherModules, modules, students, classes, deleteTeacher } = useAppData();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
+  const [view, setView] = useState<"grid" | "list">("grid");
   const [q, setQ] = useState(params.get("q") ?? "");
   const [moduleId, setModuleId] = useState("all");
   const [batch, setBatch] = useState("all");
@@ -27,6 +29,7 @@ export default function TeachersPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [profile, setProfile] = useState<TeacherProfileResponse | null>(null);
   const [delId, setDelId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (params.get("new") === "1") {
@@ -92,8 +95,8 @@ export default function TeachersPage() {
     );
   }, [teachers, modules, q, moduleId, batch, status]);
 
-  const totalHours = teacherMetrics.weeklyTeachingHours;
   const active = teacherMetrics.activeTeachers;
+  const inactive = teacherMetrics.inactiveTeachers ?? teachers.filter((t) => t.status === "inactive").length;
   const teachersWithoutModules = teacherMetrics.teachersWithoutModules;
   const detail = profile ?? (detailId ? teachers.find((t) => t.id === detailId) : undefined);
   const dw = detail ? workload(detail) : null;
@@ -105,16 +108,152 @@ export default function TeachersPage() {
   }, [profile, classes, detail]);
   const delT = delId ? teachers.find((t) => t.id === delId) : undefined;
 
+  const columns = useMemo<Columns<TeacherListItem>>(
+    () => [
+      {
+        id: "teacher",
+        header: "Teacher",
+        accessorFn: (t) => t.fullName,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-3">
+            <Avatar name={row.original.fullName} size="sm" />
+            <div className="min-w-0">
+              <p className="font-semibold">{row.original.fullName}</p>
+              <p className="num text-[11px] text-muted">
+                {row.original.id} {row.original.specialization ? `· ${row.original.specialization}` : ""}
+              </p>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "contact",
+        header: "Contact",
+        accessorFn: (t) => t.email,
+        cell: ({ row }) => (
+          <div>
+            <p className="text-xs">{row.original.email}</p>
+            <p className="num text-[11px] text-muted">{row.original.phone}</p>
+          </div>
+        ),
+      },
+      {
+        id: "modules",
+        header: "Assigned modules",
+        cell: ({ row }) => {
+          const w = workload(row.original);
+          return (
+            <div className="flex flex-wrap gap-1 max-w-xs">
+              {w.mods.length ? (
+                w.mods.map((m) => (
+                  <Badge key={m.id} tone="primary">
+                    {m.name}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-xs text-muted">No modules</span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "workload",
+        header: "Workload",
+        cell: ({ row }) => {
+          const w = workload(row.original);
+          return (
+            <span className="num text-xs">
+              <b>{w.mods.length}</b> mods · <b>{w.hours}</b>h/wk
+            </span>
+          );
+        },
+      },
+      {
+        id: "batches",
+        header: "Batches",
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-1 max-w-[180px]">
+            {row.original.batches?.length ? (
+              row.original.batches.map((b) => (
+                <Badge key={b} tone="neutral">
+                  {b}
+                </Badge>
+              ))
+            ) : (
+              <span className="text-xs text-muted">—</span>
+            )}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: (c) => <StatusBadge status={c.getValue() as string} />,
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div
+            className="flex justify-end gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="View details"
+              title="View details"
+              onClick={() => setDetailId(row.original.id)}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Edit"
+              title="Edit teacher"
+              onClick={() => setForm({ open: true, item: row.original })}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [teachers, modules, students],
+  );
+
   return (
     <>
-      <PageHeader title="Teachers" description="Manage faculty, module assignments and teaching workload." actions={<Button onClick={() => setForm({ open: true, item: null })}><Plus className="h-4 w-4" /> Add teacher</Button>} />
+      <PageHeader
+        title="Teachers"
+        description="Manage faculty, module assignments and teaching workload."
+        actions={
+          <>
+            <Tabs
+              value={view}
+              onChange={setView}
+              items={[
+                { id: "grid", label: "Grid", icon: <LayoutGrid className="h-4 w-4" /> },
+                { id: "list", label: "List", icon: <List className="h-4 w-4" /> },
+              ]}
+            />
+            <Button onClick={() => setForm({ open: true, item: null })}>
+              <Plus className="h-4 w-4" /> Add teacher
+            </Button>
+          </>
+        }
+      />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
           { l: "Total teachers", v: teacherMetrics.totalTeachers, i: Users, c: "from-indigo-500 to-violet-500" },
           { l: "Active now", v: active, i: Clock, c: "from-teal-500 to-emerald-500" },
-          { l: "Weekly teaching hours", v: totalHours, i: CalendarClock, c: "from-amber-500 to-orange-500" },
-          { l: "Teachers without modules", v: teachersWithoutModules, i: BookOpen, c: "from-rose-500 to-pink-500" },
+          { l: "Inactive teachers", v: inactive, i: UserX, c: "from-rose-500 to-red-600" },
+          { l: "Teachers without modules", v: teachersWithoutModules, i: BookOpen, c: "from-amber-500 to-orange-500" },
         ].map((k) => (
           <Card key={k.l} className="flex items-center gap-4 p-4">
             <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white ${k.c}`}><k.i className="h-5 w-5" /></div>
@@ -136,12 +275,21 @@ export default function TeachersPage() {
         <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
           <option value="all">All statuses</option>
           <option value="active">Active</option>
-          <option value="on-leave">On leave</option>
           <option value="inactive">Inactive</option>
         </Select>
       </Card>
 
-      {data.length === 0 ? (
+      {view === "list" ? (
+        <Card>
+          <DataTable
+            data={data}
+            columns={columns}
+            pageSize={8}
+            onRowClick={(t) => setDetailId(t.id)}
+            emptyTitle="No teachers found"
+          />
+        </Card>
+      ) : data.length === 0 ? (
         <Card><EmptyState icon={<Users className="h-6 w-6" />} title="No teachers found" text="Try changing your filters or add a new teacher." /></Card>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -172,8 +320,12 @@ export default function TeachersPage() {
                     <div className="mt-3 flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
                       <span className="text-[11px] text-muted">Joined {fmtDate(t.joiningDate)}</span>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" aria-label="Edit" onClick={() => setForm({ open: true, item: t })}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" aria-label="Delete" className="hover:text-rose-500" onClick={() => setDelId(t.id)}><Trash2 className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" aria-label="View details" title="View details" onClick={() => setDetailId(t.id)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" aria-label="Edit" title="Edit teacher" onClick={() => setForm({ open: true, item: t })}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -250,19 +402,26 @@ export default function TeachersPage() {
 
       <ConfirmDialog
         open={!!delT}
-        onClose={() => setDelId(null)}
+        onClose={() => {
+          if (!deleting) setDelId(null);
+        }}
         title="Delete teacher?"
         text={<>Removing <b>{delT?.fullName}</b> unassigns their modules and deletes their scheduled online classes.</>}
         onConfirm={() => {
-          if (!delId) return;
+          if (!delId || deleting) return;
           const targetId = delId;
+          setDeleting(true);
           void deleteTeacher(targetId)
             .then(() => {
               if (detailId === targetId) setDetailId(null);
-              toast.success("Teacher deleted");
+              setDelId(null);
+              toast.success("Teacher deleted successfully");
             })
             .catch((err) => {
               toast.error(err instanceof Error ? err.message : "Failed to delete teacher");
+            })
+            .finally(() => {
+              setDeleting(false);
             });
         }}
       />

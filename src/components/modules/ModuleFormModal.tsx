@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,7 +21,15 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
-function Inner({ item, onClose }: { item: Module | null; onClose: () => void }) {
+function Inner({
+  item,
+  onClose,
+  onSubmittingChange,
+}: {
+  item: Module | null;
+  onClose: () => void;
+  onSubmittingChange: (submitting: boolean) => void;
+}) {
   const { teachers, saveModule } = useAppData();
   const toast = useToast();
   const {
@@ -34,10 +43,17 @@ function Inner({ item, onClose }: { item: Module | null; onClose: () => void }) 
       ? { ...item, teacherId: item.teacherId ?? "" }
       : { code: "", name: "", description: "", fee: 50000, duration: "6 months", teacherId: "", batches: [], status: "active" },
   });
-  const onSubmit = (v: Values) => {
-    const m = saveModule({ ...v, teacherId: v.teacherId || null }, item?.id);
-    toast.success(item ? `${m.name} updated` : `${m.name} created`);
-    onClose();
+  const onSubmit = async (v: Values) => {
+    onSubmittingChange(true);
+    try {
+      const m = await saveModule({ ...v, teacherId: v.teacherId || null }, item?.id);
+      toast.success(item ? `${m.name} updated` : `${m.name} created`);
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save module");
+    } finally {
+      onSubmittingChange(false);
+    }
   };
   return (
     <form id="module-form" onSubmit={handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2">
@@ -67,6 +83,7 @@ function Inner({ item, onClose }: { item: Module | null; onClose: () => void }) 
 }
 
 export function ModuleFormModal({ open, item, onClose }: { open: boolean; item: Module | null; onClose: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
   return (
     <Modal
       open={open}
@@ -76,12 +93,14 @@ export function ModuleFormModal({ open, item, onClose }: { open: boolean; item: 
       description={item?.code}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="module-form">{item ? "Save changes" : "Create module"}</Button>
+          <Button variant="secondary" onClick={onClose} disabled={submitting}>Cancel</Button>
+          <Button type="submit" form="module-form" disabled={submitting}>
+            {submitting ? "Saving..." : item ? "Save changes" : "Create module"}
+          </Button>
         </>
       }
     >
-      <Inner item={item} onClose={onClose} />
+      <Inner item={item} onClose={onClose} onSubmittingChange={setSubmitting} />
     </Modal>
   );
 }

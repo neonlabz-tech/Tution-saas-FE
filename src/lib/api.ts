@@ -1,4 +1,4 @@
-import type { Notice, OnlineClass, Teacher } from "@/types";
+import type { Module, ModuleStatus, Notice, OnlineClass, Teacher } from "@/types";
 
 const envApiUrl = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_URL;
 const API_BASE = envApiUrl?.replace(/\/+$/, "") || "http://localhost:4000";
@@ -127,6 +127,7 @@ export interface TeacherListItem extends Teacher {
 export interface TeachersMetrics {
   totalTeachers: number;
   activeTeachers: number;
+  inactiveTeachers?: number;
   weeklyTeachingHours: number;
   teachersWithoutModules: number;
 }
@@ -446,6 +447,87 @@ export const teachersApi = {
   remove(id: string) {
     return request<DeleteTeacherResponse>(`/teachers/${encodeURIComponent(id)}`, {
       method: "DELETE",
+    });
+  },
+};
+
+export interface EnrolledStudentSummary {
+  id: string;
+  fullName: string;
+  batch: string;
+  status: string;
+  email?: string;
+}
+
+export interface ModuleDetailResponse extends Module {
+  revenuePotential: number;
+  enrolledStudents: EnrolledStudentSummary[];
+}
+
+export interface ModulePayload {
+  code: string;
+  name: string;
+  description: string;
+  fee: number;
+  duration: string;
+  teacherId?: string | null;
+  batches: string[];
+  status?: ModuleStatus;
+}
+
+export interface DeleteModuleResponse {
+  deleted: boolean;
+  id: string;
+  affectedStudentsCount: number;
+  deletedClassesCount: number;
+  deletedAttendanceCount: number;
+}
+
+export interface SyncEnrollmentsResponse {
+  moduleId: string;
+  enrolledCount: number;
+  enrolledStudents: EnrolledStudentSummary[];
+}
+
+export const modulesApi = {
+  list(params?: { q?: string; status?: string; teacherId?: string; batch?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set("q", params.q);
+    if (params?.status && params.status !== "all") qs.set("status", params.status);
+    if (params?.teacherId && params.teacherId !== "all") qs.set("teacherId", params.teacherId);
+    if (params?.batch && params.batch !== "all") qs.set("batch", params.batch);
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<Module[]>(`/modules${suffix}`);
+  },
+
+  get(id: string) {
+    return request<ModuleDetailResponse>(`/modules/${encodeURIComponent(id)}`);
+  },
+
+  create(payload: ModulePayload) {
+    return request<Module>("/modules", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  update(id: string, payload: Partial<ModulePayload>) {
+    return request<Module>(`/modules/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  remove(id: string) {
+    return request<DeleteModuleResponse>(`/modules/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
+
+  syncEnrollments(id: string, studentIds: string[]) {
+    return request<SyncEnrollmentsResponse>(`/modules/${encodeURIComponent(id)}/enrollments`, {
+      method: "PUT",
+      body: JSON.stringify({ studentIds }),
     });
   },
 };

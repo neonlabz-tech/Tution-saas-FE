@@ -69,8 +69,8 @@ export function Badge({ tone = "neutral", className, children }: { tone?: Tone; 
 }
 const STATUS_TONE: Record<string, Tone> = {
   active: "green", present: "green", completed: "green", published: "green", paid: "green", income: "green",
-  inactive: "neutral", archived: "neutral", expired: "neutral", draft: "neutral", low: "teal",
-  late: "amber", upcoming: "amber", "on-leave": "amber", scheduled: "primary", medium: "amber", partial: "amber",
+  inactive: "rose", archived: "neutral", expired: "neutral", draft: "neutral", low: "teal",
+  late: "amber", upcoming: "amber", scheduled: "primary", medium: "amber", partial: "amber",
   absent: "rose", cancelled: "rose", suspended: "rose", high: "rose", unpaid: "rose", expense: "rose",
   excused: "primary", graduated: "primary",
 };
