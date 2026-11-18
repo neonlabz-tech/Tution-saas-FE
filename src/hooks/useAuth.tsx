@@ -1,12 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { authApi, type AuthUser, type LoginConfigResponse } from "@/lib/api";
+import { authApi, type AuthUser, type LoginConfigResponse, type UserRole } from "@/lib/api";
 
 interface AuthCtx {
   user: AuthUser | null;
   config: LoginConfigResponse | null;
   loading: boolean;
+  isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (fullName: string, email: string, password: string) => Promise<void>;
+  register: (fullName: string, email: string, password: string, role?: UserRole) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -59,8 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.user);
   }, []);
 
-  const register = useCallback(async (fullName: string, email: string, password: string) => {
-    const res = await authApi.register({ fullName, email, password });
+  const register = useCallback(async (fullName: string, email: string, password: string, role?: UserRole) => {
+    const res = await authApi.register({ fullName, email, password, role });
     setUser(res.user);
   }, []);
 
@@ -80,7 +81,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthCtx>(
-    () => ({ user, config, loading, login, register, logout, refreshUser }),
+    () => ({
+      user,
+      config,
+      loading,
+      isAuthenticated: Boolean(user),
+      login,
+      register,
+      logout,
+      refreshUser,
+    }),
     [user, config, loading, login, register, logout, refreshUser],
   );
 

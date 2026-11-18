@@ -153,18 +153,40 @@ export interface DeleteTeacherResponse {
 
 export type TeacherPayload = Omit<Teacher, "id"> & { moduleIds: string[] };
 
+const TOKEN_KEY = "eduflow_access_token";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAuthToken(token: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearAuthToken(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(TOKEN_KEY);
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
+    headers,
   });
 
   if (!res.ok) {
     if (res.status === 401 && !path.startsWith("/auth/login") && typeof window !== "undefined") {
+      clearAuthToken();
       window.dispatchEvent(new Event("eduflow:unauthorized"));
     }
     let message = `Request failed (${res.status})`;
@@ -196,26 +218,38 @@ export const authApi = {
     return request<LoginConfigResponse>("/auth/config");
   },
 
-  login(payload: { email: string; password: string }) {
-    return request<AuthTokenResponse>("/auth/login", {
+  async login(payload: { email: string; password: string }) {
+    const res = await request<AuthTokenResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+    if (res?.accessToken) {
+      setAuthToken(res.accessToken);
+    }
+    return res;
   },
 
-  register(payload: { fullName: string; email: string; password: string }) {
-    return request<AuthTokenResponse>("/auth/register", {
+  async register(payload: { fullName: string; email: string; password: string; role?: UserRole }) {
+    const res = await request<AuthTokenResponse>("/auth/register", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+    if (res?.accessToken) {
+      setAuthToken(res.accessToken);
+    }
+    return res;
   },
 
   me() {
     return request<AuthUser>("/auth/me");
   },
 
-  logout() {
-    return request<{ loggedOut: boolean }>("/auth/logout", { method: "POST" });
+  async logout() {
+    try {
+      return await request<{ loggedOut: boolean }>("/auth/logout", { method: "POST" });
+    } finally {
+      clearAuthToken();
+    }
   },
 
   changePassword(payload: { currentPassword: string; newPassword: string }) {

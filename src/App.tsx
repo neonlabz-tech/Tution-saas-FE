@@ -66,8 +66,11 @@ function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-canvas text-sm text-muted">
-        Verifying session...
+      <div className="flex min-h-screen items-center justify-center bg-canvas">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-xs text-muted">Verifying session...</p>
+        </div>
       </div>
     );
   }

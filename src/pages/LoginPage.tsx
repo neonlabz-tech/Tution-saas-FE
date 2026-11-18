@@ -1,6 +1,16 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Lock, LogIn, Mail } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Lock,
+  LogIn,
+  Mail,
+  Shield,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button, Card, Field, Input } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
@@ -13,6 +23,8 @@ interface FormErrors {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const REMEMBER_EMAIL_KEY = "eduflow_remember_email";
+const REMEMBER_ME_KEY = "eduflow_remember_me";
 
 function validateEmail(value: string): string | undefined {
   const trimmed = value.trim();
@@ -21,8 +33,9 @@ function validateEmail(value: string): string | undefined {
   return undefined;
 }
 
-function validatePassword(value: string): string | undefined {
+function validatePassword(value: string, minLength = 8): string | undefined {
   if (!value) return "Password is required";
+  if (value.length < minLength) return `Password must be at least ${minLength} characters`;
   return undefined;
 }
 
@@ -31,53 +44,67 @@ export default function LoginPage() {
   const toast = useToast();
   const navigate = useNavigate();
 
+  const minPasswordLen = config?.passwordMinLength ?? 8;
+
+  // View state: strictly login or forgot password
+  const [view, setView] = useState<"login" | "forgot">("login");
+
+  // Sign In state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<FormErrors>({});
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loginErrors, setLoginErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const [view, setView] = useState<"login" | "forgot">("login");
+  // Forgot password state
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotError, setForgotError] = useState<string | undefined>();
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [devResetUrl, setDevResetUrl] = useState<string | undefined>();
 
+  // Restore remembered email on initial load
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY);
+      const savedRemember = localStorage.getItem(REMEMBER_ME_KEY) === "true";
+      if (savedRemember && savedEmail) {
+        setEmail(savedEmail);
+        setRememberMe(true);
+      }
+    }
+  }, []);
+
   if (!loading && user) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const handleEmailChange = (value: string) => {
-    setEmail(value);
-    if (errors.email) {
-      setErrors((prev) => ({ ...prev, email: validateEmail(value) }));
-    }
-  };
-
-  const handlePasswordChange = (value: string) => {
-    setPassword(value);
-    if (errors.password) {
-      setErrors((prev) => ({ ...prev, password: validatePassword(value) }));
-    }
-  };
-
-  const onSubmit = async (e: FormEvent) => {
+  // Handle Login submission
+  const onLoginSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const nextErrors: FormErrors = {
       email: validateEmail(email),
-      password: validatePassword(password),
+      password: validatePassword(password, minPasswordLen),
     };
 
     if (nextErrors.email || nextErrors.password) {
-      setErrors(nextErrors);
+      setLoginErrors(nextErrors);
       return;
     }
 
-    setErrors({});
+    setLoginErrors({});
     setSubmitting(true);
     try {
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_EMAIL_KEY, email.trim());
+        localStorage.setItem(REMEMBER_ME_KEY, "true");
+      } else {
+        localStorage.removeItem(REMEMBER_EMAIL_KEY);
+        localStorage.removeItem(REMEMBER_ME_KEY);
+      }
+
       await login(email.trim(), password);
       toast.success("Signed in successfully");
       navigate("/dashboard", { replace: true });
@@ -88,6 +115,7 @@ export default function LoginPage() {
     }
   };
 
+  // Handle Forgot Password submission
   const onForgotSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const err = validateEmail(forgotEmail);
@@ -111,30 +139,44 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
-      <Card className="flex min-h-[480px] w-full max-w-[360px] flex-col justify-center px-7 py-12 shadow-pop sm:px-8 sm:py-14">
-        <div className="mb-8 text-center">
+      <Card className="flex min-h-[480px] w-full max-w-[370px] flex-col justify-center px-7 py-10 shadow-pop sm:px-8 sm:py-12">
+        {/* Brand Header */}
+        <div className="mb-7 text-center">
           <div className="mb-4 flex items-center justify-center gap-3 text-left">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-violet-500 to-secondary shadow-lg shadow-primary/30">
-              <svg viewBox="0 0 24 24" className="h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-violet-500 to-secondary shadow-lg shadow-primary/30">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-6 w-6 text-white"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+              >
                 <path d="M4 8c3-3 5-3 8 0s5 3 8 0" />
                 <path d="M4 15c3-3 5-3 8 0s5 3 8 0" opacity="0.65" />
               </svg>
             </div>
             <div>
-              <p className="font-heading text-lg font-extrabold leading-tight">EduFlow</p>
-              <p className="text-xs text-muted">{config?.instituteName ?? "Bright Future Institute"}</p>
+              <p className="font-heading text-xl font-extrabold leading-tight">EduFlow</p>
+              <p className="text-xs text-muted">{config?.instituteName ?? "Tuition Management System"}</p>
             </div>
           </div>
-          <h2 className="font-heading text-2xl font-extrabold">
+
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-[11px] font-semibold text-muted mb-2">
+            <Shield className="h-3 w-3 text-brand" /> Admin Portal
+          </div>
+
+          <h2 className="font-heading text-2xl font-extrabold text-ink">
             {view === "login" ? "Welcome back" : "Reset Password"}
           </h2>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-xs text-muted">
             {view === "login"
-              ? "Enter your email and password to access the dashboard."
+              ? "Enter your credentials to access the administrative dashboard."
               : "Enter your admin email to receive a password reset link."}
           </p>
         </div>
 
+        {/* VIEW 1: FORGOT PASSWORD */}
         {view === "forgot" ? (
           forgotSent ? (
             <div className="space-y-5 text-center">
@@ -142,7 +184,7 @@ export default function LoginPage() {
                 <CheckCircle2 className="h-6 w-6" />
               </div>
               <div>
-                <p className="font-heading text-base font-bold">Link sent!</p>
+                <p className="font-heading text-base font-bold">Reset link sent!</p>
                 <p className="mt-1 text-xs text-muted">
                   If <strong className="text-ink">{forgotEmail}</strong> is an active administrator, a password reset link has been dispatched.
                 </p>
@@ -151,10 +193,7 @@ export default function LoginPage() {
               {devResetUrl && (
                 <div className="rounded-xl border border-primary/20 bg-primary/10 p-3 text-left">
                   <p className="text-[11px] font-semibold text-brand">Dev test link:</p>
-                  <a
-                    href={devResetUrl}
-                    className="mt-1 block break-all text-xs text-brand underline"
-                  >
+                  <a href={devResetUrl} className="mt-1 block break-all text-xs text-brand underline">
                     Click to reset password
                   </a>
                 </div>
@@ -173,8 +212,8 @@ export default function LoginPage() {
               </Button>
             </div>
           ) : (
-            <form onSubmit={onForgotSubmit} noValidate className="space-y-5">
-              <Field label="Admin Email" error={forgotError}>
+            <form onSubmit={onForgotSubmit} noValidate className="space-y-4">
+              <Field label="Admin Email address" error={forgotError}>
                 <div className="relative">
                   <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
                   <Input
@@ -184,7 +223,7 @@ export default function LoginPage() {
                       setForgotEmail(e.target.value);
                       if (forgotError) setForgotError(validateEmail(e.target.value));
                     }}
-                    placeholder="Enter your email"
+                    placeholder="admin@example.com"
                     aria-invalid={Boolean(forgotError)}
                     className={cn(
                       "pl-10",
@@ -199,7 +238,7 @@ export default function LoginPage() {
                 {forgotSubmitting ? "Sending link..." : "Send reset link"}
               </Button>
 
-              <div className="text-center pt-1">
+              <div className="text-center pt-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -214,49 +253,40 @@ export default function LoginPage() {
             </form>
           )
         ) : (
-          <form onSubmit={onSubmit} noValidate className="space-y-5">
-            <Field label="Email" error={errors.email}>
+          /* VIEW 2: SIGN IN */
+          <form onSubmit={onLoginSubmit} noValidate className="space-y-4">
+            <Field label="Email" error={loginErrors.email}>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
                 <Input
                   type="email"
                   value={email}
-                  onChange={(e) => handleEmailChange(e.target.value)}
-                  onBlur={() =>
-                    setErrors((prev) => ({
-                      ...prev,
-                      email: validateEmail(email),
-                    }))
-                  }
-                  placeholder="Enter your email"
-                  aria-invalid={Boolean(errors.email)}
-                  className={cn(
-                    "pl-10",
-                    errors.email && "border-rose-500 focus:border-rose-500 focus:ring-rose-500/15",
-                  )}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (loginErrors.email) setLoginErrors((p) => ({ ...p, email: validateEmail(e.target.value) }));
+                  }}
+                  placeholder="admin@gmail.com"
+                  aria-invalid={Boolean(loginErrors.email)}
+                  className={cn("pl-10", loginErrors.email && "border-rose-500 focus:border-rose-500")}
                 />
               </div>
             </Field>
 
-            <Field label="Password" error={errors.password}>
+            <Field label="Password" error={loginErrors.password}>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => handlePasswordChange(e.target.value)}
-                  onBlur={() =>
-                    setErrors((prev) => ({
-                      ...prev,
-                      password: validatePassword(password),
-                    }))
-                  }
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (loginErrors.password) {
+                      setLoginErrors((p) => ({ ...p, password: validatePassword(e.target.value, minPasswordLen) }));
+                    }
+                  }}
                   placeholder="Enter your password"
-                  aria-invalid={Boolean(errors.password)}
-                  className={cn(
-                    "pl-10 pr-10",
-                    errors.password && "border-rose-500 focus:border-rose-500 focus:ring-rose-500/15",
-                  )}
+                  aria-invalid={Boolean(loginErrors.password)}
+                  className={cn("pl-10 pr-10", loginErrors.password && "border-rose-500 focus:border-rose-500")}
                 />
                 <button
                   type="button"
@@ -267,7 +297,18 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              <div className="mt-1 flex justify-end">
+
+              <div className="mt-2 flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-muted hover:text-ink">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-line text-primary focus:ring-primary/20"
+                  />
+                  Remember me
+                </label>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -283,9 +324,9 @@ export default function LoginPage() {
               </div>
             </Field>
 
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button type="submit" className="w-full mt-2" disabled={submitting}>
               <LogIn className="h-4 w-4" />
-              {submitting ? "Please wait..." : "Sign in"}
+              {submitting ? "Signing in..." : "Sign in"}
             </Button>
           </form>
         )}
