@@ -1,55 +1,126 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import type { SortingState } from "@tanstack/react-table";
 import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
-import type { Student } from "@/types";
-import { Badge, Button, Card, PageHeader, SearchInput, Select, StatusBadge, Avatar } from "@/components/ui/primitives";
+import type { Module, StudentDetail as StudentDetailType, StudentListItem, StudentSortBy } from "@/types";
+import { Avatar, Badge, Button, Card, PageHeader, SearchInput, Select, StatusBadge } from "@/components/ui/primitives";
 import { DataTable, type Columns } from "@/components/ui/data-table";
 import { ConfirmDialog } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
-import { useAppData } from "@/hooks/useAppData";
-import { BATCHES } from "@/data/mock";
+import { listModules } from "@/api/modules";
+import { deleteStudent } from "@/api/students";
+import { useStudents } from "@/hooks/useStudents";
+import { BATCHES } from "@/lib/constants";
 import { StudentFormModal } from "@/components/students/StudentFormModal";
 import { StudentDetail } from "@/components/students/StudentDetail";
-import { RecordPaymentModal } from "@/components/finance/RecordPaymentModal";
+import { RecordPaymentModal, type PaymentStudentSummary } from "@/components/finance/RecordPaymentModal";
 import { fmtDate, fmtLKR } from "@/lib/utils";
 
+const PAGE_LIMIT = 8;
+
+const SORTABLE_COLUMNS: ReadonlySet<string> = new Set<StudentSortBy>([
+  "fullName",
+  "id",
+  "batch",
+  "enrollmentDate",
+  "status",
+  "createdAt",
+  "feeTotal",
+  "paidTotal",
+  "outstanding",
+]);
+
 export default function StudentsPage() {
-  const { students, modules, outstanding, deleteStudent, getStudent } = useAppData();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
-  const [q, setQ] = useState(params.get("q") ?? "");
+  const initialQ = params.get("q") ?? "";
+  const lastUrlQRef = useRef<string | null>(params.get("q"));
+
+  const [q, setQ] = useState(initialQ);
+  const [debouncedQ, setDebouncedQ] = useState(initialQ.trim());
   const [batch, setBatch] = useState("all");
   const [moduleId, setModuleId] = useState("all");
   const [status, setStatus] = useState("all");
-  const [form, setForm] = useState<{ open: boolean; item: Student | null }>({ open: false, item: null });
+  const [page, setPage] = useState(1);
+  const [sorting, setSorting] = useState<SortingState>([]);
+
+  const [modules, setModules] = useState<Module[]>([]);
+  const [form, setForm] = useState<{ open: boolean; item: StudentListItem | StudentDetailType | null }>({
+    open: false,
+    item: null,
+  });
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [delId, setDelId] = useState<string | null>(null);
-  const [payId, setPayId] = useState<string | null>(null);
+  const [detailRefreshKey, setDetailRefreshKey] = useState(0);
+  const [delTarget, setDelTarget] = useState<{ id: string; fullName: string } | null>(null);
+  const [payState, setPayState] = useState<{
+    open: boolean;
+    studentId?: string;
+    summary?: PaymentStudentSummary;
+  }>({ open: false });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    listModules({}, controller.signal)
+      .then(setModules)
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (params.get("new") === "1") {
       setForm({ open: true, item: null });
-      setParams({}, { replace: true });
-    } else if (params.get("q")) {
-      setQ(params.get("q")!);
+      const next = new URLSearchParams(params);
+      next.delete("new");
+      setParams(next, { replace: true });
+      return;
+    }
+    const urlQ = params.get("q");
+    if (urlQ !== lastUrlQRef.current) {
+      lastUrlQRef.current = urlQ;
+      const nextQ = urlQ ?? "";
+      setQ(nextQ);
+      setDebouncedQ(nextQ.trim());
+      setPage(1);
     }
   }, [params, setParams]);
 
-  const data = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    return students.filter(
-      (x) =>
-        (!s || x.fullName.toLowerCase().includes(s) || x.id.toLowerCase().includes(s) || x.email.toLowerCase().includes(s)) &&
-        (batch === "all" || x.batch === batch) &&
-        (moduleId === "all" || x.moduleIds.includes(moduleId)) &&
-        (status === "all" || x.status === status),
-    );
-  }, [students, q, batch, moduleId, status]);
+  useEffect(() => {
+    const trimmed = q.trim();
+    if (trimmed === debouncedQ) return;
+    const timer = window.setTimeout(() => {
+      setDebouncedQ(trimmed);
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [q, debouncedQ]);
 
-  const columns = useMemo<Columns<Student>>(
+  const activeSort = sorting[0];
+  const sortBy = activeSort && SORTABLE_COLUMNS.has(activeSort.id) ? (activeSort.id as StudentSortBy) : undefined;
+  const sortOrder = sortBy ? (activeSort.desc ? "desc" : "asc") : undefined;
+
+  const { data, loading, error, refetch } = useStudents({
+    q: debouncedQ || undefined,
+    batch,
+    moduleId,
+    status: status as "all" | "pending" | "active" | "inactive" | "graduated",
+    page,
+    limit: PAGE_LIMIT,
+    sortBy,
+    sortOrder,
+  });
+
+  const moduleMap = useMemo(() => new Map(modules.map((m) => [m.id, m])), [modules]);
+
+  const items = data?.items ?? [];
+  const pagination = data?.pagination ?? { total: 0, page, limit: PAGE_LIMIT, totalPages: 1 };
+  const summary = data?.summary ?? { total: 0, activeCount: 0, filteredTotal: 0 };
+
+  const columns = useMemo<Columns<StudentListItem>>(
     () => [
       {
-        id: "student",
+        id: "fullName",
         header: "Student",
         accessorFn: (s) => s.fullName,
         cell: ({ row }) => (
@@ -62,99 +133,265 @@ export default function StudentsPage() {
           </div>
         ),
       },
-      { accessorKey: "batch", header: "Batch", cell: (c) => <span className="text-sm">{c.getValue() as string}</span> },
+      {
+        accessorKey: "batch",
+        header: "Batch",
+        cell: (c) => <span className="text-sm">{c.getValue() as string}</span>,
+      },
       {
         id: "modules",
         header: "Modules",
-        accessorFn: (s) => s.moduleIds.length,
-        cell: ({ row }) => (
-          <div className="flex max-w-[220px] flex-wrap gap-1">
-            {row.original.moduleIds.slice(0, 2).map((id) => (
-              <Badge key={id} tone="primary">{modules.find((m) => m.id === id)?.code}</Badge>
-            ))}
-            {row.original.moduleIds.length > 2 && <Badge>+{row.original.moduleIds.length - 2}</Badge>}
-          </div>
-        ),
+        enableSorting: false,
+        cell: ({ row }) => {
+          const mods =
+            row.original.modules?.length
+              ? row.original.modules
+              : (row.original.moduleIds ?? [])
+                  .map((id) => moduleMap.get(id))
+                  .filter((m): m is Module => Boolean(m));
+          const count = mods.length || (row.original.moduleIds?.length ?? 0);
+          return (
+            <div className="flex max-w-[220px] flex-wrap gap-1">
+              {mods.slice(0, 2).map((m) => (
+                <Badge key={m.id} tone="primary">
+                  {m.code}
+                </Badge>
+              ))}
+              {count > 2 && <Badge>+{count - 2}</Badge>}
+              {count === 0 && <span className="text-xs text-muted">—</span>}
+            </div>
+          );
+        },
       },
-      { id: "enrolled", header: "Enrolled", accessorFn: (s) => s.enrollmentDate, cell: (c) => <span className="text-xs text-muted">{fmtDate(c.getValue() as string)}</span> },
+      {
+        id: "enrollmentDate",
+        header: "Enrolled",
+        accessorFn: (s) => s.enrollmentDate,
+        cell: (c) => <span className="text-xs text-muted">{fmtDate(c.getValue() as string)}</span>,
+      },
       {
         id: "outstanding",
         header: "Outstanding",
-        accessorFn: (s) => outstanding(s.id),
+        accessorFn: (s) => s.outstanding ?? 0,
         cell: (c) => {
-          const v = c.getValue() as number;
-          return <span className={`num text-sm font-semibold ${v > 0 ? "text-rose-500" : "text-emerald-500"}`}>{v > 0 ? fmtLKR(v) : "Settled"}</span>;
+          const v = (c.getValue() as number) ?? 0;
+          return (
+            <span className={`num text-sm font-semibold ${v > 0 ? "text-rose-500" : "text-emerald-500"}`}>
+              {v > 0 ? fmtLKR(v) : "Settled"}
+            </span>
+          );
         },
       },
-      { accessorKey: "status", header: "Status", cell: (c) => <StatusBadge status={c.getValue() as string} /> },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: (c) => <StatusBadge status={c.getValue() as string} />,
+      },
       {
         id: "actions",
         header: "",
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="icon" aria-label="View" onClick={() => setDetailId(row.original.id)}><Eye className="h-4 w-4" /></Button>
-            <Button variant="ghost" size="icon" aria-label="Edit" onClick={() => setForm({ open: true, item: row.original })}><Pencil className="h-4 w-4" /></Button>
-            <Button variant="ghost" size="icon" aria-label="Delete" className="hover:text-rose-500" onClick={() => setDelId(row.original.id)}><Trash2 className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" aria-label="View" onClick={() => setDetailId(row.original.id)}>
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Edit"
+              onClick={() => setForm({ open: true, item: row.original })}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Delete"
+              className="hover:text-rose-500"
+              onClick={() => setDelTarget({ id: row.original.id, fullName: row.original.fullName })}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         ),
       },
     ],
-    [modules, outstanding],
+    [moduleMap],
   );
 
-  const activeCount = students.filter((s) => s.status === "active").length;
-  const delStudent = delId ? getStudent(delId) : undefined;
+  const hasFilters = Boolean(debouncedQ || batch !== "all" || moduleId !== "all" || status !== "all");
+  const headerDescription =
+    loading && !data
+      ? "Loading students…"
+      : `${summary.total} students enrolled · ${summary.activeCount} active${hasFilters ? ` · ${summary.filteredTotal} matching filters` : ""}. Each student gets a unique QR code for attendance and payments.`;
+
+  const handleDeleteConfirm = async () => {
+    if (!delTarget) return;
+    const targetId = delTarget.id;
+    try {
+      await deleteStudent(targetId);
+      if (detailId === targetId) setDetailId(null);
+      toast.success("Student deleted");
+      if (items.length <= 1 && page > 1) {
+        setPage((p) => Math.max(1, p - 1));
+      } else {
+        refetch();
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete student");
+      throw err;
+    }
+  };
 
   return (
     <>
       <PageHeader
         title="Students"
-        description={`${students.length} students enrolled · ${activeCount} active. Each student gets a unique QR code for attendance and payments.`}
-        actions={<Button onClick={() => setForm({ open: true, item: null })}><Plus className="h-4 w-4" /> Add student</Button>}
+        description={headerDescription}
+        actions={
+          <Button onClick={() => setForm({ open: true, item: null })}>
+            <Plus className="h-4 w-4" /> Add student
+          </Button>
+        }
       />
+
       <Card>
         <div className="grid gap-3 border-b border-line p-4 sm:grid-cols-2 lg:grid-cols-4">
-          <SearchInput placeholder="Search name, ID or email…" value={q} onChange={(e) => setQ(e.target.value)} className="sm:col-span-2 lg:col-span-1" />
-          <Select value={batch} onChange={(e) => setBatch(e.target.value)} aria-label="Filter by batch">
+          <SearchInput
+            placeholder="Search name, ID or email…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="sm:col-span-2 lg:col-span-1"
+          />
+          <Select
+            value={batch}
+            onChange={(e) => {
+              setBatch(e.target.value);
+              setPage(1);
+            }}
+            aria-label="Filter by batch"
+          >
             <option value="all">All batches</option>
-            {BATCHES.map((b) => <option key={b}>{b}</option>)}
+            {BATCHES.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
           </Select>
-          <Select value={moduleId} onChange={(e) => setModuleId(e.target.value)} aria-label="Filter by module">
+          <Select
+            value={moduleId}
+            onChange={(e) => {
+              setModuleId(e.target.value);
+              setPage(1);
+            }}
+            aria-label="Filter by module"
+          >
             <option value="all">All modules</option>
-            {modules.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            {modules.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
           </Select>
-          <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
+          <Select
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(1);
+            }}
+            aria-label="Filter by status"
+          >
             <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="graduated">Graduated</option>
           </Select>
         </div>
-        <DataTable data={data} columns={columns} pageSize={8} onRowClick={(s) => setDetailId(s.id)} emptyTitle="No students found" />
+
+        <DataTable
+          data={items}
+          columns={columns}
+          pageSize={PAGE_LIMIT}
+          manualPagination
+          manualSorting
+          pageIndex={page - 1}
+          total={summary.filteredTotal}
+          totalPages={pagination.totalPages}
+          sorting={sorting}
+          onPaginationChange={({ pageIndex }) => setPage(pageIndex + 1)}
+          onSortingChange={(next) => {
+            setSorting(next);
+            setPage(1);
+          }}
+          loading={loading}
+          error={error}
+          onRetry={refetch}
+          onRowClick={(s) => setDetailId(s.id)}
+          emptyTitle="No students found"
+        />
       </Card>
 
-      <StudentFormModal open={form.open} item={form.item} onClose={() => setForm((f) => ({ ...f, open: false }))} />
-      <StudentDetail
-        studentId={detailId}
-        onClose={() => setDetailId(null)}
-        onEdit={(id) => setForm({ open: true, item: getStudent(id) ?? null })}
-        onDelete={(id) => setDelId(id)}
-        onPay={(id) => setPayId(id)}
-      />
-      <RecordPaymentModal open={!!payId} studentId={payId ?? undefined} onClose={() => setPayId(null)} />
-      <ConfirmDialog
-        open={!!delId && !!delStudent}
-        onClose={() => setDelId(null)}
-        title="Delete student?"
-        text={<>This removes <b>{delStudent?.fullName}</b> and their attendance records from the demo data. Payment history is kept for the finance ledger.</>}
-        onConfirm={() => {
-          if (delId) {
-            deleteStudent(delId);
-            if (detailId === delId) setDetailId(null);
-            toast.success("Student deleted");
+      <StudentFormModal
+        open={form.open}
+        item={form.item}
+        modules={modules}
+        onClose={() => setForm((f) => ({ ...f, open: false }))}
+        onSaved={(saved) => {
+          refetch();
+          if (detailId && detailId === saved.id) {
+            setDetailRefreshKey((k) => k + 1);
           }
         }}
+      />
+
+      <StudentDetail
+        studentId={detailId}
+        modulesList={modules}
+        refreshKey={detailRefreshKey}
+        onClose={() => setDetailId(null)}
+        onEdit={(student) => setForm({ open: true, item: student })}
+        onDelete={(student) => setDelTarget({ id: student.id, fullName: student.fullName })}
+        onPay={(student) =>
+          setPayState({
+            open: true,
+            studentId: student.id,
+            summary: {
+              id: student.id,
+              fullName: student.fullName,
+              feeTotal: student.feeTotal,
+              paidTotal: student.paidTotal,
+              outstanding: student.outstanding,
+            },
+          })
+        }
+        onRefresh={refetch}
+      />
+
+      <RecordPaymentModal
+        open={payState.open}
+        studentId={payState.studentId}
+        studentSummary={payState.summary}
+        onClose={() => setPayState({ open: false })}
+        onDone={() => {
+          refetch();
+          if (detailId) setDetailRefreshKey((k) => k + 1);
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!delTarget}
+        onClose={() => setDelTarget(null)}
+        title="Delete student?"
+        text={
+          <>
+            This removes <b>{delTarget?.fullName}</b> and deletes their attendance records. Finance payment history is preserved for the ledger.
+          </>
+        }
+        confirmLabel="Delete"
+        confirmLoadingLabel="Deleting…"
+        onConfirm={handleDeleteConfirm}
       />
     </>
   );

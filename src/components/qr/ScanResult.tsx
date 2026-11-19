@@ -1,19 +1,23 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, CreditCard, UserCheck, X } from "lucide-react";
-import type { Student } from "@/types";
+import type { Student, StudentDetail, StudentListItem } from "@/types";
 import { Avatar, Badge, Button, Select, StatusBadge } from "@/components/ui/primitives";
 import { RecordPaymentModal } from "@/components/finance/RecordPaymentModal";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
 import { fmtLKR, todayISO } from "@/lib/utils";
 
-export function ScanResult({ student, onDismiss }: { student: Student; onDismiss: () => void }) {
-  const { getModule, outstanding, attendance, markAttendance } = useAppData();
+type ScanStudent = Student | StudentListItem | StudentDetail;
+
+export function ScanResult({ student, onDismiss }: { student: ScanStudent; onDismiss: () => void }) {
+  const { getModule, outstanding, feeTotal, paidTotal, attendance, markAttendance } = useAppData();
   const toast = useToast();
   const [moduleId, setModuleId] = useState(student.moduleIds[0] ?? "");
   const [pay, setPay] = useState(false);
-  const owed = outstanding(student.id);
+  const [owedOverride, setOwedOverride] = useState<number | null>(null);
+  const hasServerOutstanding = "outstanding" in student && typeof student.outstanding === "number";
+  const owed = owedOverride ?? (hasServerOutstanding ? student.outstanding! : outstanding(student.id));
   const today = todayISO();
   const existing = attendance.find((a) => a.id === `att_${student.id}_${moduleId}_${today}`);
 
@@ -57,7 +61,23 @@ export function ScanResult({ student, onDismiss }: { student: Student; onDismiss
         </div>
         {existing && <p className="text-xs text-muted">Today's status for this module: <b className="capitalize text-ink">{existing.status}</b> ({existing.method})</p>}
       </div>
-      <RecordPaymentModal open={pay} studentId={student.id} onClose={() => setPay(false)} />
+      <RecordPaymentModal
+        open={pay}
+        studentId={student.id}
+        studentSummary={
+          hasServerOutstanding
+            ? {
+                id: student.id,
+                fullName: student.fullName,
+                feeTotal: ("feeTotal" in student && typeof student.feeTotal === "number") ? student.feeTotal : feeTotal(student.id),
+                paidTotal: ("paidTotal" in student && typeof student.paidTotal === "number") ? student.paidTotal : paidTotal(student.id),
+                outstanding: owed,
+              }
+            : undefined
+        }
+        onDone={(res) => setOwedOverride(res.studentSummary.outstanding)}
+        onClose={() => setPay(false)}
+      />
     </motion.div>
   );
 }

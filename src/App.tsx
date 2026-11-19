@@ -1,4 +1,4 @@
-import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
@@ -89,7 +89,7 @@ export default function App() {
         <ToastProvider>
           <AuthProvider>
             <AppDataProvider>
-              <HashRouter>
+              <BrowserRouter>
                 <Routes>
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -116,7 +116,7 @@ export default function App() {
                   </Route>
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
-              </HashRouter>
+              </BrowserRouter>
             </AppDataProvider>
           </AuthProvider>
         </ToastProvider>

@@ -29,6 +29,10 @@ export function startOfWeek(iso: string): string {
   return toISO(addDays(d, -dow));
 }
 
+export function toDateInput(iso?: string | null): string {
+  return iso ? iso.slice(0, 10) : "";
+}
+
 export function fmtDate(iso: string, withYear = true): string {
   if (!iso) return "—";
   return parseISO(iso).toLocaleDateString("en-US", {
@@ -36,6 +40,31 @@ export function fmtDate(iso: string, withYear = true): string {
     day: "numeric",
     ...(withYear ? { year: "numeric" } : {}),
   });
+}
+
+export function fmtDateTime(iso?: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return fmtDate(iso);
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function buildQuery(
+  params: Record<string, string | number | boolean | undefined | null>,
+): string {
+  const qs = new URLSearchParams();
+  for (const [key, val] of Object.entries(params)) {
+    if (val === undefined || val === null || val === "" || val === "all") continue;
+    qs.set(key, String(val));
+  }
+  const str = qs.toString();
+  return str ? `?${str}` : "";
 }
 export function fmtTime(dt: string): string {
   const [h, m] = dt.slice(11, 16).split(":").map(Number);

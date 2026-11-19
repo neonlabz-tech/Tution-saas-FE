@@ -70,7 +70,7 @@ export function Badge({ tone = "neutral", className, children }: { tone?: Tone; 
 const STATUS_TONE: Record<string, Tone> = {
   active: "green", present: "green", completed: "green", published: "green", paid: "green", income: "green",
   inactive: "rose", archived: "neutral", expired: "neutral", draft: "neutral", low: "teal",
-  late: "amber", upcoming: "amber", scheduled: "primary", medium: "amber", partial: "amber",
+  pending: "amber", late: "amber", upcoming: "amber", scheduled: "primary", medium: "amber", partial: "amber",
   absent: "rose", cancelled: "rose", suspended: "rose", high: "rose", unpaid: "rose", expense: "rose",
   excused: "primary", graduated: "primary",
 };
@@ -265,4 +265,8 @@ export function InfoRow({ label, children }: { label: string; children: ReactNod
 
 export function MockNote({ children }: { children: ReactNode }) {
   return <p className="rounded-xl border border-dashed border-line bg-surface-2/60 px-3 py-2 text-[11px] leading-relaxed text-muted">{children}</p>;
+}
+
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cn("animate-pulse rounded-xl bg-surface-2", className)} />;
 }

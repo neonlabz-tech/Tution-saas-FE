@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { authApi, type AuthUser, type LoginConfigResponse, type UserRole } from "@/lib/api";
+import { authApi, getAuthToken, type AuthUser, type LoginConfigResponse, type UserRole } from "@/lib/api";
 
 interface AuthCtx {
   user: AuthUser | null;
@@ -29,6 +29,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
+    if (user) {
+      setLoading(false);
+      return;
+    }
     let active = true;
     authApi
       .me()

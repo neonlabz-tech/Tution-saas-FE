@@ -10,18 +10,14 @@ import type {
 } from "@/types";
 import { addDays, makeRef, pad, toISO, toLocalDT, parseISO, diffDays } from "@/lib/utils";
 
-export const BATCHES = ["2025-A Morning", "2025-B Evening", "2026-A Weekend", "2026-B Morning"];
-export const INCOME_CATEGORIES = ["Tuition fees", "Registration fees", "Exam fees", "Other income"];
-export const EXPENSE_CATEGORIES = [
-  "Electricity bills",
-  "Lecturer fees",
-  "Internet bills",
-  "Rent",
-  "Equipment",
-  "Maintenance",
-  "Other expenses",
-];
-export const PAYMENT_METHODS = ["Cash", "Bank Transfer", "Card (front desk)"];
+import {
+  BATCHES,
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
+  PAYMENT_METHODS,
+} from "@/lib/constants";
+
+export { BATCHES, EXPENSE_CATEGORIES, INCOME_CATEGORIES, PAYMENT_METHODS };
 
 function rng(seed: number) {
   let a = seed;
