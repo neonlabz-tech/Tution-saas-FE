@@ -37,12 +37,12 @@ const EMPTY_OVERVIEW: OverviewResponse = {
 };
 
 export default function OverviewPage() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const [overview, setOverview] = useState<OverviewResponse>(EMPTY_OVERVIEW);
   const [pay, setPay] = useState(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!user) return;
     let active = true;
     overviewApi
       .getOverview()
@@ -55,7 +55,7 @@ export default function OverviewPage() {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [user]);
 
   const { summary, kpis: kpiData, trends, activityFeeds } = overview;
   const firstName = (user?.fullName ?? "Amara Perera").split(" ")[0];

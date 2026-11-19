@@ -11,7 +11,7 @@ import type {
 } from "@/types";
 import { buildMockData } from "@/data/mock";
 import { useAuth } from "@/hooks/useAuth";
-import { teachersApi, type TeacherListItem, type TeachersMetrics } from "@/lib/api";
+import { modulesApi, notificationsApi, teachersApi, type TeacherListItem, type TeachersMetrics } from "@/lib/api";
 import { makeRef, todayISO, uid } from "@/lib/utils";
 
 type SaveStudent = Omit<Student, "id" | "ref">;
@@ -33,6 +33,8 @@ interface AppData {
   teachersLoading: boolean;
   refreshTeachers: () => Promise<void>;
   modules: Module[];
+  modulesLoading: boolean;
+  refreshModules: () => Promise<void>;
   attendance: AttendanceRecord[];
   transactions: Transaction[];
   classes: OnlineClass[];
@@ -51,9 +53,9 @@ interface AppData {
   deleteStudent: (id: string) => void;
   saveTeacher: (data: SaveTeacher, moduleIds: string[], id?: string) => Promise<Teacher>;
   deleteTeacher: (id: string) => Promise<void>;
-  saveModule: (data: SaveModule, id?: string) => Module;
-  deleteModule: (id: string) => void;
-  setModuleStudents: (moduleId: string, studentIds: string[]) => void;
+  saveModule: (data: SaveModule, id?: string) => Promise<Module>;
+  deleteModule: (id: string) => Promise<void>;
+  setModuleStudents: (moduleId: string, studentIds: string[]) => Promise<void>;
   markAttendance: (studentId: string, moduleId: string, date: string, status: AttendanceStatus, method?: "manual" | "qr") => "created" | "updated";
   saveTransaction: (data: Omit<Transaction, "id">, id?: string) => Transaction;
   deleteTransaction: (id: string) => void;
@@ -68,58 +70,65 @@ interface AppData {
 const Ctx = createContext<AppData | null>(null);
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
-  const { token } = useAuth();
+  const { user } = useAuth();
   const [seed] = useState(buildMockData);
   const [students, setStudents] = useState(seed.students);
   const [teachers, setTeachers] = useState<TeacherListItem[]>([]);
   const [teacherMetrics, setTeacherMetrics] = useState<TeachersMetrics>({
     totalTeachers: 0,
     activeTeachers: 0,
-    weeklyTeachingHours: 0,
+    inactiveTeachers: 0,
     teachersWithoutModules: 0,
   });
   const [teachersLoading, setTeachersLoading] = useState(false);
-  const [modules, setModules] = useState(() => seed.modules.map((m) => ({ ...m, teacherId: null as string | null })));
+  const [modules, setModules] = useState<Module[]>([]);
+  const [modulesLoading, setModulesLoading] = useState(false);
   const [attendance, setAttendance] = useState(seed.attendance);
   const [transactions, setTransactions] = useState(seed.transactions);
   const [classes, setClasses] = useState(seed.classes);
   const [notices, setNotices] = useState(seed.notices);
 
   const refreshTeachers = useCallback(async () => {
-    if (!token) {
+    if (!user) {
       setTeachers([]);
       return;
     }
     setTeachersLoading(true);
     try {
       const res = await teachersApi.list();
-      const moduleToTeacher = new Map<string, string>();
-      for (const teacher of res.data) {
-        const ids =
-          teacher.assignedModules.length > 0
-            ? teacher.assignedModules.map((m) => m.id)
-            : (teacher.moduleIds ?? []);
-        for (const modId of ids) {
-          moduleToTeacher.set(modId, teacher.id);
-        }
-      }
       setTeachers(res.data);
       setTeacherMetrics(res.metrics);
-      setModules((prev) => prev.map((m) => ({ ...m, teacherId: moduleToTeacher.get(m.id) ?? null })));
+    } catch {
+      /* backend offline; keep current state */
     } finally {
       setTeachersLoading(false);
     }
-  }, [token]);
+  }, [user]);
 
-  useEffect(() => {
-    if (!token) {
-      setTeachers([]);
+  const refreshModules = useCallback(async () => {
+    if (!user) {
+      setModules([]);
       return;
     }
-    void refreshTeachers().catch(() => {
-      /* backend offline; keep empty state */
-    });
-  }, [token, refreshTeachers]);
+    setModulesLoading(true);
+    try {
+      const list = await modulesApi.list();
+      setModules(list);
+    } catch {
+      /* backend offline; keep current state */
+    } finally {
+      setModulesLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setTeachers([]);
+      setModules([]);
+      return;
+    }
+    void Promise.allSettled([refreshTeachers(), refreshModules()]);
+  }, [user, refreshTeachers, refreshModules]);
 
   const feeMap = useMemo(() => {
     const fees = new Map(modules.map((m) => [m.id, m.fee]));
@@ -140,7 +149,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       set((p) => (exists ? p.map((x) => (x.id === item.id ? item : x)) : [item, ...p]));
 
     return {
-      students, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, attendance, transactions, classes, notices,
+      students, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, modulesLoading, refreshModules, attendance, transactions, classes, notices,
       getStudent: (id) => students.find((s) => s.id === id),
       getTeacher: (id) => (id ? teachers.find((t) => t.id === id) : undefined),
       getModule: (id) => modules.find((m) => m.id === id),
@@ -161,6 +170,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const n = students.reduce((mx, s) => Math.max(mx, Number(s.id.split("-")[2]) || 0), 0) + 1;
         const item: Student = { ...data, id: `STU-${year}-${String(n).padStart(3, "0")}`, ref: makeRef() };
         upsert(setStudents, item, false);
+
+        void notificationsApi
+          .create({
+            type: "student",
+            title: `New Student Registration: ${item.fullName}`,
+            subtitle: `Enrolled in ${item.batch || "batch"} (${item.id})`,
+            link: "/dashboard/students",
+          })
+          .catch(() => {});
+
         return item;
       },
       deleteStudent: (id) => {
@@ -172,27 +191,41 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const saved = id
           ? await teachersApi.update(id, { ...data, moduleIds })
           : await teachersApi.create({ ...data, moduleIds });
-        await refreshTeachers();
+        await Promise.allSettled([refreshTeachers(), refreshModules()]);
         return saved;
       },
       deleteTeacher: async (id) => {
         await teachersApi.remove(id);
         setClasses((p) => p.filter((c) => c.teacherId !== id));
-        await refreshTeachers();
+        await Promise.allSettled([refreshTeachers(), refreshModules()]);
       },
 
-      saveModule: (data, id) => {
-        const item: Module = { ...data, id: id ?? uid("mod") };
-        upsert(setModules, item, !!id);
-        return item;
+      saveModule: async (data, id) => {
+        const payload = {
+          code: data.code,
+          name: data.name,
+          description: data.description,
+          fee: data.fee,
+          duration: data.duration,
+          teacherId: data.teacherId || null,
+          batches: data.batches,
+          status: data.status,
+        };
+        const saved = id
+          ? await modulesApi.update(id, payload)
+          : await modulesApi.create(payload);
+        await Promise.allSettled([refreshModules(), refreshTeachers()]);
+        return saved;
       },
-      deleteModule: (id) => {
-        setModules((p) => p.filter((m) => m.id !== id));
+      deleteModule: async (id) => {
+        await modulesApi.remove(id);
         setStudents((p) => p.map((s) => ({ ...s, moduleIds: s.moduleIds.filter((m) => m !== id) })));
         setClasses((p) => p.filter((c) => c.moduleId !== id));
         setAttendance((p) => p.filter((a) => a.moduleId !== id));
+        await Promise.allSettled([refreshModules(), refreshTeachers()]);
       },
-      setModuleStudents: (mid, ids) =>
+      setModuleStudents: async (mid, ids) => {
+        await modulesApi.syncEnrollments(mid, ids);
         setStudents((p) =>
           p.map((s) => {
             const has = s.moduleIds.includes(mid);
@@ -200,7 +233,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             if (has === should) return s;
             return { ...s, moduleIds: should ? [...s.moduleIds, mid] : s.moduleIds.filter((m) => m !== mid) };
           }),
-        ),
+        );
+        await refreshModules();
+      },
 
       markAttendance: (studentId, moduleId, date, status, method = "manual") => {
         const key = `att_${studentId}_${moduleId}_${date}`;
@@ -233,6 +268,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           method,
         };
         setTransactions((p) => [item, ...p].sort((a, b) => b.date.localeCompare(a.date)));
+
+        void notificationsApi
+          .create({
+            type: "payment",
+            title: `Payment received: LKR ${amount.toLocaleString()}`,
+            subtitle: `${s ? s.fullName : "Student"} · ${method ? method.toUpperCase() : "Cash"}${note ? ` (${note})` : ""}`,
+            link: "/dashboard/finance",
+          })
+          .catch(() => {});
+
         return item;
       },
 

@@ -1,35 +1,9 @@
 import type { FieldValues, Path, UseFormSetError } from "react-hook-form";
-import type { ApiErrorDetail, Notice, OnlineClass, Teacher } from "@/types";
+import type { ApiErrorDetail, Module, ModuleStatus, Notice, OnlineClass, Teacher } from "@/types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "")
   : `${(import.meta.env.VITE_SERVER_URL ?? "http://localhost:4000").replace(/\/+$/, "")}/api`;
-
-const TOKEN_STORAGE_KEY = "eduflow-token";
-
-export function getAuthToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setAuthToken(token: string) {
-  try {
-    localStorage.setItem(TOKEN_STORAGE_KEY, token);
-  } catch {
-    /* ignore */
-  }
-}
-
-export function clearAuthToken() {
-  try {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
-}
 
 export type UserRole = "super_admin" | "admin" | "teacher" | "student";
 
@@ -143,7 +117,7 @@ export interface TeacherModuleSummary {
 export interface TeacherWorkload {
   modulesCount: number;
   studentsCount: number;
-  hoursPerWeek: number;
+  hoursPerWeek?: number;
 }
 
 export interface TeacherListItem extends Teacher {
@@ -155,7 +129,8 @@ export interface TeacherListItem extends Teacher {
 export interface TeachersMetrics {
   totalTeachers: number;
   activeTeachers: number;
-  weeklyTeachingHours: number;
+  inactiveTeachers?: number;
+  weeklyTeachingHours?: number;
   teachersWithoutModules: number;
 }
 
@@ -180,6 +155,23 @@ export interface DeleteTeacherResponse {
 }
 
 export type TeacherPayload = Omit<Teacher, "id"> & { moduleIds: string[] };
+
+const TOKEN_KEY = "eduflow_access_token";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAuthToken(token: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearAuthToken(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(TOKEN_KEY);
+}
 
 export class ApiError extends Error {
   status: number;
@@ -220,13 +212,16 @@ export async function requestWithMeta<T>(
   init?: RequestInit,
 ): Promise<{ data: T; message?: string }> {
   const token = getAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
+    credentials: "include",
+    headers,
   });
 
   let body: ApiEnvelope<T> | T | null = null;
@@ -241,6 +236,7 @@ export async function requestWithMeta<T>(
 
   if (!res.ok || failedEnvelope) {
     if (res.status === 401 && !path.startsWith("/auth/login") && typeof window !== "undefined") {
+      clearAuthToken();
       window.dispatchEvent(new Event("eduflow:unauthorized"));
     }
     let message = `Request failed (${res.status})`;
@@ -253,7 +249,7 @@ export async function requestWithMeta<T>(
   }
 
   const message = typeof envelope?.message === "string" ? envelope.message : undefined;
-  const data = envelope && "data" in envelope && envelope.data !== undefined ? envelope.data : (body as T);
+  const data = envelope && "data" in envelope && envelope.data !== undefined ? (envelope.data as T) : (body as T);
   return { data, message };
 }
 
@@ -267,31 +263,57 @@ export const authApi = {
     return request<LoginConfigResponse>("/auth/config");
   },
 
-  login(payload: { email: string; password: string }) {
-    return request<AuthTokenResponse>("/auth/login", {
+  async login(payload: { email: string; password: string }) {
+    const res = await request<AuthTokenResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+    if (res?.accessToken) {
+      setAuthToken(res.accessToken);
+    }
+    return res;
   },
 
-  register(payload: { fullName: string; email: string; password: string }) {
-    return request<AuthTokenResponse>("/auth/register", {
+  async register(payload: { fullName: string; email: string; password: string; role?: UserRole }) {
+    const res = await request<AuthTokenResponse>("/auth/register", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+    if (res?.accessToken) {
+      setAuthToken(res.accessToken);
+    }
+    return res;
   },
 
   me() {
     return request<AuthUser>("/auth/me");
   },
 
-  logout() {
-    return request<{ loggedOut: boolean }>("/auth/logout", { method: "POST" });
+  async logout() {
+    try {
+      return await request<{ loggedOut: boolean }>("/auth/logout", { method: "POST" });
+    } finally {
+      clearAuthToken();
+    }
   },
 
   changePassword(payload: { currentPassword: string; newPassword: string }) {
     return request<{ updated: boolean }>("/auth/change-password", {
       method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  forgotPassword(payload: { email: string }) {
+    return request<{ message: string; devResetUrl?: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  resetPassword(payload: { token: string; newPassword: string }) {
+    return request<{ message: string }>("/auth/reset-password", {
+      method: "POST",
       body: JSON.stringify(payload),
     });
   },
@@ -308,6 +330,132 @@ export const overviewApi = {
 
   getActivityFeeds() {
     return request<OverviewResponse["activityFeeds"]>("/overview/activity-feeds");
+  },
+};
+
+export interface InstituteSettings {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  about: string;
+  logo: string | null;
+}
+
+export interface AppearanceSettings {
+  mode: "light" | "dark" | "system";
+  accent: string;
+}
+
+export interface NotificationToggles {
+  payments: boolean;
+  overdue: boolean;
+  absence: boolean;
+  classes: boolean;
+  notices: boolean;
+}
+
+export interface NotificationChannels {
+  email: boolean;
+  push: boolean;
+  sms: boolean;
+}
+
+export interface SettingsResponse {
+  institute: InstituteSettings;
+  appearance: AppearanceSettings;
+  notifications: NotificationToggles;
+  channels: NotificationChannels;
+  profile: {
+    id: string;
+    fullName: string;
+    email: string;
+    role: UserRole;
+  };
+}
+
+export interface NotificationItem {
+  id: string;
+  type: "notice" | "class" | "payment" | "student" | "system";
+  title: string;
+  subtitle: string;
+  link: string;
+  read: boolean;
+  persisted: boolean;
+}
+
+export const notificationsApi = {
+  list() {
+    return request<{ items: NotificationItem[]; unreadCount: number }>("/notifications");
+  },
+
+  create(payload: {
+    type?: NotificationItem["type"];
+    title: string;
+    subtitle?: string;
+    link?: string;
+  }) {
+    return request<NotificationItem>("/notifications", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  markAsRead(id: string) {
+    return request<{ id: string; read: true }>(`/notifications/${encodeURIComponent(id)}/read`, {
+      method: "PATCH",
+    });
+  },
+
+  markAllAsRead() {
+    return request<{ updatedCount: number }>("/notifications/read-all", {
+      method: "PATCH",
+    });
+  },
+};
+
+export const settingsApi = {
+  get() {
+    return request<SettingsResponse>("/settings");
+  },
+
+  updateInstitute(payload: Partial<InstituteSettings>) {
+    return request<InstituteSettings>("/settings/institute", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateAppearance(payload: Partial<AppearanceSettings>) {
+    return request<AppearanceSettings>("/settings/appearance", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateProfile(payload: {
+    fullName?: string;
+    email?: string;
+    newPassword?: string;
+    confirmPassword?: string;
+  }) {
+    return request<SettingsResponse["profile"]>("/settings/profile", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateNotifications(payload: {
+    notifications?: Partial<NotificationToggles>;
+    channels?: Partial<NotificationChannels>;
+  }) {
+    return request<{
+      notifications: NotificationToggles;
+      channels: NotificationChannels;
+    }>("/settings/notifications", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
   },
 };
 
@@ -343,6 +491,87 @@ export const teachersApi = {
   remove(id: string) {
     return request<DeleteTeacherResponse>(`/teachers/${encodeURIComponent(id)}`, {
       method: "DELETE",
+    });
+  },
+};
+
+export interface EnrolledStudentSummary {
+  id: string;
+  fullName: string;
+  batch: string;
+  status: string;
+  email?: string;
+}
+
+export interface ModuleDetailResponse extends Module {
+  revenuePotential: number;
+  enrolledStudents: EnrolledStudentSummary[];
+}
+
+export interface ModulePayload {
+  code: string;
+  name: string;
+  description: string;
+  fee: number;
+  duration: string;
+  teacherId?: string | null;
+  batches: string[];
+  status?: ModuleStatus;
+}
+
+export interface DeleteModuleResponse {
+  deleted: boolean;
+  id: string;
+  affectedStudentsCount: number;
+  deletedClassesCount: number;
+  deletedAttendanceCount: number;
+}
+
+export interface SyncEnrollmentsResponse {
+  moduleId: string;
+  enrolledCount: number;
+  enrolledStudents: EnrolledStudentSummary[];
+}
+
+export const modulesApi = {
+  list(params?: { q?: string; status?: string; teacherId?: string; batch?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set("q", params.q);
+    if (params?.status && params.status !== "all") qs.set("status", params.status);
+    if (params?.teacherId && params.teacherId !== "all") qs.set("teacherId", params.teacherId);
+    if (params?.batch && params.batch !== "all") qs.set("batch", params.batch);
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<Module[]>(`/modules${suffix}`);
+  },
+
+  get(id: string) {
+    return request<ModuleDetailResponse>(`/modules/${encodeURIComponent(id)}`);
+  },
+
+  create(payload: ModulePayload) {
+    return request<Module>("/modules", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  update(id: string, payload: Partial<ModulePayload>) {
+    return request<Module>(`/modules/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  remove(id: string) {
+    return request<DeleteModuleResponse>(`/modules/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
+
+  syncEnrollments(id: string, studentIds: string[]) {
+    return request<SyncEnrollmentsResponse>(`/modules/${encodeURIComponent(id)}/enrollments`, {
+      method: "PUT",
+      body: JSON.stringify({ studentIds }),
     });
   },
 };

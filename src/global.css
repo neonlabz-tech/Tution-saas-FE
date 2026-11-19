@@ -1,0 +1,105 @@
+/* ==========================================================================
+   Global Color Theme & Design Tokens — NeonLabz Brand Palette
+   Palette extracted from official logo:
+     - Neon Cyan / Electric Blue: #4589FF / #6F90FF
+     - Neon Electric Purple / Violet: #9828FD / #B616FD
+     - Neon Hot Pink / Magenta: #D50DFB / #E00BFB
+     - Deep Dark Base / Carbon: #0E0D13 / #17161F / #121118
+   ========================================================================== */
+
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Plus Jakarta Sans", "DM Sans", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Brand Primary Colors */
+  --color-primary: #9828fd;
+  --color-primary-hover: #b616fd;
+  --color-secondary: #4589ff;
+  --color-accent: #d50dfb;
+
+  /* Neon Accent Tokens */
+  --color-neon-blue: #6f90ff;
+  --color-neon-cyan: #4589ff;
+  --color-neon-purple: #9828fd;
+  --color-neon-violet: #b616fd;
+  --color-neon-magenta: #d50dfb;
+
+  /* Layout & Navigation */
+  --color-sidebar: #121118;
+  --shadow-card: 0 1px 3px rgb(18 17 24 / 0.05), 0 8px 24px -6px rgb(152 40 253 / 0.08);
+  --shadow-pop: 0 20px 50px -10px rgb(152 40 253 / 0.3);
+  --shadow-neon: 0 0 25px -4px rgb(182 22 253 / 0.45);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+}
+
+:root {
+  /* Light Theme */
+  --canvas: #f8f9fc;
+  --surface: #ffffff;
+  --surface-2: #f1f3f9;
+  --ink: #111827;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --brand: #9828fd;
+
+  --neon-blue: #4589ff;
+  --neon-purple: #9828fd;
+  --neon-magenta: #d50dfb;
+
+  --gradient-neon: linear-gradient(135deg, #4589ff 0%, #9828fd 50%, #d50dfb 100%);
+  --gradient-primary: linear-gradient(135deg, #9828fd 0%, #d50dfb 100%);
+  --gradient-glow: linear-gradient(135deg, #6f90ff 0%, #b616fd 50%, #d50dfb 100%);
+
+  color-scheme: light;
+}
+
+.dark {
+  /* Dark Theme — Matches logo backdrop with deep carbon & neon accents */
+  --canvas: #0e0d13;
+  --surface: #17161f;
+  --surface-2: #201e2c;
+  --ink: #f8fafc;
+  --muted: #94a3b8;
+  --line: #2c293a;
+  --brand: #c084fc;
+
+  --neon-blue: #6f90ff;
+  --neon-purple: #b616fd;
+  --neon-magenta: #d50dfb;
+
+  --gradient-neon: linear-gradient(135deg, #6f90ff 0%, #b616fd 50%, #d50dfb 100%);
+  --gradient-primary: linear-gradient(135deg, #9828fd 0%, #b616fd 100%);
+  --gradient-glow: linear-gradient(135deg, #6f90ff 0%, #b616fd 50%, #d50dfb 100%);
+
+  color-scheme: dark;
+}
+
+/* Common Brand Utility Classes */
+.bg-neon-gradient {
+  background: var(--gradient-neon);
+}
+
+.text-neon-gradient {
+  background: var(--gradient-neon);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.border-neon {
+  border-color: #9828fd;
+  box-shadow: 0 0 15px -3px rgb(152 40 253 / 0.4);
+}
+
+.neon-glow {
+  box-shadow: 0 0 30px -4px rgb(182 22 253 / 0.45);
+}
