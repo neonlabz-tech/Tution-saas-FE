@@ -1,5 +1,5 @@
 import type { FieldValues, Path, UseFormSetError } from "react-hook-form";
-import type { ApiErrorDetail, Module, ModuleStatus, Notice, OnlineClass, Teacher } from "@/types";
+import type { ApiErrorDetail, AttendanceRecord, AttendanceStatus, Module, ModuleStatus, Notice, OnlineClass, Teacher } from "@/types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "")
@@ -599,6 +599,263 @@ export const noticesApi = {
 
   remove(id: string) {
     return request<{ deleted: boolean; id: string }>(`/notices/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+export interface DailyRosterEntry {
+  key: string;
+  student: {
+    id: string;
+    fullName: string;
+    email?: string;
+    phone?: string;
+    batch?: string;
+    status: string;
+    avatar?: string;
+  };
+  module: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  record: AttendanceRecord | null;
+}
+
+export interface DailyRosterResponse {
+  date: string;
+  moduleId: string;
+  batch: string;
+  totalEntries: number;
+  markedCount: number;
+  unmarkedCount: number;
+  counts: {
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+  };
+  rows: DailyRosterEntry[];
+}
+
+export interface StudentAttendanceSummary {
+  student: {
+    id: string;
+    fullName: string;
+    email?: string;
+    batch?: string;
+    status: string;
+    phone?: string;
+  };
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+  total: number;
+  rate: number;
+}
+
+export interface AttendanceSummariesResponse {
+  from: string;
+  to: string;
+  moduleId: string;
+  batch: string;
+  totalStudents: number;
+  overallCounts: {
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+    total: number;
+  };
+  overallRate: number;
+  summaries: StudentAttendanceSummary[];
+}
+
+export interface StudentHistoryRecord extends AttendanceRecord {
+  module?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+}
+
+export interface StudentHistoryResponse {
+  student: {
+    id: string;
+    fullName: string;
+    email?: string;
+    phone?: string;
+    batch?: string;
+    status: string;
+    moduleIds: string[];
+  };
+  overallRate: number;
+  counts: {
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+    total: number;
+  };
+  records: StudentHistoryRecord[];
+}
+
+export interface VerifyQrResponse {
+  valid: boolean;
+  message: string;
+  student: {
+    id: string;
+    ref: string;
+    fullName: string;
+    email?: string;
+    phone?: string;
+    batch?: string;
+    status: string;
+    moduleIds: string[];
+  };
+  enrolledInModule?: boolean;
+  alreadyMarked?: boolean;
+  existingAttendance?: AttendanceRecord;
+}
+
+export interface MarkAttendanceResponse {
+  success: boolean;
+  message: string;
+  isNew: boolean;
+  record: AttendanceRecord;
+  student?: {
+    id: string;
+    fullName: string;
+    batch?: string;
+  };
+  module?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+}
+
+export interface BulkMarkUnmarkedResponse {
+  success: boolean;
+  message: string;
+  date: string;
+  moduleId: string;
+  batch: string;
+  markedCount: number;
+  records: AttendanceRecord[];
+}
+
+export const attendanceApi = {
+  getDailyRoster(params: { date?: string; moduleId?: string; batch?: string; studentId?: string; search?: string }) {
+    const qs = new URLSearchParams();
+    if (params.date) qs.set("date", params.date);
+    if (params.moduleId && params.moduleId !== "all") qs.set("moduleId", params.moduleId);
+    if (params.batch && params.batch !== "all") qs.set("batch", params.batch);
+    if (params.studentId && params.studentId !== "all") qs.set("studentId", params.studentId);
+    if (params.search) {
+      qs.set("search", params.search);
+      qs.set("q", params.search);
+    }
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<DailyRosterResponse>(`/attendance/daily-roster${suffix}`);
+  },
+
+  getSummaries(params: {
+    from: string;
+    to: string;
+    moduleId?: string;
+    batch?: string;
+    studentId?: string;
+    search?: string;
+    q?: string;
+  }) {
+    const qs = new URLSearchParams();
+    qs.set("from", params.from);
+    qs.set("to", params.to);
+    if (params.moduleId && params.moduleId !== "all") qs.set("moduleId", params.moduleId);
+    if (params.batch && params.batch !== "all") qs.set("batch", params.batch);
+    if (params.studentId && params.studentId !== "all") qs.set("studentId", params.studentId);
+    if (params.search) qs.set("search", params.search);
+    if (params.q) qs.set("q", params.q);
+    return request<AttendanceSummariesResponse>(`/attendance/summaries?${qs.toString()}`);
+  },
+
+  getStudentHistory(studentId: string, params?: { from?: string; to?: string; moduleId?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.from) qs.set("from", params.from);
+    if (params?.to) qs.set("to", params.to);
+    if (params?.moduleId && params.moduleId !== "all") qs.set("moduleId", params.moduleId);
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<StudentHistoryResponse>(`/attendance/student/${encodeURIComponent(studentId)}${suffix}`);
+  },
+
+  listRecords(params?: {
+    from?: string;
+    to?: string;
+    date?: string;
+    studentId?: string;
+    moduleId?: string;
+    status?: string;
+    method?: string;
+    limit?: number;
+  }) {
+    const qs = new URLSearchParams();
+    if (params?.from) qs.set("from", params.from);
+    if (params?.to) qs.set("to", params.to);
+    if (params?.date) qs.set("date", params.date);
+    if (params?.studentId && params.studentId !== "all") qs.set("studentId", params.studentId);
+    if (params?.moduleId && params.moduleId !== "all") qs.set("moduleId", params.moduleId);
+    if (params?.status && params.status !== "all") qs.set("status", params.status);
+    if (params?.method && params.method !== "all") qs.set("method", params.method);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<AttendanceRecord[]>(`/attendance${suffix}`);
+  },
+
+  mark(payload: {
+    studentId: string;
+    moduleId: string;
+    date: string;
+    status: AttendanceStatus;
+    method?: "manual" | "qr";
+    notes?: string;
+  }) {
+    return request<MarkAttendanceResponse>("/attendance/mark", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  bulkMarkUnmarked(payload: {
+    date: string;
+    moduleId?: string;
+    batch?: string;
+    status?: AttendanceStatus;
+  }) {
+    return request<BulkMarkUnmarkedResponse>("/attendance/bulk-mark-unmarked", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  verifyQr(payload: { code: string; moduleId?: string; date?: string }) {
+    return request<VerifyQrResponse>("/attendance/qr/verify", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  markQr(payload: { code: string; moduleId: string; date?: string; status?: AttendanceStatus }) {
+    return request<MarkAttendanceResponse>("/attendance/qr/mark", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  deleteRecord(id: string) {
+    return request<{ deleted: boolean; id: string }>(`/attendance/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
   },

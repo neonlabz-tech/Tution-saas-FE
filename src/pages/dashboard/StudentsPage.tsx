@@ -7,6 +7,7 @@ import { Avatar, Badge, Button, Card, PageHeader, SearchInput, Select, StatusBad
 import { DataTable, type Columns } from "@/components/ui/data-table";
 import { ConfirmDialog } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
+import { useAppData } from "@/hooks/useAppData";
 import { listModules } from "@/api/modules";
 import { deleteStudent } from "@/api/students";
 import { useStudents } from "@/hooks/useStudents";
@@ -32,6 +33,7 @@ const SORTABLE_COLUMNS: ReadonlySet<string> = new Set<StudentSortBy>([
 
 export default function StudentsPage() {
   const toast = useToast();
+  const { refreshStudents } = useAppData();
   const [params, setParams] = useSearchParams();
   const initialQ = params.get("q") ?? "";
   const lastUrlQRef = useRef<string | null>(params.get("q"));
@@ -232,6 +234,7 @@ export default function StudentsPage() {
     try {
       await deleteStudent(targetId);
       if (detailId === targetId) setDetailId(null);
+      void refreshStudents();
       toast.success("Student deleted");
       if (items.length <= 1 && page > 1) {
         setPage((p) => Math.max(1, p - 1));
@@ -340,6 +343,7 @@ export default function StudentsPage() {
         onClose={() => setForm((f) => ({ ...f, open: false }))}
         onSaved={(saved) => {
           refetch();
+          void refreshStudents();
           if (detailId && detailId === saved.id) {
             setDetailRefreshKey((k) => k + 1);
           }

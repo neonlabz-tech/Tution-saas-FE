@@ -113,3 +113,56 @@ export function downloadDataUrl(url: string, filename: string) {
   a.click();
   a.remove();
 }
+
+/** Audio & haptic feedback for QR scanning events */
+export function playScanFeedback(type: "success" | "warning" | "error"): void {
+  if (typeof window !== "undefined") {
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === "success") {
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.13);
+        } else if (type === "warning") {
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(520, ctx.currentTime);
+          osc.frequency.setValueAtTime(440, ctx.currentTime + 0.08);
+          gain.gain.setValueAtTime(0.2, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.22);
+        } else {
+          osc.type = "sawtooth";
+          osc.frequency.setValueAtTime(220, ctx.currentTime);
+          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.27);
+        }
+      }
+    } catch {
+      /* ignore audio error */
+    }
+
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try {
+        if (type === "success") navigator.vibrate(80);
+        else if (type === "warning") navigator.vibrate([100, 50, 100]);
+        else navigator.vibrate([200, 100, 200]);
+      } catch {
+        /* ignore vibrate error */
+      }
+    }
+  }
+}
