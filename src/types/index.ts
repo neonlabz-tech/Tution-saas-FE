@@ -224,6 +224,65 @@ export interface Module {
   status: ModuleStatus;
 }
 
+export interface ModuleTeacherRef {
+  id: string;
+  fullName: string;
+}
+
+export interface ModuleEnrolledStudent {
+  id: string;
+  fullName: string;
+  email?: string;
+  batch: string;
+  status?: StudentStatus;
+}
+
+export interface ModuleListItem extends Module {
+  teacher?: ModuleTeacherRef | null;
+  enrolledCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ModuleDetail extends ModuleListItem {
+  enrolledCount: number;
+  revenuePotential: number;
+  enrolledStudents: ModuleEnrolledStudent[];
+}
+
+export interface ModuleQueryParams {
+  q?: string;
+  status?: ModuleStatus | "all";
+  teacherId?: string;
+  batch?: string;
+}
+
+export interface CreateModuleDto {
+  code: string;
+  name: string;
+  description: string;
+  fee: number;
+  duration: string;
+  teacherId?: string | null;
+  batches: string[];
+  status?: ModuleStatus;
+}
+
+export type UpdateModuleDto = Partial<Omit<CreateModuleDto, "teacherId">> & {
+  teacherId?: string | null;
+};
+
+export interface UpdateModuleEnrollmentsResponse {
+  moduleId: string;
+  enrolledCount: number;
+  enrolledStudents: ModuleEnrolledStudent[];
+}
+
+export interface DeleteModuleResponse {
+  deleted?: boolean;
+  id?: string;
+}
+
 export type AttendanceStatus = "present" | "absent" | "late" | "excused";
 export interface AttendanceRecord {
   id: string;
