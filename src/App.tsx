@@ -1,5 +1,5 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Component, useEffect, type ErrorInfo, type ReactNode } from "react";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { AppDataProvider } from "@/hooks/useAppData";
@@ -80,8 +80,19 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-// Hash routing keeps the single-file build working from any static host.
-// Route structure mirrors the Next.js App Router layout: /dashboard/<section>.
+// Automatically migrates any legacy hash routes (e.g. /#/dashboard/...) to clean routes
+function HashMigrator() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash.startsWith("#/")) {
+      const cleanPath = window.location.hash.slice(1);
+      window.history.replaceState(null, "", cleanPath);
+      navigate(cleanPath, { replace: true });
+    }
+  }, [navigate]);
+  return null;
+}
+
 export default function App() {
   return (
     <GlobalErrorBoundary>
@@ -90,6 +101,7 @@ export default function App() {
           <AuthProvider>
             <AppDataProvider>
               <BrowserRouter>
+                <HashMigrator />
                 <Routes>
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/reset-password" element={<ResetPasswordPage />} />
