@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-violet-500 to-secondary shadow-lg shadow-primary/40">
+      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-secondary via-primary to-accent shadow-lg shadow-primary/40">
         <svg viewBox="0 0 24 24" className="h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
           <path d="M4 8c3-3 5-3 8 0s5 3 8 0" />
           <path d="M4 15c3-3 5-3 8 0s5 3 8 0" opacity="0.65" />

@@ -78,7 +78,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     totalTeachers: 0,
     activeTeachers: 0,
     inactiveTeachers: 0,
-    weeklyTeachingHours: 0,
     teachersWithoutModules: 0,
   });
   const [teachersLoading, setTeachersLoading] = useState(false);

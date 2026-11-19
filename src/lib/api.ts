@@ -117,7 +117,7 @@ export interface TeacherModuleSummary {
 export interface TeacherWorkload {
   modulesCount: number;
   studentsCount: number;
-  hoursPerWeek: number;
+  hoursPerWeek?: number;
 }
 
 export interface TeacherListItem extends Teacher {
@@ -130,7 +130,7 @@ export interface TeachersMetrics {
   totalTeachers: number;
   activeTeachers: number;
   inactiveTeachers?: number;
-  weeklyTeachingHours: number;
+  weeklyTeachingHours?: number;
   teachersWithoutModules: number;
 }
 
@@ -344,7 +344,7 @@ export interface InstituteSettings {
 
 export interface AppearanceSettings {
   mode: "light" | "dark" | "system";
-  accent: "indigo" | "violet" | "teal" | "rose";
+  accent: string;
 }
 
 export interface NotificationToggles {

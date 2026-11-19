@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BookOpen, Clock, Eye, LayoutGrid, List, Mail, Pencil, Phone, Plus, Trash2, Users, UserX, Video } from "lucide-react";
+import { Eye, LayoutGrid, List, Mail, Pencil, Phone, Plus, Trash2, Users, Video } from "lucide-react";
 import type { Teacher } from "@/types";
 import { Avatar, Badge, Button, Card, EmptyState, InfoRow, PageHeader, SearchInput, Select, StatusBadge, Tabs } from "@/components/ui/primitives";
 import { DataTable, type Columns } from "@/components/ui/data-table";
@@ -13,11 +13,10 @@ import { TeacherFormModal } from "@/components/teachers/TeacherFormModal";
 import { teachersApi, type TeacherListItem, type TeacherProfileResponse } from "@/lib/api";
 import { fmtDate, fmtTime, todayISO } from "@/lib/utils";
 
-const HOURS_PER_MODULE = 3;
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function TeachersPage() {
-  const { teachers, teacherMetrics, teacherModules, modules, students, classes, deleteTeacher } = useAppData();
+  const { teachers, teacherModules, modules, students, classes, deleteTeacher } = useAppData();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -67,7 +66,6 @@ export default function TeachersPage() {
           studentCount: m.studentCount,
         })),
         students: t.workload.studentsCount,
-        hours: t.workload.hoursPerWeek,
       };
     }
     const mods = teacherModules(t.id);
@@ -80,7 +78,6 @@ export default function TeachersPage() {
         studentCount: students.filter((s) => s.moduleIds.includes(m.id)).length,
       })),
       students: studentSet.size,
-      hours: mods.length * HOURS_PER_MODULE,
     };
   };
 
@@ -95,9 +92,6 @@ export default function TeachersPage() {
     );
   }, [teachers, modules, q, moduleId, batch, status]);
 
-  const active = teacherMetrics.activeTeachers;
-  const inactive = teacherMetrics.inactiveTeachers ?? teachers.filter((t) => t.status === "inactive").length;
-  const teachersWithoutModules = teacherMetrics.teachersWithoutModules;
   const detail = profile ?? (detailId ? teachers.find((t) => t.id === detailId) : undefined);
   const dw = detail ? workload(detail) : null;
   const schedule = useMemo(() => {
@@ -164,7 +158,7 @@ export default function TeachersPage() {
           const w = workload(row.original);
           return (
             <span className="num text-xs">
-              <b>{w.mods.length}</b> mods · <b>{w.hours}</b>h/wk
+              <b>{w.mods.length}</b> {w.mods.length === 1 ? "mod" : "mods"} · <b>{w.students}</b> {w.students === 1 ? "student" : "students"}
             </span>
           );
         },
@@ -247,20 +241,6 @@ export default function TeachersPage() {
           </>
         }
       />
-
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {[
-          { l: "Total teachers", v: teacherMetrics.totalTeachers, i: Users, c: "from-indigo-500 to-violet-500" },
-          { l: "Active now", v: active, i: Clock, c: "from-teal-500 to-emerald-500" },
-          { l: "Inactive teachers", v: inactive, i: UserX, c: "from-rose-500 to-red-600" },
-          { l: "Teachers without modules", v: teachersWithoutModules, i: BookOpen, c: "from-amber-500 to-orange-500" },
-        ].map((k) => (
-          <Card key={k.l} className="flex items-center gap-4 p-4">
-            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white ${k.c}`}><k.i className="h-5 w-5" /></div>
-            <div><p className="num text-2xl font-bold leading-none">{k.v}</p><p className="mt-1 text-xs text-muted">{k.l}</p></div>
-          </Card>
-        ))}
-      </div>
 
       <Card className="mb-6 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <SearchInput placeholder="Search name, ID, subject…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -361,7 +341,7 @@ export default function TeachersPage() {
               <InfoRow label="Batches"><span className="flex flex-wrap justify-end gap-1">{detail.batches.length ? detail.batches.map((b) => <Badge key={b} tone="teal">{b}</Badge>) : <span className="text-muted">—</span>}</span></InfoRow>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              {[["Modules", dw.mods.length], ["Batches", detail.batches.length], ["Hours / wk", dw.hours]].map(([l, v]) => (
+              {[["Modules", dw.mods.length], ["Batches", detail.batches.length], ["Students", dw.students]].map(([l, v]) => (
                 <div key={l as string} className="rounded-2xl bg-surface-2 p-3 text-center"><p className="num text-xl font-bold">{v}</p><p className="text-[11px] text-muted">{l}</p></div>
               ))}
             </div>

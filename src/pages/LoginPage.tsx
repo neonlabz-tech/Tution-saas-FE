@@ -143,7 +143,7 @@ export default function LoginPage() {
         {/* Brand Header */}
         <div className="mb-7 text-center">
           <div className="mb-4 flex items-center justify-center gap-3 text-left">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-violet-500 to-secondary shadow-lg shadow-primary/30">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-secondary via-primary to-accent shadow-lg shadow-primary/30">
               <svg
                 viewBox="0 0 24 24"
                 className="h-6 w-6 text-white"

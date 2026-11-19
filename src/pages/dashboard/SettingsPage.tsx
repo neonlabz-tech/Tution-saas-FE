@@ -86,7 +86,7 @@ export default function SettingsPage() {
     });
   };
 
-  const handleAccentChange = (nextAccent: "indigo" | "violet" | "teal" | "rose") => {
+  const handleAccentChange = (nextAccent: string) => {
     setAccent(nextAccent);
     void settingsApi.updateAppearance({ accent: nextAccent }).catch(() => {
       /* local theme still applies */
