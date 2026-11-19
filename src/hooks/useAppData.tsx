@@ -11,7 +11,8 @@ import type {
 } from "@/types";
 import { buildMockData } from "@/data/mock";
 import { useAuth } from "@/hooks/useAuth";
-import { modulesApi, notificationsApi, teachersApi, type TeacherListItem, type TeachersMetrics } from "@/lib/api";
+import { attendanceApi, modulesApi, notificationsApi, teachersApi, type TeacherListItem, type TeachersMetrics } from "@/lib/api";
+import { createStudent, deleteStudent as deleteStudentApi, listStudents, updateStudent } from "@/api/students";
 import { makeRef, todayISO, uid } from "@/lib/utils";
 
 type SaveStudent = Omit<Student, "id" | "ref">;
@@ -28,6 +29,8 @@ interface PaymentInput {
 
 interface AppData {
   students: Student[];
+  studentsLoading: boolean;
+  refreshStudents: () => Promise<void>;
   teachers: TeacherListItem[];
   teacherMetrics: TeachersMetrics;
   teachersLoading: boolean;
@@ -36,6 +39,8 @@ interface AppData {
   modulesLoading: boolean;
   refreshModules: () => Promise<void>;
   attendance: AttendanceRecord[];
+  attendanceLoading: boolean;
+  refreshAttendance: () => Promise<void>;
   transactions: Transaction[];
   classes: OnlineClass[];
   notices: Notice[];
@@ -49,14 +54,16 @@ interface AppData {
   paidTotal: (studentId: string) => number;
   outstanding: (studentId: string) => number;
 
-  saveStudent: (data: SaveStudent, id?: string) => Student;
-  deleteStudent: (id: string) => void;
+  saveStudent: (data: SaveStudent, id?: string) => Promise<Student>;
+  deleteStudent: (id: string) => Promise<void>;
   saveTeacher: (data: SaveTeacher, moduleIds: string[], id?: string) => Promise<Teacher>;
   deleteTeacher: (id: string) => Promise<void>;
   saveModule: (data: SaveModule, id?: string) => Promise<Module>;
   deleteModule: (id: string) => Promise<void>;
   setModuleStudents: (moduleId: string, studentIds: string[]) => Promise<void>;
   markAttendance: (studentId: string, moduleId: string, date: string, status: AttendanceStatus, method?: "manual" | "qr") => "created" | "updated";
+  bulkMarkAttendance: (date: string, moduleId?: string, batch?: string, status?: AttendanceStatus) => Promise<number>;
+  deleteAttendanceRecord: (id: string) => Promise<void>;
   saveTransaction: (data: Omit<Transaction, "id">, id?: string) => Transaction;
   deleteTransaction: (id: string) => void;
   recordPayment: (p: PaymentInput) => Transaction;
@@ -73,6 +80,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [seed] = useState(buildMockData);
   const [students, setStudents] = useState(seed.students);
+  const [studentsLoading, setStudentsLoading] = useState(false);
   const [teachers, setTeachers] = useState<TeacherListItem[]>([]);
   const [teacherMetrics, setTeacherMetrics] = useState<TeachersMetrics>({
     totalTeachers: 0,
@@ -84,6 +92,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [modules, setModules] = useState<Module[]>([]);
   const [modulesLoading, setModulesLoading] = useState(false);
   const [attendance, setAttendance] = useState(seed.attendance);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [transactions, setTransactions] = useState(seed.transactions);
   const [classes, setClasses] = useState(seed.classes);
   const [notices, setNotices] = useState(seed.notices);
@@ -121,14 +130,82 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  const refreshAttendance = useCallback(async () => {
+    if (!user) return;
+    setAttendanceLoading(true);
+    try {
+      const serverRecords = await attendanceApi.listRecords({ limit: 1000 });
+      if (Array.isArray(serverRecords) && serverRecords.length > 0) {
+        setAttendance((local) => {
+          const map = new Map<string, AttendanceRecord>();
+          local.forEach((a) => map.set(a.id, a));
+          serverRecords.forEach((a) => map.set(a.id, a));
+          return Array.from(map.values());
+        });
+      }
+    } catch {
+      /* backend offline; retain mock attendance */
+    } finally {
+      setAttendanceLoading(false);
+    }
+  }, [user]);
+
+  const refreshStudents = useCallback(async () => {
+    if (!user) {
+      setStudents([]);
+      return;
+    }
+    setStudentsLoading(true);
+    try {
+      const res = await listStudents({ limit: 100, page: 1 });
+      if (res?.items && Array.isArray(res.items)) {
+        let allItems = [...res.items];
+        if (res.pagination?.totalPages && res.pagination.totalPages > 1) {
+          const remainingPromises = [];
+          for (let p = 2; p <= res.pagination.totalPages; p++) {
+            remainingPromises.push(listStudents({ limit: 100, page: p }));
+          }
+          const pages = await Promise.all(remainingPromises);
+          pages.forEach((pageRes) => {
+            if (pageRes?.items) allItems = allItems.concat(pageRes.items);
+          });
+        }
+
+        if (allItems.length > 0) {
+          const mapped: Student[] = allItems.map((item) => ({
+            id: item.id,
+            ref: item.ref,
+            fullName: item.fullName,
+            email: item.email,
+            phone: item.phone,
+            dob: item.dob,
+            address: item.address,
+            guardianName: item.guardianName,
+            guardianPhone: item.guardianPhone,
+            batch: item.batch,
+            moduleIds: item.moduleIds ?? (item.modules?.map((m) => m.id) ?? []),
+            enrollmentDate: item.enrollmentDate,
+            status: item.status,
+          }));
+          setStudents(mapped);
+        }
+      }
+    } catch {
+      /* backend offline; retain mock or current students */
+    } finally {
+      setStudentsLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!user) {
       setTeachers([]);
       setModules([]);
+      setStudents([]);
       return;
     }
-    void Promise.allSettled([refreshTeachers(), refreshModules()]);
-  }, [user, refreshTeachers, refreshModules]);
+    void Promise.allSettled([refreshTeachers(), refreshModules(), refreshAttendance(), refreshStudents()]);
+  }, [user, refreshTeachers, refreshModules, refreshAttendance, refreshStudents]);
 
   const feeMap = useMemo(() => {
     const fees = new Map(modules.map((m) => [m.id, m.fee]));
@@ -149,7 +226,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       set((p) => (exists ? p.map((x) => (x.id === item.id ? item : x)) : [item, ...p]));
 
     return {
-      students, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, modulesLoading, refreshModules, attendance, transactions, classes, notices,
+      students, studentsLoading, refreshStudents, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, modulesLoading, refreshModules, attendance, attendanceLoading, refreshAttendance, transactions, classes, notices,
       getStudent: (id) => students.find((s) => s.id === id),
       getTeacher: (id) => (id ? teachers.find((t) => t.id === id) : undefined),
       getModule: (id) => modules.find((m) => m.id === id),
@@ -159,32 +236,104 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       paidTotal,
       outstanding: (id) => Math.max(0, feeTotal(id) - paidTotal(id)),
 
-      saveStudent: (data, id) => {
+      saveStudent: async (data, id) => {
         if (id) {
-          const old = students.find((s) => s.id === id)!;
-          const item = { ...old, ...data };
-          upsert(setStudents, item, true);
+          try {
+            const updated = await updateStudent(id, {
+              fullName: data.fullName,
+              email: data.email,
+              phone: data.phone,
+              dob: data.dob,
+              address: data.address,
+              guardianName: data.guardianName,
+              guardianPhone: data.guardianPhone,
+              batch: data.batch,
+              moduleIds: data.moduleIds,
+              enrollmentDate: data.enrollmentDate,
+              status: data.status,
+            });
+            const item: Student = {
+              id: updated.id,
+              ref: updated.ref,
+              fullName: updated.fullName,
+              email: updated.email,
+              phone: updated.phone,
+              dob: updated.dob,
+              address: updated.address,
+              guardianName: updated.guardianName,
+              guardianPhone: updated.guardianPhone,
+              batch: updated.batch,
+              moduleIds: updated.moduleIds ?? [],
+              enrollmentDate: updated.enrollmentDate,
+              status: updated.status,
+            };
+            upsert(setStudents, item, true);
+            return item;
+          } catch {
+            const old = students.find((s) => s.id === id)!;
+            const item = { ...old, ...data };
+            upsert(setStudents, item, true);
+            return item;
+          }
+        }
+
+        try {
+          const created = await createStudent({
+            fullName: data.fullName,
+            email: data.email,
+            phone: data.phone,
+            dob: data.dob,
+            address: data.address,
+            guardianName: data.guardianName,
+            guardianPhone: data.guardianPhone,
+            batch: data.batch,
+            moduleIds: data.moduleIds,
+            enrollmentDate: data.enrollmentDate,
+            status: data.status,
+          });
+          const item: Student = {
+            id: created.id,
+            ref: created.ref,
+            fullName: created.fullName,
+            email: created.email,
+            phone: created.phone,
+            dob: created.dob,
+            address: created.address,
+            guardianName: created.guardianName,
+            guardianPhone: created.guardianPhone,
+            batch: created.batch,
+            moduleIds: created.moduleIds ?? [],
+            enrollmentDate: created.enrollmentDate,
+            status: created.status,
+          };
+          upsert(setStudents, item, false);
+
+          void notificationsApi
+            .create({
+              type: "student",
+              title: `New Student Registration: ${item.fullName}`,
+              subtitle: `Enrolled in ${item.batch || "batch"} (${item.id})`,
+              link: "/dashboard/students",
+            })
+            .catch(() => {});
+
+          return item;
+        } catch {
+          const year = new Date().getFullYear();
+          const n = students.reduce((mx, s) => Math.max(mx, Number(s.id.split("-")[2]) || 0), 0) + 1;
+          const item: Student = { ...data, id: `STU-${year}-${String(n).padStart(3, "0")}`, ref: makeRef() };
+          upsert(setStudents, item, false);
           return item;
         }
-        const year = new Date().getFullYear();
-        const n = students.reduce((mx, s) => Math.max(mx, Number(s.id.split("-")[2]) || 0), 0) + 1;
-        const item: Student = { ...data, id: `STU-${year}-${String(n).padStart(3, "0")}`, ref: makeRef() };
-        upsert(setStudents, item, false);
-
-        void notificationsApi
-          .create({
-            type: "student",
-            title: `New Student Registration: ${item.fullName}`,
-            subtitle: `Enrolled in ${item.batch || "batch"} (${item.id})`,
-            link: "/dashboard/students",
-          })
-          .catch(() => {});
-
-        return item;
       },
-      deleteStudent: (id) => {
+      deleteStudent: async (id) => {
         setStudents((p) => p.filter((s) => s.id !== id));
         setAttendance((p) => p.filter((a) => a.studentId !== id));
+        try {
+          await deleteStudentApi(id);
+        } catch {
+          /* offline delete */
+        }
       },
 
       saveTeacher: async (data, moduleIds, id) => {
@@ -245,7 +394,35 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             ? p.map((a) => (a.id === key ? { ...a, status, method } : a))
             : [...p, { id: key, studentId, moduleId, date, status, method }],
         );
+        void attendanceApi
+          .mark({ studentId, moduleId, date, status, method })
+          .catch(() => {});
         return exists ? "updated" : "created";
+      },
+      bulkMarkAttendance: async (date, moduleId, batch, status = "present") => {
+        try {
+          const res = await attendanceApi.bulkMarkUnmarked({ date, moduleId, batch, status });
+          if (res.records?.length) {
+            setAttendance((p) => {
+              const map = new Map<string, AttendanceRecord>();
+              p.forEach((a) => map.set(a.id, a));
+              res.records.forEach((a) => map.set(a.id, a));
+              return Array.from(map.values());
+            });
+            return res.markedCount;
+          }
+        } catch {
+          /* fallback to local calculation handled by caller */
+        }
+        return 0;
+      },
+      deleteAttendanceRecord: async (id) => {
+        setAttendance((p) => p.filter((a) => a.id !== id));
+        try {
+          await attendanceApi.deleteRecord(id);
+        } catch {
+          /* ignore offline delete */
+        }
       },
 
       saveTransaction: (data, id) => {
@@ -296,7 +473,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       },
       deleteNotice: (id) => setNotices((p) => p.filter((n) => n.id !== id)),
     };
-  }, [students, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, attendance, transactions, classes, notices, feeMap, paidMap]);
+  }, [students, studentsLoading, refreshStudents, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, modulesLoading, refreshModules, attendance, attendanceLoading, refreshAttendance, transactions, classes, notices, feeMap, paidMap]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
