@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Search, X } from "lucide-react";
 import { Modal } from "@/components/ui/overlays";
-import { Badge, Button, Field, Input, ProgressBar, Select, Skeleton } from "@/components/ui/primitives";
+import { Avatar, Badge, Button, Field, Input, ProgressBar, Select, Skeleton } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
-import { listStudentPayments, recordStudentPayment } from "@/api/finance";
+import { createPayment, listPaymentStudents } from "@/api/payments";
 import { getStudentById } from "@/api/students";
 import { INCOME_CATEGORIES, PAYMENT_METHODS } from "@/lib/constants";
-import { fmtLKR, todayISO } from "@/lib/utils";
+import { cn, fmtLKR, todayISO } from "@/lib/utils";
 import type { RecordStudentPaymentResponse } from "@/types";
 
 export interface PaymentStudentSummary {
@@ -31,6 +32,11 @@ function PaymentForm({
 }) {
   const toast = useToast();
   const [sid, setSid] = useState(initialStudentId ?? "");
+  const [searchText, setSearchText] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const comboRef = useRef<HTMLDivElement>(null);
+
   const [students, setStudents] = useState<PaymentStudentSummary[]>(() =>
     initialSummary ? [initialSummary] : [],
   );
@@ -48,10 +54,37 @@ function PaymentForm({
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Debounce server search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchText.trim());
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (comboRef.current && !comboRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, []);
+
+  // Query students from backend matching search text
   useEffect(() => {
     const controller = new AbortController();
     setLoadingList(true);
-    listStudentPayments({ limit: 100, includeGraduated: true }, controller.signal)
+    listPaymentStudents(
+      {
+        q: debouncedSearch || undefined,
+        limit: 50,
+        includeGraduated: true,
+      },
+      controller.signal,
+    )
       .then((res) => {
         const list = res.items.map((item) => ({
           id: item.id,
@@ -69,8 +102,9 @@ function PaymentForm({
         if (!controller.signal.aborted) setLoadingList(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [debouncedSearch]);
 
+  // Load selected student detail if not already available
   useEffect(() => {
     if (!sid) {
       setSelectedDetail(null);
@@ -108,24 +142,48 @@ function PaymentForm({
     return () => controller.abort();
   }, [sid, initialSummary, students]);
 
-  const sorted = useMemo(() => {
+  const filteredStudents = useMemo(() => {
     const map = new Map<string, PaymentStudentSummary>();
     for (const s of students) map.set(s.id, s);
     if (initialSummary) map.set(initialSummary.id, initialSummary);
     if (selectedDetail) map.set(selectedDetail.id, selectedDetail);
-    return [...map.values()].sort((a, b) => a.fullName.localeCompare(b.fullName));
-  }, [students, initialSummary, selectedDetail]);
+    const list = [...map.values()].sort((a, b) => a.fullName.localeCompare(b.fullName));
 
-  const activeStudent = selectedDetail ?? sorted.find((s) => s.id === sid) ?? null;
+    const q = searchText.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (s) => s.fullName.toLowerCase().includes(q) || s.id.toLowerCase().includes(q),
+    );
+  }, [students, initialSummary, selectedDetail, searchText]);
+
+  const activeStudent = selectedDetail ?? filteredStudents.find((s) => s.id === sid) ?? null;
   const totalFee = activeStudent?.feeTotal ?? 0;
   const totalPaid = activeStudent?.paidTotal ?? 0;
   const owed = activeStudent?.outstanding ?? 0;
   const amt = Number(amount) || 0;
   const round = (n: number) => Math.round(n / 500) * 500;
 
+  const selectStudent = (s: PaymentStudentSummary) => {
+    setSid(s.id);
+    setSelectedDetail(s);
+    setSearchText("");
+    setDropdownOpen(false);
+    setAmount("");
+    setError("");
+  };
+
+  const clearStudent = () => {
+    setSid("");
+    setSelectedDetail(null);
+    setSearchText("");
+    setAmount("");
+    setError("");
+    setDropdownOpen(true);
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sid) return setError("Select a student first.");
+    if (!sid) return setError("Search and select a student first.");
     if (owed <= 0) return setError("This student has no outstanding balance.");
     if (amt <= 0) return setError("Enter a payment amount greater than zero.");
     if (amt > owed) return setError(`Amount exceeds the outstanding balance of ${fmtLKR(owed)}.`);
@@ -134,7 +192,7 @@ function PaymentForm({
     setSubmitting(true);
     onSubmittingChange(true);
     try {
-      const result = await recordStudentPayment({
+      const result = await createPayment({
         studentId: sid,
         amount: amt,
         method,
@@ -142,7 +200,8 @@ function PaymentForm({
         date,
         ...(description.trim() ? { description: description.trim() } : {}),
       });
-      toast.success(`${fmtLKR(amt)} payment recorded for ${activeStudent?.fullName ?? sid}`);
+      const receiptSuffix = result.payment?.receiptNo ? ` · Receipt ${result.payment.receiptNo}` : "";
+      toast.success(`${fmtLKR(amt)} payment recorded for ${activeStudent?.fullName ?? sid}${receiptSuffix}`);
       onDone?.(result);
       onClose();
     } catch (err: unknown) {
@@ -158,22 +217,108 @@ function PaymentForm({
   return (
     <form id="payment-form" onSubmit={(e) => void submit(e)} className="space-y-4">
       <Field label="Student">
-        <Select
-          value={sid}
-          disabled={loadingList || submitting}
-          onChange={(e) => {
-            setSid(e.target.value);
-            setAmount("");
-            setError("");
-          }}
-        >
-          <option value="">{loadingList ? "Loading students…" : "Select a student…"}</option>
-          {sorted.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.fullName} — {s.id}
-            </option>
-          ))}
-        </Select>
+        {sid && activeStudent ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-2/60 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <Avatar name={activeStudent.fullName} size="sm" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{activeStudent.fullName}</p>
+                <p className="num text-[11px] text-muted">{activeStudent.id}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={clearStudent}
+              aria-label="Change student"
+              title="Change student"
+              className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-muted transition hover:bg-surface hover:text-ink disabled:opacity-50"
+            >
+              <X className="h-3.5 w-3.5" /> Change
+            </button>
+          </div>
+        ) : (
+          <div ref={comboRef} className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <Input
+              value={searchText}
+              disabled={submitting}
+              placeholder="Search student by name or ID…"
+              className="pl-9 pr-9"
+              onFocus={() => setDropdownOpen(true)}
+              onChange={(e) => {
+                setSearchText(e.target.value);
+                setDropdownOpen(true);
+                setError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setDropdownOpen(false);
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (filteredStudents.length > 0) {
+                    selectStudent(filteredStudents[0]);
+                  }
+                }
+              }}
+            />
+            {loadingList ? (
+              <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted" />
+            ) : searchText ? (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setSearchText("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer rounded p-0.5 text-muted hover:text-ink"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+
+            {dropdownOpen && (
+              <div className="absolute left-0 right-0 top-full z-50 mt-1.5 max-h-60 overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-pop">
+                {loadingList && filteredStudents.length === 0 ? (
+                  <div className="space-y-2 p-2">
+                    <Skeleton className="h-9 w-full rounded-xl" />
+                    <Skeleton className="h-9 w-full rounded-xl" />
+                  </div>
+                ) : filteredStudents.length === 0 ? (
+                  <p className="px-3 py-4 text-center text-xs text-muted">
+                    No students found{searchText ? ` for “${searchText}”` : ""}
+                  </p>
+                ) : (
+                  filteredStudents.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectStudent(s);
+                      }}
+                      className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-surface-2"
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <Avatar name={s.fullName} size="sm" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">{s.fullName}</p>
+                          <p className="num text-[11px] text-muted">{s.id}</p>
+                        </div>
+                      </div>
+                      <span
+                        className={cn(
+                          "num shrink-0 text-xs font-semibold",
+                          s.outstanding > 0 ? "text-rose-500" : "text-emerald-500",
+                        )}
+                      >
+                        {s.outstanding > 0 ? fmtLKR(s.outstanding) : "Settled"}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </Field>
 
       {sid && (
@@ -218,6 +363,9 @@ function PaymentForm({
             placeholder="0"
             value={amount}
             disabled={submitting}
+            onKeyDown={(e) => {
+              if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
+            }}
             onChange={(e) => {
               setAmount(e.target.value);
               setError("");

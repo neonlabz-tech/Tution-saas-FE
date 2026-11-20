@@ -158,7 +158,16 @@ function Inner({
         <Textarea {...register("description")} />
       </Field>
       <Field label="Fee (LKR)" error={errors.fee?.message}>
-        <Input type="number" step={500} {...register("fee", { valueAsNumber: true })} className="num" />
+        <Input
+          type="number"
+          min={0}
+          step={500}
+          onKeyDown={(e) => {
+            if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
+          }}
+          {...register("fee", { valueAsNumber: true })}
+          className="num"
+        />
       </Field>
       <Field label="Duration" error={errors.duration?.message}>
         <Input {...register("duration")} />
