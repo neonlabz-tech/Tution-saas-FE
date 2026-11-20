@@ -136,6 +136,9 @@ function Inner({
             step={100}
             min={0}
             disabled={isSubmitting}
+            onKeyDown={(e) => {
+              if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
+            }}
             {...register("amount", { valueAsNumber: true })}
             className="num"
             placeholder="0"

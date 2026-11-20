@@ -12,6 +12,34 @@ import { applyApiValidationErrors } from "@/lib/api";
 import { BATCHES } from "@/lib/constants";
 import { toDateInput, todayISO } from "@/lib/utils";
 
+const ALLOWED_NAV_KEYS = new Set([
+  "Backspace",
+  "Delete",
+  "Tab",
+  "Escape",
+  "Enter",
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Home",
+  "End",
+]);
+
+function handlePhoneKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  if (e.ctrlKey || e.metaKey || e.altKey || ALLOWED_NAV_KEYS.has(e.key)) return;
+  if (!/^\d$/.test(e.key)) {
+    e.preventDefault();
+  }
+}
+
+function sanitizePhoneInput(e: React.ChangeEvent<HTMLInputElement>) {
+  const cleaned = e.target.value.replace(/\D/g, "").slice(0, 10);
+  if (e.target.value !== cleaned) {
+    e.target.value = cleaned;
+  }
+}
+
 const phone = z.string().regex(/^0\d{9}$/, "Use 10 digits, e.g. 0771234567");
 const schema = z.object({
   fullName: z.string().min(3, "Enter the full name"),
@@ -207,7 +235,16 @@ function Inner({
         <Input type="email" {...register("email")} placeholder="name@mail.lk" />
       </Field>
       <Field label="Phone" error={errors.phone?.message}>
-        <Input {...register("phone")} placeholder="0771234567" className="num" />
+        <Input
+          type="tel"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={10}
+          onKeyDown={handlePhoneKeyDown}
+          {...register("phone", { onChange: sanitizePhoneInput })}
+          placeholder="0771234567"
+          className="num"
+        />
       </Field>
       <Field label="Date of birth" error={errors.dob?.message}>
         <Input type="date" {...register("dob")} />
@@ -222,7 +259,16 @@ function Inner({
         <Input {...register("guardianName")} />
       </Field>
       <Field label="Guardian phone" error={errors.guardianPhone?.message}>
-        <Input {...register("guardianPhone")} className="num" />
+        <Input
+          type="tel"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={10}
+          onKeyDown={handlePhoneKeyDown}
+          {...register("guardianPhone", { onChange: sanitizePhoneInput })}
+          placeholder="0771234567"
+          className="num"
+        />
       </Field>
       <Field label="Batch" error={errors.batch?.message}>
         <Select {...register("batch")}>

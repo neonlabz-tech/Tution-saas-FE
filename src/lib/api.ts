@@ -714,6 +714,10 @@ export interface VerifyQrResponse {
     batch?: string;
     status: string;
     moduleIds: string[];
+    feeTotal?: number;
+    paidTotal?: number;
+    outstanding?: number;
+    paymentStatus?: "paid" | "partial" | "unpaid";
   };
   enrolledInModule?: boolean;
   alreadyMarked?: boolean;

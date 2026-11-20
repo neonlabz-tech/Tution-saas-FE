@@ -172,6 +172,7 @@ export async function listStudentPayments(
     items,
     pagination: { total, page, limit, totalPages },
     summary: {
+      totalStudents: res?.summary?.totalStudents ?? total,
       debtorCount: res?.summary?.debtorCount ?? items.filter((i) => i.outstanding > 0).length,
       totalOutstanding: res?.summary?.totalOutstanding ?? items.reduce((s, i) => s + (i.outstanding ?? 0), 0),
     },

@@ -165,6 +165,7 @@ export type StudentPaymentStatus = "paid" | "partial" | "unpaid";
 export interface StudentPaymentSummary {
   id: string;
   fullName: string;
+  email?: string;
   batch: string;
   status: StudentStatus;
   feeTotal: number;
@@ -179,6 +180,7 @@ export interface StudentPaymentsListResponse {
   items: StudentPaymentSummary[];
   pagination: PaginationMeta;
   summary: {
+    totalStudents?: number;
     debtorCount: number;
     totalOutstanding: number;
   };
@@ -196,6 +198,121 @@ export interface RecordStudentPaymentDto {
 export interface RecordStudentPaymentResponse {
   transaction: Transaction;
   studentSummary: StudentPaymentSummary;
+  payment?: PaymentItem;
+}
+
+export type PaymentRecordStatus = "completed" | "refunded" | "void";
+
+export interface PaymentStudentInfo {
+  id: string;
+  fullName: string;
+  batch: string;
+  email: string;
+}
+
+export interface PaymentItem {
+  id: string;
+  receiptNo: string;
+  studentId: string;
+  amount: number;
+  discount: number;
+  category: string;
+  method: string;
+  date: string;
+  description: string;
+  status: PaymentRecordStatus;
+  collectedBy?: string;
+  transactionId?: string;
+  student?: PaymentStudentInfo | null;
+}
+
+export interface PaymentStudentsQueryParams {
+  q?: string;
+  batch?: string;
+  status?: StudentStatus | "all";
+  paymentStatus?: StudentPaymentStatus | "all";
+  debtorsOnly?: boolean;
+  includeGraduated?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaymentStudentsResponse {
+  items: StudentPaymentSummary[];
+  pagination: PaginationMeta;
+  summary: {
+    totalStudents: number;
+    debtorCount: number;
+    settledCount: number;
+    totalOutstanding: number;
+    totalCollected: number;
+  };
+}
+
+export interface PaymentsListQueryParams {
+  q?: string;
+  studentId?: string;
+  method?: string;
+  category?: string;
+  status?: PaymentRecordStatus | "all";
+  period?: FinancePeriod;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaymentsListResponse {
+  items: PaymentItem[];
+  pagination: PaginationMeta;
+  summary: {
+    totalCollected: number;
+    totalCount: number;
+  };
+}
+
+export interface PaymentDetailResponse {
+  payment: PaymentItem;
+  student: PaymentStudentInfo | null;
+  studentSummary: StudentPaymentSummary | null;
+}
+
+export interface CreatePaymentDto {
+  studentId: string;
+  amount: number;
+  discount?: number;
+  method: string;
+  category?: string;
+  date?: string;
+  description?: string;
+}
+
+export interface UpdatePaymentDto {
+  amount?: number;
+  discount?: number;
+  method?: string;
+  category?: string;
+  date?: string;
+  description?: string;
+  status?: PaymentRecordStatus;
+}
+
+export interface CreatePaymentResponse {
+  payment: PaymentItem;
+  transaction: Transaction;
+  studentSummary: StudentPaymentSummary;
+}
+
+export interface UpdatePaymentResponse {
+  payment: PaymentItem;
+  studentSummary: StudentPaymentSummary | null;
+}
+
+export interface DeletePaymentResponse {
+  deleted: boolean;
+  id: string;
+  deletedTransactionId?: string | null;
+  studentSummary?: StudentPaymentSummary | null;
 }
 
 export type TeacherStatus = "active" | "inactive";
