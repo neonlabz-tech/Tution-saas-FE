@@ -9,7 +9,6 @@ import { Avatar, Badge } from "@/components/ui/primitives";
 import { Dropdown } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { notificationsApi, type NotificationItem } from "@/lib/api";
-import { todayISO } from "@/lib/utils";
 
 function GlobalSearch({ className = "" }: { className?: string }) {
   const { students, teachers, modules } = useAppData();
@@ -68,10 +67,8 @@ function GlobalSearch({ className = "" }: { className?: string }) {
 
 function Notifications() {
   const { user } = useAuth();
-  const { notices } = useAppData();
   const toast = useToast();
   const [backendItems, setBackendItems] = useState<NotificationItem[]>([]);
-  const [localReadIds, setLocalReadIds] = useState<Set<string>>(() => new Set());
   const inFlightRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -94,40 +91,21 @@ function Notifications() {
     };
   }, [user]);
 
-  const items = useMemo(() => {
-    const today = todayISO();
-    const seenTitles = new Set(backendItems.map((i) => i.title.toLowerCase()));
-    const localExpiring: NotificationItem[] = notices
-      .filter((n) => n.status === "published" && n.expiryDate === today && !seenTitles.has(n.title.toLowerCase()))
-      .map((n) => {
-        const id = `local_exp_${n.id}`;
-        return {
-          id,
-          type: "notice",
-          title: n.title,
-          subtitle: "Notice expires today",
-          link: "/dashboard/notices",
-          read: localReadIds.has(id),
-          persisted: false,
-        };
-      });
-    const combined = [...backendItems, ...localExpiring];
-    return combined.sort((a, b) => {
-      if (a.read === b.read) return 0;
-      return a.read ? 1 : -1;
-    });
-  }, [backendItems, notices, localReadIds]);
+  // Unread first; notice expiry reminders come from the backend.
+  const items = useMemo(
+    () =>
+      [...backendItems].sort((a, b) => {
+        if (a.read === b.read) return 0;
+        return a.read ? 1 : -1;
+      }),
+    [backendItems],
+  );
 
   const unreadCount = items.filter((i) => !i.read).length;
 
   const handleMarkAllAsRead = async () => {
     if (unreadCount === 0) return;
     setBackendItems((prev) => prev.map((entry) => ({ ...entry, read: true })));
-    setLocalReadIds((prev) => {
-      const next = new Set(prev);
-      items.forEach((item) => next.add(item.id));
-      return next;
-    });
     try {
       await notificationsApi.markAllAsRead();
       toast.success("All notifications marked as read");
@@ -139,15 +117,6 @@ function Notifications() {
   const handleNotificationClick = async (item: NotificationItem, close: () => void) => {
     close();
     if (item.read || inFlightRef.current.has(item.id)) return;
-
-    if (item.id.startsWith("local_exp_")) {
-      setLocalReadIds((prev) => {
-        const next = new Set(prev);
-        next.add(item.id);
-        return next;
-      });
-      return;
-    }
 
     inFlightRef.current.add(item.id);
     setBackendItems((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, read: true } : entry)));

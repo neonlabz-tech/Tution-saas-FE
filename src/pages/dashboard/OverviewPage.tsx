@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Banknote, BookOpen, CalendarClock, ClipboardCheck, CreditCard, GraduationCap, Megaphone, Percent, Plus, ScanLine, TrendingDown, TrendingUp, UserCheck, UserPlus, Users, Video, Wallet } from "lucide-react";
-import { Avatar, Badge, Button, Card, CardHeader, StatusBadge } from "@/components/ui/primitives";
+import { Banknote, BookOpen, CalendarClock, ClipboardCheck, CreditCard, GraduationCap, Megaphone, Percent, ScanLine, TrendingDown, TrendingUp, UserCheck, UserPlus, Users, Video, Wallet } from "lucide-react";
+import { Avatar, Badge, Card, CardHeader, StatusBadge } from "@/components/ui/primitives";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { RecordPaymentModal } from "@/components/finance/RecordPaymentModal";
 import { useAuth } from "@/hooks/useAuth";
@@ -213,7 +213,14 @@ export default function OverviewPage() {
               </Link>
             ))}
             {activityFeeds.activeNotices.length === 0 && <p className="py-8 text-center text-sm text-muted">No active notices</p>}
-            <Link to="/dashboard/notices?new=1"><Button variant="soft" size="sm" className="w-full"><Plus className="h-3.5 w-3.5" /> New notice</Button></Link>
+            {(() => {
+              const more = (activityFeeds.activeNoticesTotal ?? 0) - activityFeeds.activeNotices.length;
+              return more > 0 ? (
+                <Link to="/dashboard/notices" className="block py-1 text-center text-xs font-semibold text-brand hover:underline">
+                  +{more} more active notice{more > 1 ? "s" : ""} →
+                </Link>
+              ) : null;
+            })()}
           </div>
         </Card>
       </div>
