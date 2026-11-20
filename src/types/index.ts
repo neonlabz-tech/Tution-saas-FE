@@ -303,6 +303,97 @@ export interface Transaction {
   description: string;
   studentId?: string;
   method?: string;
+  student?: {
+    id: string;
+    fullName: string;
+    batch?: string;
+  } | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type FinancePeriod = "week" | "month" | "year" | "custom";
+
+export interface FinancePeriodRange {
+  period: FinancePeriod;
+  from: string;
+  to: string;
+  span?: number;
+}
+
+export interface FinanceKpis {
+  totalIncome: number;
+  totalExpense: number;
+  netBalance: number;
+  totalOutstanding: number;
+  totalCount: number;
+}
+
+export interface FinanceKpisResponse {
+  kpis: FinanceKpis;
+  period: FinancePeriodRange;
+}
+
+export interface FinanceSeriesBucket {
+  key: string;
+  label: string;
+  income: number;
+  expense: number;
+  net: number;
+}
+
+export interface FinanceCategoryBreakdownItem {
+  name: string;
+  value: number;
+}
+
+export interface FinanceChartsResponse {
+  period: FinancePeriodRange;
+  granularity?: "daily" | "monthly";
+  series: FinanceSeriesBucket[];
+  incomeByCategory: FinanceCategoryBreakdownItem[];
+  expenseByCategory: FinanceCategoryBreakdownItem[];
+}
+
+export interface FinanceFilterParams {
+  period?: FinancePeriod;
+  from?: string;
+  to?: string;
+  category?: string;
+}
+
+export interface TransactionQueryParams extends FinanceFilterParams {
+  type?: TxType;
+  studentId?: string;
+  q?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}
+
+export interface FinanceTransactionsResponse {
+  items: Transaction[];
+  pagination: PaginationMeta;
+  kpis: FinanceKpis;
+  period: FinancePeriodRange;
+}
+
+export interface CreateTransactionDto {
+  type: TxType;
+  category: string;
+  amount: number;
+  date?: string;
+  description?: string;
+  method?: string;
+  studentId?: string | null;
+}
+
+export type UpdateTransactionDto = Partial<CreateTransactionDto>;
+
+export interface DeleteTransactionResponse {
+  deleted: boolean;
+  id: string;
 }
 
 export type ClassStatus = "scheduled" | "completed" | "cancelled";
