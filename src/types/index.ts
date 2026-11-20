@@ -324,6 +324,56 @@ export interface OnlineClass {
   status: ClassStatus;
 }
 
+export interface OnlineClassModuleRef {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface OnlineClassTeacherRef {
+  id: string;
+  fullName: string;
+}
+
+export interface OnlineClassItem extends OnlineClass {
+  module?: OnlineClassModuleRef | null;
+  teacher?: OnlineClassTeacherRef | null;
+  moduleCode?: string;
+  moduleName?: string;
+  teacherName?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface OnlineClassQueryParams {
+  teacherId?: string;
+  moduleId?: string;
+  batch?: string;
+  status?: ClassStatus | "all";
+  from?: string;
+  to?: string;
+  q?: string;
+}
+
+export interface CreateOnlineClassDto {
+  title: string;
+  moduleId: string;
+  teacherId: string;
+  batch: string;
+  start: string;
+  end: string;
+  link: string;
+  description?: string;
+  status?: ClassStatus;
+}
+
+export type UpdateOnlineClassDto = Partial<CreateOnlineClassDto>;
+
+export interface DeleteOnlineClassResponse {
+  deleted?: boolean;
+  id?: string;
+}
+
 export type NoticePriority = "low" | "medium" | "high";
 /** Computed by the backend from status + publish/expiry dates. "expired" is only returned to admins. */
 export type NoticeState = "draft" | "scheduled" | "active" | "expired";

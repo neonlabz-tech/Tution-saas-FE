@@ -151,4 +151,10 @@ input[type="time"]::-webkit-calendar-picker-indicator {
     flex-direction: column;
     gap: 0.6rem;
   }
+  .fc .fc-toolbar-chunk {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem;
+  }
 }
