@@ -2,11 +2,16 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 
 export type ThemeMode = "light" | "dark" | "system";
 export const ACCENTS = [
+  { id: "neon-purple", label: "Neon Purple", color: "#9828FD" },
+  { id: "neon-cyan", label: "Neon Cyan", color: "#4589FF" },
+  { id: "neon-magenta", label: "Neon Magenta", color: "#D50DFB" },
   { id: "indigo", label: "Indigo", color: "#4F46E5" },
   { id: "violet", label: "Violet", color: "#7C3AED" },
   { id: "teal", label: "Teal", color: "#0D9488" },
   { id: "rose", label: "Rose", color: "#E11D48" },
 ] as const;
+
+export type AccentId = (typeof ACCENTS)[number]["id"];
 
 interface ThemeCtx {
   mode: ThemeMode;
@@ -35,7 +40,10 @@ const write = (k: string, v: string) => {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>(() => read("eduflow-theme", "light") as ThemeMode);
-  const [accent, setAccent] = useState(() => read("eduflow-accent", "indigo"));
+  const [accent, setAccent] = useState(() => {
+    const saved = read("eduflow-accent", "neon-purple");
+    return ACCENTS.some((a) => a.id === saved) ? saved : "neon-purple";
+  });
   const [sysDark, setSysDark] = useState(() => matchMedia("(prefers-color-scheme: dark)").matches);
 
   useEffect(() => {

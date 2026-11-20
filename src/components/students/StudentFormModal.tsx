@@ -43,7 +43,7 @@ function toFormValues(item: EditableStudent | null): Values {
       batch: BATCHES[0],
       moduleIds: [],
       enrollmentDate: todayISO(),
-      status: "pending",
+      status: "active",
     };
   }
   const moduleIds = item.moduleIds?.length

@@ -52,7 +52,7 @@ const TEACHER_SEED: Omit<Teacher, "batches">[] = [
   { id: "TCH-005", fullName: "Ms. Hasini de Mel", email: "hasini.d@eduflow.lk", phone: "0771234505", qualification: "MA in English Literature", specialization: "Communication Skills", joiningDate: "2022-03-14", status: "active" },
   { id: "TCH-006", fullName: "Mr. Rohan Peiris", email: "rohan.p@eduflow.lk", phone: "0771234506", qualification: "BSc in Software Engineering", specialization: "Web & Databases", joiningDate: "2022-08-22", status: "active" },
   { id: "TCH-007", fullName: "Mrs. Chathuri Amarasinghe", email: "chathuri.a@eduflow.lk", phone: "0771234507", qualification: "ACA, MBA", specialization: "Financial Accounting", joiningDate: "2020-11-09", status: "active" },
-  { id: "TCH-008", fullName: "Mr. Kalum Ranasinghe", email: "kalum.r@eduflow.lk", phone: "0771234508", qualification: "MSc in Economics", specialization: "Macroeconomics", joiningDate: "2023-01-30", status: "on-leave" },
+  { id: "TCH-008", fullName: "Mr. Kalum Ranasinghe", email: "kalum.r@eduflow.lk", phone: "0771234508", qualification: "MSc in Economics", specialization: "Macroeconomics", joiningDate: "2023-01-30", status: "inactive" },
 ];
 
 const FIRST = ["Nimal", "Kasun", "Dilani", "Sachini", "Tharindu", "Ishara", "Ruwan", "Amaya", "Chamath", "Nethmi", "Lahiru", "Sanduni", "Pasindu", "Hiruni", "Dineth", "Oshadi", "Vihanga", "Thisaru", "Kavindi", "Ravindu", "Malsha", "Yasiru", "Senuri", "Dasun"];
