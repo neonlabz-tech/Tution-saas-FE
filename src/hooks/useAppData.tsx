@@ -3,7 +3,6 @@ import type {
   AttendanceRecord,
   AttendanceStatus,
   Module,
-  Notice,
   OnlineClass,
   Student,
   Teacher,
@@ -43,7 +42,6 @@ interface AppData {
   refreshAttendance: () => Promise<void>;
   transactions: Transaction[];
   classes: OnlineClass[];
-  notices: Notice[];
 
   getStudent: (id: string) => Student | undefined;
   getTeacher: (id: string | null | undefined) => Teacher | undefined;
@@ -70,8 +68,6 @@ interface AppData {
   saveClass: (data: Omit<OnlineClass, "id">, id?: string) => OnlineClass;
   patchClass: (id: string, patch: Partial<OnlineClass>) => void;
   deleteClass: (id: string) => void;
-  saveNotice: (data: Omit<Notice, "id">, id?: string) => Notice;
-  deleteNotice: (id: string) => void;
 }
 
 const Ctx = createContext<AppData | null>(null);
@@ -95,7 +91,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [transactions, setTransactions] = useState(seed.transactions);
   const [classes, setClasses] = useState(seed.classes);
-  const [notices, setNotices] = useState(seed.notices);
 
   const refreshTeachers = useCallback(async () => {
     if (!user) {
@@ -226,7 +221,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       set((p) => (exists ? p.map((x) => (x.id === item.id ? item : x)) : [item, ...p]));
 
     return {
-      students, studentsLoading, refreshStudents, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, modulesLoading, refreshModules, attendance, attendanceLoading, refreshAttendance, transactions, classes, notices,
+      students, studentsLoading, refreshStudents, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, modulesLoading, refreshModules, attendance, attendanceLoading, refreshAttendance, transactions, classes,
       getStudent: (id) => students.find((s) => s.id === id),
       getTeacher: (id) => (id ? teachers.find((t) => t.id === id) : undefined),
       getModule: (id) => modules.find((m) => m.id === id),
@@ -465,15 +460,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       },
       patchClass: (id, patch) => setClasses((p) => p.map((c) => (c.id === id ? { ...c, ...patch } : c))),
       deleteClass: (id) => setClasses((p) => p.filter((c) => c.id !== id)),
-
-      saveNotice: (data, id) => {
-        const item: Notice = { ...data, id: id ?? uid("ntc") };
-        upsert(setNotices, item, !!id);
-        return item;
-      },
-      deleteNotice: (id) => setNotices((p) => p.filter((n) => n.id !== id)),
     };
-  }, [students, studentsLoading, refreshStudents, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, modulesLoading, refreshModules, attendance, attendanceLoading, refreshAttendance, transactions, classes, notices, feeMap, paidMap]);
+  }, [students, studentsLoading, refreshStudents, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, modulesLoading, refreshModules, attendance, attendanceLoading, refreshAttendance, transactions, classes, feeMap, paidMap]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
