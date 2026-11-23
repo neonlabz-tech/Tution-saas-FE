@@ -871,3 +871,93 @@ export const attendanceApi = {
     });
   },
 };
+
+/* ---------- Analytics ---------- */
+
+export type AnalyticsPeriod = "week" | "month" | "year" | "custom";
+export interface AnalyticsPeriodParams {
+  period: AnalyticsPeriod;
+  /** Only sent for period = "custom" (YYYY-MM-DD). */
+  from?: string;
+  to?: string;
+}
+
+export interface AnalyticsPeriodRange {
+  period: AnalyticsPeriod;
+  from: string;
+  to: string;
+  span: number;
+}
+
+export interface AnalyticsOverviewResponse {
+  period: AnalyticsPeriodRange;
+  granularity: "daily" | "monthly";
+  kpis: {
+    totalIncome: number;
+    totalExpense: number;
+    netBalance: number;
+    totalOutstanding: number;
+    activeStudents: number;
+    newEnrollments: number;
+    attendanceRate: number;
+  };
+  financeSeries: { key: string; label: string; income: number; expense: number; net: number }[];
+  enrollmentSeries: { key: string; label: string; added: number; total: number }[];
+  attendanceSeries: { key: string; label: string; rate: number; present: number; late: number; absent: number; excused: number }[];
+  expenseByCategory: { name: string; value: number }[];
+  /** unassigned = no module assigned yet (e.g. new students) */
+  paymentStatusBreakdown: { name: "paid" | "partial" | "unpaid" | "unassigned"; value: number }[];
+}
+
+export interface ModulePerformanceItem {
+  id: string;
+  code: string;
+  name: string;
+  fee: number;
+  status: string;
+  teacherId: string | null;
+  teacher: { id: string; fullName: string } | null;
+  enrolledCount: number;
+  expectedRevenue: number;
+  collected: number;
+  owed: number;
+  collectionRate: number;
+  attendanceRate: number;
+}
+
+export interface ModulePerformanceResponse {
+  period: AnalyticsPeriodRange | null;
+  items: ModulePerformanceItem[];
+  summary: {
+    totalModules: number;
+    totalEnrolled: number;
+    totalExpectedRevenue: number;
+    totalCollected: number;
+    totalOwed: number;
+    averageAttendanceRate: number;
+  };
+}
+
+function analyticsQuery(params: AnalyticsPeriodParams & { batch?: string; moduleId?: string; status?: string }) {
+  const qs = new URLSearchParams();
+  qs.set("period", params.period);
+  if (params.period === "custom") {
+    if (params.from) qs.set("from", params.from);
+    if (params.to) qs.set("to", params.to);
+  }
+  for (const key of ["batch", "moduleId", "status"] as const) {
+    const value = params[key];
+    if (value && value !== "all") qs.set(key, value);
+  }
+  return qs.toString();
+}
+
+export const analyticsApi = {
+  overview(params: AnalyticsPeriodParams & { batch?: string; moduleId?: string }) {
+    return request<AnalyticsOverviewResponse>(`/analytics/overview?${analyticsQuery(params)}`);
+  },
+
+  modules(params: AnalyticsPeriodParams & { status?: string }) {
+    return request<ModulePerformanceResponse>(`/analytics/modules?${analyticsQuery(params)}`);
+  },
+};

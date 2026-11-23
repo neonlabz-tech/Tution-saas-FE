@@ -1,13 +1,19 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Banknote, GraduationCap, Percent, TrendingDown, TrendingUp, UserCheck } from "lucide-react";
 import { Card, CardHeader, PageHeader, ProgressBar } from "@/components/ui/primitives";
 import { PeriodFilter, usePeriod } from "@/components/ui/PeriodFilter";
-import { useAppData } from "@/hooks/useAppData";
+import { useToast } from "@/components/ui/toast";
 import { COLORS, ChartLegend, ChartTooltip, axisTick, cursorStyle, gridProps, moneyTick } from "@/components/analytics/chartParts";
-import { attendanceRate, attendanceSeries, enrollmentSeries, financeSeries, groupSum, sumBy } from "@/lib/stats";
-import { inRange } from "@/lib/period";
+import { analyticsApi, type AnalyticsOverviewResponse, type ModulePerformanceResponse } from "@/lib/api";
 import { fmtLKR } from "@/lib/utils";
+
+const PAYMENT_STATUS_META = {
+  paid: { label: "Fully paid", color: "#10B981" },
+  partial: { label: "Partially paid", color: "#F59E0B" },
+  unpaid: { label: "Unpaid", color: "#F43F5E" },
+  unassigned: { label: "No modules yet", color: "#94A3B8" },
+} as const;
 
 function ChartCard({ title, subtitle, legend, children, className = "" }: { title: string; subtitle?: string; legend?: { label: string; color: string }[]; children: React.ReactNode; className?: string }) {
   return (
@@ -20,50 +26,77 @@ function ChartCard({ title, subtitle, legend, children, className = "" }: { titl
 const Empty = () => <div className="flex h-full items-center justify-center text-sm text-muted">No data for this period</div>;
 
 export default function AnalyticsPage() {
-  const { transactions, students, modules, attendance, outstanding, feeTotal, paidTotal } = useAppData();
+  const toast = useToast();
   const period = usePeriod("year");
   const { range } = period;
+  const [overview, setOverview] = useState<AnalyticsOverviewResponse | null>(null);
+  const [modulePerf, setModulePerf] = useState<ModulePerformanceResponse | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const tx = useMemo(() => transactions.filter((t) => inRange(t.date, range)), [transactions, range]);
-  const series = useMemo(() => financeSeries(tx, range), [tx, range]);
-  const enroll = useMemo(() => enrollmentSeries(students, range), [students, range]);
-  const att = useMemo(() => attendanceSeries(attendance, range), [attendance, range]);
-  const expenseCats = useMemo(() => groupSum(tx.filter((t) => t.type === "expense")), [tx]);
+  // Same period on both endpoints; custom dates only matter for "custom".
+  useEffect(() => {
+    let active = true;
+    const params = { period: period.period, from: range.from, to: range.to };
+    setLoading(true);
+    Promise.all([analyticsApi.overview(params), analyticsApi.modules(params)])
+      .then(([o, m]) => {
+        if (!active) return;
+        setOverview(o);
+        setModulePerf(m);
+      })
+      .catch((error: unknown) => {
+        if (active) toast.error(error instanceof Error ? error.message : "Could not load analytics");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [period.period, range.from, range.to]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const income = sumBy(tx.filter((t) => t.type === "income"), (t) => t.amount);
-  const expense = sumBy(tx.filter((t) => t.type === "expense"), (t) => t.amount);
+  const series = overview?.financeSeries ?? [];
+  const enroll = overview?.enrollmentSeries ?? [];
+  // Skip buckets with no marked attendance so the line does not drop to 0%.
+  const att = useMemo(() => (overview?.attendanceSeries ?? []).filter((b) => b.present + b.late + b.absent > 0), [overview]);
+  const expenseCats = overview?.expenseByCategory ?? [];
+
+  const income = overview?.kpis.totalIncome ?? 0;
+  const expense = overview?.kpis.totalExpense ?? 0;
   const margin = income ? Math.round(((income - expense) / income) * 100) : 0;
-  const attRecs = attendance.filter((a) => inRange(a.date, range));
-  const newStudents = students.filter((s) => inRange(s.enrollmentDate, range)).length;
-  const totalOut = sumBy(students.filter((s) => s.status !== "graduated"), (s) => outstanding(s.id));
 
   const moduleStats = useMemo(
     () =>
-      modules.map((m, i) => {
-        const enrolled = students.filter((s) => s.moduleIds.includes(m.id));
-        const collected = sumBy(enrolled, (s) => (feeTotal(s.id) ? (paidTotal(s.id) * m.fee) / feeTotal(s.id) : 0));
-        const owed = sumBy(enrolled, (s) => (feeTotal(s.id) ? (outstanding(s.id) * m.fee) / feeTotal(s.id) : 0));
-        const rate = attendanceRate(attendance.filter((a) => a.moduleId === m.id && inRange(a.date, range)));
-        return { id: m.id, name: m.name, short: m.code.split("-")[0], enrolled: enrolled.length, collected: Math.round(collected), owed: Math.round(owed), rate, color: COLORS[i % COLORS.length] };
-      }),
-    [modules, students, attendance, range, feeTotal, paidTotal, outstanding],
+      (modulePerf?.items ?? []).map((m, i) => ({
+        id: m.id,
+        name: m.name,
+        short: m.code.split("-")[0],
+        enrolled: m.enrolledCount,
+        collected: Math.round(m.collected),
+        owed: Math.round(m.owed),
+        rate: Math.round(m.attendanceRate),
+        color: COLORS[i % COLORS.length],
+      })),
+    [modulePerf],
   );
-  const paymentStatus = useMemo(() => {
-    const act = students.filter((s) => s.status !== "graduated" && feeTotal(s.id) > 0);
-    return [
-      { name: "Fully paid", value: act.filter((s) => outstanding(s.id) === 0).length, color: "#10B981" },
-      { name: "Partially paid", value: act.filter((s) => outstanding(s.id) > 0 && paidTotal(s.id) > 0).length, color: "#F59E0B" },
-      { name: "Unpaid", value: act.filter((s) => paidTotal(s.id) === 0).length, color: "#F43F5E" },
-    ];
-  }, [students, feeTotal, outstanding, paidTotal]);
+  const paymentStatus = useMemo(
+    () =>
+      (overview?.paymentStatusBreakdown ?? []).map((p) => ({
+        name: PAYMENT_STATUS_META[p.name].label,
+        value: p.value,
+        color: PAYMENT_STATUS_META[p.name].color,
+      })),
+    [overview],
+  );
 
+  const dash = loading && !overview ? "…" : undefined;
   const kpis = [
-    { l: "Revenue", v: fmtLKR(income), i: TrendingUp, c: "from-emerald-500 to-teal-500" },
-    { l: "Expenses", v: fmtLKR(expense), i: TrendingDown, c: "from-rose-500 to-pink-500" },
-    { l: "Profit margin", v: `${margin}%`, i: Percent, c: "from-indigo-500 to-violet-500" },
-    { l: "New students", v: String(newStudents), i: GraduationCap, c: "from-sky-500 to-indigo-500" },
-    { l: "Avg attendance", v: `${attendanceRate(attRecs)}%`, i: UserCheck, c: "from-teal-500 to-emerald-500" },
-    { l: "Outstanding", v: fmtLKR(totalOut), i: Banknote, c: "from-amber-500 to-orange-500" },
+    { l: "Revenue", v: dash ?? fmtLKR(income), i: TrendingUp, c: "from-emerald-500 to-teal-500" },
+    { l: "Expenses", v: dash ?? fmtLKR(expense), i: TrendingDown, c: "from-rose-500 to-pink-500" },
+    { l: "Profit margin", v: dash ?? `${margin}%`, i: Percent, c: "from-indigo-500 to-violet-500" },
+    { l: "New students", v: dash ?? String(overview?.kpis.newEnrollments ?? 0), i: GraduationCap, c: "from-sky-500 to-indigo-500" },
+    { l: "Avg attendance", v: dash ?? `${Math.round(overview?.kpis.attendanceRate ?? 0)}%`, i: UserCheck, c: "from-teal-500 to-emerald-500" },
+    { l: "Outstanding", v: dash ?? fmtLKR(overview?.kpis.totalOutstanding ?? 0), i: Banknote, c: "from-amber-500 to-orange-500" },
   ];
 
   return (
