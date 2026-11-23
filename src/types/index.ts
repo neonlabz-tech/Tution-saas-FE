@@ -165,6 +165,7 @@ export type StudentPaymentStatus = "paid" | "partial" | "unpaid";
 export interface StudentPaymentSummary {
   id: string;
   fullName: string;
+  email?: string;
   batch: string;
   status: StudentStatus;
   feeTotal: number;
@@ -179,6 +180,7 @@ export interface StudentPaymentsListResponse {
   items: StudentPaymentSummary[];
   pagination: PaginationMeta;
   summary: {
+    totalStudents?: number;
     debtorCount: number;
     totalOutstanding: number;
   };
@@ -196,6 +198,121 @@ export interface RecordStudentPaymentDto {
 export interface RecordStudentPaymentResponse {
   transaction: Transaction;
   studentSummary: StudentPaymentSummary;
+  payment?: PaymentItem;
+}
+
+export type PaymentRecordStatus = "completed" | "refunded" | "void";
+
+export interface PaymentStudentInfo {
+  id: string;
+  fullName: string;
+  batch: string;
+  email: string;
+}
+
+export interface PaymentItem {
+  id: string;
+  receiptNo: string;
+  studentId: string;
+  amount: number;
+  discount: number;
+  category: string;
+  method: string;
+  date: string;
+  description: string;
+  status: PaymentRecordStatus;
+  collectedBy?: string;
+  transactionId?: string;
+  student?: PaymentStudentInfo | null;
+}
+
+export interface PaymentStudentsQueryParams {
+  q?: string;
+  batch?: string;
+  status?: StudentStatus | "all";
+  paymentStatus?: StudentPaymentStatus | "all";
+  debtorsOnly?: boolean;
+  includeGraduated?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaymentStudentsResponse {
+  items: StudentPaymentSummary[];
+  pagination: PaginationMeta;
+  summary: {
+    totalStudents: number;
+    debtorCount: number;
+    settledCount: number;
+    totalOutstanding: number;
+    totalCollected: number;
+  };
+}
+
+export interface PaymentsListQueryParams {
+  q?: string;
+  studentId?: string;
+  method?: string;
+  category?: string;
+  status?: PaymentRecordStatus | "all";
+  period?: FinancePeriod;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaymentsListResponse {
+  items: PaymentItem[];
+  pagination: PaginationMeta;
+  summary: {
+    totalCollected: number;
+    totalCount: number;
+  };
+}
+
+export interface PaymentDetailResponse {
+  payment: PaymentItem;
+  student: PaymentStudentInfo | null;
+  studentSummary: StudentPaymentSummary | null;
+}
+
+export interface CreatePaymentDto {
+  studentId: string;
+  amount: number;
+  discount?: number;
+  method: string;
+  category?: string;
+  date?: string;
+  description?: string;
+}
+
+export interface UpdatePaymentDto {
+  amount?: number;
+  discount?: number;
+  method?: string;
+  category?: string;
+  date?: string;
+  description?: string;
+  status?: PaymentRecordStatus;
+}
+
+export interface CreatePaymentResponse {
+  payment: PaymentItem;
+  transaction: Transaction;
+  studentSummary: StudentPaymentSummary;
+}
+
+export interface UpdatePaymentResponse {
+  payment: PaymentItem;
+  studentSummary: StudentPaymentSummary | null;
+}
+
+export interface DeletePaymentResponse {
+  deleted: boolean;
+  id: string;
+  deletedTransactionId?: string | null;
+  studentSummary?: StudentPaymentSummary | null;
 }
 
 export type TeacherStatus = "active" | "inactive";
@@ -308,6 +425,97 @@ export interface Transaction {
   description: string;
   studentId?: string;
   method?: string;
+  student?: {
+    id: string;
+    fullName: string;
+    batch?: string;
+  } | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type FinancePeriod = "week" | "month" | "year" | "custom";
+
+export interface FinancePeriodRange {
+  period: FinancePeriod;
+  from: string;
+  to: string;
+  span?: number;
+}
+
+export interface FinanceKpis {
+  totalIncome: number;
+  totalExpense: number;
+  netBalance: number;
+  totalOutstanding: number;
+  totalCount: number;
+}
+
+export interface FinanceKpisResponse {
+  kpis: FinanceKpis;
+  period: FinancePeriodRange;
+}
+
+export interface FinanceSeriesBucket {
+  key: string;
+  label: string;
+  income: number;
+  expense: number;
+  net: number;
+}
+
+export interface FinanceCategoryBreakdownItem {
+  name: string;
+  value: number;
+}
+
+export interface FinanceChartsResponse {
+  period: FinancePeriodRange;
+  granularity?: "daily" | "monthly";
+  series: FinanceSeriesBucket[];
+  incomeByCategory: FinanceCategoryBreakdownItem[];
+  expenseByCategory: FinanceCategoryBreakdownItem[];
+}
+
+export interface FinanceFilterParams {
+  period?: FinancePeriod;
+  from?: string;
+  to?: string;
+  category?: string;
+}
+
+export interface TransactionQueryParams extends FinanceFilterParams {
+  type?: TxType;
+  studentId?: string;
+  q?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}
+
+export interface FinanceTransactionsResponse {
+  items: Transaction[];
+  pagination: PaginationMeta;
+  kpis: FinanceKpis;
+  period: FinancePeriodRange;
+}
+
+export interface CreateTransactionDto {
+  type: TxType;
+  category: string;
+  amount: number;
+  date?: string;
+  description?: string;
+  method?: string;
+  studentId?: string | null;
+}
+
+export type UpdateTransactionDto = Partial<CreateTransactionDto>;
+
+export interface DeleteTransactionResponse {
+  deleted: boolean;
+  id: string;
 }
 
 export type ClassStatus = "scheduled" | "completed" | "cancelled";

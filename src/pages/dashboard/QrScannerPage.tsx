@@ -13,7 +13,7 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
-import type { AttendanceRecord, Student } from "@/types";
+import type { AttendanceRecord, Student, StudentPaymentStatus } from "@/types";
 import {
   Avatar,
   Badge,
@@ -62,7 +62,14 @@ export default function QrScannerPage() {
   const [selectedModuleId, setSelectedModuleId] = useState<string>("all");
   const [autoMark, setAutoMark] = useState(true);
 
-  const [result, setResult] = useState<Student | null>(null);
+  type ScannedStudent = Student & {
+    feeTotal?: number;
+    paidTotal?: number;
+    outstanding?: number;
+    paymentStatus?: StudentPaymentStatus;
+  };
+
+  const [result, setResult] = useState<ScannedStudent | null>(null);
   const [verifyData, setVerifyData] = useState<VerifyQrResponse | null>(null);
   const [error, setError] = useState("");
   const [manual, setManual] = useState("");
@@ -122,7 +129,7 @@ export default function QrScannerPage() {
           (s) => s.id.toLowerCase() === verifyRes.student.id.toLowerCase() || s.ref === verifyRes.student.ref,
         );
 
-        const currentStudent: Student = local ?? {
+        const baseStudent: Student = local ?? {
           id: verifyRes.student.id,
           ref: verifyRes.student.ref,
           fullName: verifyRes.student.fullName,
@@ -136,6 +143,14 @@ export default function QrScannerPage() {
           status: (verifyRes.student.status as Student["status"]) ?? "active",
           moduleIds: verifyRes.student.moduleIds ?? [],
           enrollmentDate: todayISO(),
+        };
+
+        const currentStudent: ScannedStudent = {
+          ...baseStudent,
+          feeTotal: verifyRes.student.feeTotal,
+          paidTotal: verifyRes.student.paidTotal,
+          outstanding: verifyRes.student.outstanding,
+          paymentStatus: verifyRes.student.paymentStatus,
         };
 
         setResult(currentStudent);
