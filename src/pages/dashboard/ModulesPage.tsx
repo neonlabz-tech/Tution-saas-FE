@@ -4,7 +4,9 @@ import { motion } from "framer-motion";
 import {
   AlertCircle,
   BookOpen,
+  Calendar,
   Clock,
+  Layers,
   LayoutGrid,
   List,
   Pencil,
@@ -15,7 +17,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import type { ModuleEnrolledStudent, ModuleListItem, ModuleStatus } from "@/types";
+import type { BatchItem, ModuleEnrolledStudent, ModuleListItem, ModuleStatus } from "@/types";
 import {
   Avatar,
   Badge,
@@ -36,10 +38,12 @@ import { DataTable, type Columns } from "@/components/ui/data-table";
 import { ConfirmDialog, Drawer } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { deleteModule, setModuleEnrollments, updateModule } from "@/api/modules";
+import { deleteBatch, listBatches } from "@/api/batches";
 import { useModuleDetail, useModules } from "@/hooks/useModules";
 import { teachersApi, type TeacherListItem } from "@/lib/api";
 import { BATCHES } from "@/lib/constants";
 import { ModuleFormModal } from "@/components/modules/ModuleFormModal";
+import { BatchFormModal } from "@/components/modules/BatchFormModal";
 import { RegisterStudentsModal } from "@/components/modules/RegisterStudentsModal";
 import { cn, fmtLKR } from "@/lib/utils";
 
@@ -57,6 +61,20 @@ export default function ModulesPage() {
   const [params, setParams] = useSearchParams();
   const initialQ = params.get("q") ?? "";
   const lastUrlQRef = useRef<string | null>(params.get("q"));
+
+  const [mainTab, setMainTab] = useState<"modules" | "batches">(
+    params.get("tab") === "batches" ? "batches" : "modules",
+  );
+  const [batches, setBatches] = useState<BatchItem[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchQ, setBatchQ] = useState("");
+  const [debouncedBatchQ, setDebouncedBatchQ] = useState("");
+  const [batchModal, setBatchModal] = useState<{ open: boolean; item: BatchItem | null }>({
+    open: false,
+    item: null,
+  });
+  const [batchDelTarget, setBatchDelTarget] = useState<BatchItem | null>(null);
 
   const [view, setView] = useState<"grid" | "list">("grid");
   const [q, setQ] = useState(initialQ);
@@ -91,6 +109,85 @@ export default function ModulesPage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const trimmed = batchQ.trim();
+    if (trimmed === debouncedBatchQ) return;
+    const timer = window.setTimeout(() => setDebouncedBatchQ(trimmed), 250);
+    return () => window.clearTimeout(timer);
+  }, [batchQ, debouncedBatchQ]);
+
+  const fetchBatches = async (searchTerm?: string) => {
+    setLoadingBatches(true);
+    setBatchError(null);
+    try {
+      const data = await listBatches({ q: searchTerm });
+      setBatches(data);
+    } catch (err: unknown) {
+      setBatchError(err instanceof Error ? err.message : "Failed to load batches");
+    } finally {
+      setLoadingBatches(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBatches(debouncedBatchQ || undefined);
+  }, [debouncedBatchQ]);
+
+  const handleTabChange = (nextTab: "modules" | "batches") => {
+    setMainTab(nextTab);
+    const nextParams = new URLSearchParams(params);
+    if (nextTab === "batches") {
+      nextParams.set("tab", "batches");
+    } else {
+      nextParams.delete("tab");
+    }
+    setParams(nextParams, { replace: true });
+  };
+
+  const availableBatchNames = useMemo(() => {
+    const fromApi = batches.map((b) => b.name);
+    return Array.from(new Set([...fromApi, ...BATCHES]));
+  }, [batches]);
+
+  const filteredBatches = useMemo(() => {
+    const qTrim = batchQ.trim().toLowerCase();
+    if (!qTrim) return batches;
+
+    // Tokenized multi-word search so "2026 Morning" or "2026-A" or "al" matches
+    const tokens = qTrim.split(/[\s,]+/).filter(Boolean);
+
+    return batches.filter((b) => {
+      const name = String(b.name || "").toLowerCase();
+      const code = String(b.code || "").toLowerCase();
+      const year = String(b.year || "").toLowerCase();
+      const desc = String(b.description || "").toLowerCase();
+      const status = String(b.status || "").toLowerCase();
+
+      const combined = `${name} ${code} ${year} ${desc} ${status}`;
+      const combinedClean = combined.replace(/[-/_]/g, " ");
+
+      return tokens.every(
+        (token) =>
+          combined.includes(token) ||
+          combinedClean.includes(token.replace(/[-/_]/g, " ")),
+      );
+    });
+  }, [batches, batchQ]);
+
+  const handleDeleteBatch = async () => {
+    if (!batchDelTarget) return;
+    try {
+      await deleteBatch(batchDelTarget.id);
+      toast.success(`Batch "${batchDelTarget.name}" deleted successfully`);
+      setBatchDelTarget(null);
+      await fetchBatches(debouncedBatchQ || undefined);
+      refetch();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete batch");
+      throw err;
+    }
+  };
 
   useEffect(() => {
     if (params.get("new") === "1") {
@@ -308,11 +405,20 @@ export default function ModulesPage() {
 
   return (
     <>
-      <PageHeader
-        title="Modules"
-        description="Courses offered by the institute — fees, teachers, batches and enrollments."
-        actions={
-          <>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
+        <div>
+          <Tabs
+            value={mainTab}
+            onChange={(tab) => handleTabChange(tab as "modules" | "batches")}
+            items={[
+              { id: "modules", label: "Modules", icon: <BookOpen className="h-4 w-4" /> },
+              { id: "batches", label: "Batches", icon: <Layers className="h-4 w-4" /> },
+            ]}
+          />
+        </div>
+
+        {mainTab === "modules" ? (
+          <div className="flex items-center gap-2">
             <Tabs
               value={view}
               onChange={setView}
@@ -324,35 +430,48 @@ export default function ModulesPage() {
             <Button onClick={() => setForm({ open: true, item: null })}>
               <Plus className="h-4 w-4" /> Create module
             </Button>
-          </>
-        }
-      />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setBatchModal({ open: true, item: null })}>
+              <Plus className="h-4 w-4" /> Create batch
+            </Button>
+          </div>
+        )}
+      </div>
 
-      <Card className="mb-6 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SearchInput placeholder="Search modules…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
-          <option value="all">All statuses</option>
-          <option value="active">Active</option>
-          <option value="upcoming">Upcoming</option>
-          <option value="archived">Archived</option>
-        </Select>
-        <Select value={teacher} onChange={(e) => setTeacher(e.target.value)} aria-label="Teacher">
-          <option value="all">All teachers</option>
-          {teachers.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.fullName}
-            </option>
-          ))}
-        </Select>
-        <Select value={batch} onChange={(e) => setBatch(e.target.value)} aria-label="Batch">
-          <option value="all">All batches</option>
-          {BATCHES.map((b) => (
-            <option key={b} value={b}>
-              {b}
-            </option>
-          ))}
-        </Select>
-      </Card>
+      {mainTab === "modules" ? (
+        <>
+          <PageHeader
+            title="Modules"
+            description="Courses offered by the institute — fees, teachers, batches and enrollments."
+          />
+
+          <Card className="mb-6 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <SearchInput placeholder="Search modules…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="archived">Archived</option>
+            </Select>
+            <Select value={teacher} onChange={(e) => setTeacher(e.target.value)} aria-label="Teacher">
+              <option value="all">All teachers</option>
+              {teachers.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.fullName}
+                </option>
+              ))}
+            </Select>
+            <Select value={batch} onChange={(e) => setBatch(e.target.value)} aria-label="Batch">
+              <option value="all">All batches</option>
+              {availableBatchNames.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </Select>
+          </Card>
 
       {view === "list" ? (
         <Card>
@@ -480,6 +599,167 @@ export default function ModulesPage() {
           })}
         </div>
       )}
+    </>
+  ) : (
+    <>
+      <PageHeader
+        title="Batches"
+        description="Manage academic cohorts, session intakes, and track student group enrollments."
+      />
+
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-md">
+          <SearchInput
+            placeholder="Search batches by name, code, year…"
+            value={batchQ}
+            onChange={(e) => setBatchQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setBatchQ("");
+            }}
+          />
+          {batchQ && (
+            <button
+              type="button"
+              onClick={() => setBatchQ("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted hover:bg-surface-2 hover:text-ink transition"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center text-xs text-muted">
+          <span className="rounded-xl border border-line bg-surface px-3.5 py-2 font-medium shadow-xs">
+            Showing <b className="text-ink">{filteredBatches.length}</b> of <b className="text-ink">{batches.length}</b> batches
+          </span>
+        </div>
+      </div>
+
+      {loadingBatches && batches.length === 0 ? (
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="space-y-3 p-5">
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-12 w-full" />
+              <div className="flex justify-between pt-2">
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-6 w-20" />
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : batchError ? (
+        <Card className="flex flex-col items-center justify-center px-6 py-14 text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500">
+            <AlertCircle className="h-6 w-6" />
+          </div>
+          <h4 className="font-heading text-base font-bold">Could not load batches</h4>
+          <p className="mt-1 max-w-sm text-sm text-muted">{batchError}</p>
+          <Button variant="secondary" size="sm" className="mt-4" onClick={fetchBatches}>
+            <RotateCw className="h-3.5 w-3.5" /> Retry
+          </Button>
+        </Card>
+      ) : filteredBatches.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<Layers className="h-6 w-6" />}
+            title="No batches found"
+            text={
+              batchQ
+                ? "No batches matched your current search."
+                : "Get started by adding your first academic batch."
+            }
+            action={
+              <Button onClick={() => setBatchModal({ open: true, item: null })}>
+                <Plus className="h-4 w-4" /> Create batch
+              </Button>
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          {filteredBatches.map((b, i) => (
+            <motion.div
+              key={b.id}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(i, 8) * 0.04 }}
+            >
+              <Card className="group flex h-full flex-col justify-between overflow-hidden p-5 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-pop">
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-brand">
+                          {b.code || "BATCH"}
+                        </span>
+                        {b.category === "grade" ? (
+                          <span className="rounded-md bg-secondary/15 px-2 py-0.5 text-xs font-semibold text-secondary">
+                            Grade 6–11
+                          </span>
+                        ) : (
+                          <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                            A/L Cohort
+                          </span>
+                        )}
+                        {b.year && (
+                          <span className="inline-flex items-center gap-1 text-xs text-muted">
+                            <Calendar className="h-3 w-3" />
+                            {b.year}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="mt-2 font-heading text-lg font-bold text-ink leading-snug">
+                        {b.name}
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted hover:bg-surface-2 hover:text-ink transition-colors"
+                        title={`Edit ${b.category === "grade" ? "grade" : "batch"} ${b.name}`}
+                        aria-label={`Edit ${b.category === "grade" ? "grade" : "batch"} ${b.name}`}
+                        onClick={() => setBatchModal({ open: true, item: b })}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+                        title={`Delete ${b.category === "grade" ? "grade" : "batch"} ${b.name}`}
+                        aria-label={`Delete ${b.category === "grade" ? "grade" : "batch"} ${b.name}`}
+                        onClick={() => setBatchDelTarget(b)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-xs text-muted line-clamp-2">
+                    {b.description || "No description provided for this academic batch."}
+                  </p>
+                </div>
+
+                <div className="mt-5 border-t border-line/60 pt-4 flex items-center justify-between text-xs font-semibold">
+                  <div className="flex items-center gap-1.5 text-ink/80">
+                    <Users className="h-4 w-4 text-primary" />
+                    <span>{b.studentCount ?? 0} Students</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-ink/80">
+                    <BookOpen className="h-4 w-4 text-secondary" />
+                    <span>{b.moduleCount ?? 0} Modules</span>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </>
+  )}
 
       <ModuleFormModal
         open={form.open}
@@ -662,6 +942,38 @@ export default function ModulesPage() {
         confirmLabel="Delete"
         confirmLoadingLabel="Deleting…"
         onConfirm={handleDeleteConfirm}
+      />
+
+      <BatchFormModal
+        open={batchModal.open}
+        item={batchModal.item}
+        onClose={() => setBatchModal({ open: false, item: null })}
+        onSaved={() => {
+          fetchBatches();
+          refetch();
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!batchDelTarget}
+        onClose={() => setBatchDelTarget(null)}
+        title={batchDelTarget?.category === "grade" ? `Delete grade "${batchDelTarget?.name}"?` : `Delete batch "${batchDelTarget?.name}"?`}
+        text={
+          <div className="space-y-2 text-sm">
+            <p>
+              Are you sure you want to permanently delete {batchDelTarget?.category === "grade" ? "grade" : "batch"} <b>{batchDelTarget?.name}</b>?
+            </p>
+            {((batchDelTarget?.studentCount ?? 0) > 0 || (batchDelTarget?.moduleCount ?? 0) > 0) && (
+              <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-2.5 text-xs font-semibold text-rose-500">
+                Warning: This {batchDelTarget?.category === "grade" ? "grade" : "batch"} currently has {batchDelTarget?.studentCount ?? 0} enrolled student(s) and {batchDelTarget?.moduleCount ?? 0} associated module(s). Deleting it will remove the association.
+              </p>
+            )}
+          </div>
+        }
+        confirmLabel={batchDelTarget?.category === "grade" ? "Delete grade" : "Delete batch"}
+        confirmLoadingLabel="Deleting…"
+        confirmVariant="danger"
+        onConfirm={handleDeleteBatch}
       />
     </>
   );

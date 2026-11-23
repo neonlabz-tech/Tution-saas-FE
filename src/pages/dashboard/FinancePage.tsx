@@ -957,9 +957,9 @@ export default function FinancePage() {
               action={
                 <ChartLegend
                   items={[
-                    { label: "Income", color: "#14B8A6" },
-                    { label: "Expenses", color: "#F43F5E" },
-                    { label: "Net", color: "#4F46E5" },
+                    { label: "Income", color: "#7D41AB" },
+                    { label: "Expenses", color: "#4D1882" },
+                    { label: "Net", color: "#A771CF" },
                   ]}
                 />
               }
@@ -997,14 +997,14 @@ export default function FinancePage() {
                     <Bar
                       dataKey="income"
                       name="Income"
-                      fill="#14B8A6"
+                      fill="#7D41AB"
                       radius={[6, 6, 0, 0]}
                       maxBarSize={28}
                     />
                     <Bar
                       dataKey="expense"
                       name="Expenses"
-                      fill="#F43F5E"
+                      fill="#4D1882"
                       radius={[6, 6, 0, 0]}
                       maxBarSize={28}
                     />
@@ -1012,7 +1012,7 @@ export default function FinancePage() {
                       dataKey="net"
                       name="Net"
                       type="monotone"
-                      stroke="#4F46E5"
+                      stroke="#A771CF"
                       strokeWidth={2.5}
                       dot={false}
                     />

@@ -7,8 +7,8 @@ import { Modal } from "@/components/ui/overlays";
 import { Button, Field, Input, MultiSelect, Select, Skeleton, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { createModule, updateModule } from "@/api/modules";
+import { listBatches } from "@/api/batches";
 import { applyApiValidationErrors, teachersApi, type TeacherListItem } from "@/lib/api";
-import { BATCHES } from "@/lib/constants";
 
 const schema = z.object({
   code: z.string().trim().min(3, "e.g. MTH-101"),
@@ -65,6 +65,25 @@ function Inner({
   const toast = useToast();
   const [teachers, setTeachers] = useState<TeacherListItem[]>(teachersProp ?? []);
   const [loadingTeachers, setLoadingTeachers] = useState(!teachersProp);
+  const [batchOptions, setBatchOptions] = useState<string[]>(() => {
+    return Array.isArray(item?.batches) ? [...item.batches] : [];
+  });
+
+  useEffect(() => {
+    let active = true;
+    listBatches()
+      .then((data) => {
+        if (active) {
+          const names = data.map((b) => b.name);
+          const current = Array.isArray(item?.batches) ? item.batches : [];
+          setBatchOptions(Array.from(new Set([...current, ...names])));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [item?.batches]);
 
   const {
     register,
@@ -201,7 +220,7 @@ function Inner({
             <MultiSelect
               value={field.value}
               onChange={field.onChange}
-              options={BATCHES.map((b) => ({ value: b, label: b }))}
+              options={batchOptions.map((b) => ({ value: b, label: b }))}
             />
           )}
         />
