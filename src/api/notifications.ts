@@ -32,13 +32,32 @@ export async function listNotifications(
       : [];
 
   const items: AppNotification[] = rawItems.map((item, idx) => {
-    let createdAt = item.createdAt || item.date || item.timestamp;
-    if (!createdAt && typeof item._id === "string" && item._id.length === 24) {
-      try {
-        const ts = parseInt(item._id.substring(0, 8), 16) * 1000;
-        if (!isNaN(ts)) createdAt = new Date(ts).toISOString();
-      } catch {
-        // fallback below
+    let createdAt = item.createdAt || item.created_at || item.date || item.timestamp || item.time;
+
+    // Check if MongoDB ObjectId exists on _id or id (24 hex characters)
+    if (!createdAt) {
+      const hex =
+        typeof item._id === "string" && /^[0-9a-fA-F]{24}$/.test(item._id)
+          ? item._id
+          : typeof item.id === "string" && /^[0-9a-fA-F]{24}$/.test(item.id)
+            ? item.id
+            : null;
+      if (hex) {
+        try {
+          const ts = parseInt(hex.substring(0, 8), 16) * 1000;
+          if (!isNaN(ts) && ts > 0) createdAt = new Date(ts).toISOString();
+        } catch {
+          // fallback below
+        }
+      }
+    }
+
+    // If still missing, check subtitle or message for an embedded date like "Enrolled 2026-11-20"
+    if (!createdAt) {
+      const combinedText = `${item.subtitle || ""} ${item.message || ""} ${item.title || ""}`;
+      const match = combinedText.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+      if (match) {
+        createdAt = new Date(match[1]).toISOString();
       }
     }
 

@@ -37,30 +37,10 @@ import {
 import { ConfirmDialog, Modal } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { useNotifications } from "@/hooks/useNotifications";
-import { cn, fmtDateTime } from "@/lib/utils";
+import { cn, fmtNotificationDateTime } from "@/lib/utils";
 
 type FilterType = "all" | NotificationType;
 type StatusFilter = "all" | "unread" | "read";
-
-function formatRelativeTime(dateString?: string): string {
-  if (!dateString) return "Recently";
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  if (diffMs < 0 || isNaN(diffMs)) return "Just now";
-
-  const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 60) return "Just now";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
 
 function getNotificationMeta(type: NotificationType) {
   switch (type) {
@@ -641,8 +621,8 @@ export default function NotificationsPage() {
                         )}
 
                         <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted">
-                          <span title={fmtDateTime(item.createdAt)}>
-                            {formatRelativeTime(item.createdAt)}
+                          <span className="font-medium text-muted/90">
+                            {fmtNotificationDateTime(item.createdAt)}
                           </span>
                           {item.link && (
                             <>

@@ -10,6 +10,7 @@ import { Avatar, Badge } from "@/components/ui/primitives";
 import { Dropdown } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import type { AppNotification } from "@/types";
+import { fmtNotificationDateTime } from "@/lib/utils";
 
 function GlobalSearch({ className = "" }: { className?: string }) {
   const { students, teachers, modules } = useAppData();
@@ -178,6 +179,9 @@ function Notifications() {
                           {i.subtitle}
                         </span>
                       )}
+                      <span className="mt-1 block text-[10px] text-muted/70">
+                        {fmtNotificationDateTime(i.createdAt)}
+                      </span>
                     </span>
                     {!i.read && (
                       <span aria-label="Unread notification" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
