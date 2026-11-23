@@ -34,7 +34,7 @@ function GlobalSearch({ className = "" }: { className?: string }) {
         onFocus={() => setFocus(true)}
         onBlur={() => setTimeout(() => setFocus(false), 150)}
         placeholder="Search students, teachers, modules…"
-        className="h-10 w-full rounded-xl border border-line bg-surface-2/60 pl-10 pr-3 text-sm placeholder:text-muted/80 transition focus:border-blue-500 focus:bg-surface focus:outline-none focus:ring-4 focus:ring-blue-500/15"
+        className="h-10 w-full rounded-xl border border-line bg-surface-2/60 pl-10 pr-3 text-sm placeholder:text-muted/80 transition focus:border-primary focus:bg-surface focus:outline-none focus:ring-4 focus:ring-primary/15"
       />
       {focus && q.trim().length >= 2 && (
         <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-line bg-surface shadow-pop">
@@ -162,11 +162,11 @@ function Notifications() {
   };
 
   const metaFor = (type: NotificationItem["type"]) => {
-    if (type === "student") return { icon: GraduationCap, tone: "bg-emerald-500/10 text-emerald-500" };
-    if (type === "notice") return { icon: AlertTriangle, tone: "bg-rose-500/10 text-rose-500" };
-    if (type === "class") return { icon: CalendarClock, tone: "bg-primary/10 text-brand" };
-    if (type === "payment") return { icon: Wallet, tone: "bg-amber-500/10 text-amber-500" };
-    return { icon: Bell, tone: "bg-primary/10 text-brand" };
+    if (type === "student") return { icon: GraduationCap, tone: "bg-[#7D41AB]/15 text-[#7D41AB]" };
+    if (type === "notice") return { icon: AlertTriangle, tone: "bg-[#4D1882]/15 text-[#4D1882] dark:text-[#CBADE3]" };
+    if (type === "class") return { icon: CalendarClock, tone: "bg-[#8B51BE]/15 text-[#8B51BE]" };
+    if (type === "payment") return { icon: Wallet, tone: "bg-[#A771CF]/15 text-[#A771CF]" };
+    return { icon: Bell, tone: "bg-[#7D41AB]/15 text-[#7D41AB]" };
   };
 
   return (
@@ -176,7 +176,7 @@ function Notifications() {
         <button onClick={toggle} aria-label="Notifications" className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-surface text-muted transition hover:text-ink">
           <Bell className="h-[18px] w-[18px]" />
           {unreadCount > 0 && (
-            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-surface" />
+            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-[#7D41AB] ring-2 ring-surface" />
           )}
         </button>
       )}

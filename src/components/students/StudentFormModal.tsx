@@ -7,9 +7,9 @@ import { Modal } from "@/components/ui/overlays";
 import { Button, Field, Input, MultiSelect, Select, Skeleton, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { listModules } from "@/api/modules";
+import { listBatches } from "@/api/batches";
 import { createStudentWithMeta, getStudentById, updateStudent } from "@/api/students";
 import { applyApiValidationErrors } from "@/lib/api";
-import { BATCHES } from "@/lib/constants";
 import { toDateInput, todayISO } from "@/lib/utils";
 
 const phone = z.string().regex(/^0\d{9}$/, "Use 10 digits, e.g. 0771234567");
@@ -40,7 +40,7 @@ function toFormValues(item: EditableStudent | null): Values {
       address: "",
       guardianName: "",
       guardianPhone: "",
-      batch: BATCHES[0],
+      batch: "",
       moduleIds: [],
       enrollmentDate: todayISO(),
       status: "active",
@@ -57,7 +57,7 @@ function toFormValues(item: EditableStudent | null): Values {
     address: item.address ?? "",
     guardianName: item.guardianName ?? "",
     guardianPhone: item.guardianPhone ?? "",
-    batch: item.batch ?? BATCHES[0],
+    batch: item.batch ?? "",
     moduleIds,
     enrollmentDate: toDateInput(item.enrollmentDate),
     status: item.status ?? "pending",
@@ -80,9 +80,26 @@ function Inner({
   const toast = useToast();
   const [modules, setModules] = useState<Module[]>(modulesProp ?? []);
   const [loadingModules, setLoadingModules] = useState(!modulesProp?.length);
+  const [batchOptions, setBatchOptions] = useState<string[]>(() => (item?.batch ? [item.batch] : []));
   const [loadingItem, setLoadingItem] = useState(
     Boolean(item?.id && (item.dob === undefined || item.address === undefined || item.guardianName === undefined)),
   );
+
+  useEffect(() => {
+    let active = true;
+    listBatches()
+      .then((data) => {
+        if (active) {
+          const names = data.map((b) => b.name);
+          const current = item?.batch ? [item.batch] : [];
+          setBatchOptions(Array.from(new Set([...current, ...names])));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [item?.batch]);
 
   const {
     register,
@@ -226,7 +243,8 @@ function Inner({
       </Field>
       <Field label="Batch" error={errors.batch?.message}>
         <Select {...register("batch")}>
-          {BATCHES.map((b) => (
+          <option value="">Select a batch</option>
+          {batchOptions.map((b) => (
             <option key={b} value={b}>
               {b}
             </option>

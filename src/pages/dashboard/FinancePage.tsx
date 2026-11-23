@@ -151,15 +151,15 @@ export default function FinancePage() {
       {tab === "overview" && (
         <div className="space-y-6">
           <Card>
-            <CardHeader title="Income vs expenses" subtitle="Net balance shown as line" action={<ChartLegend items={[{ label: "Income", color: "#14B8A6" }, { label: "Expenses", color: "#F43F5E" }, { label: "Net", color: "#4F46E5" }]} />} />
+            <CardHeader title="Income vs expenses" subtitle="Net balance shown as line" action={<ChartLegend items={[{ label: "Income", color: "#7D41AB" }, { label: "Expenses", color: "#4D1882" }, { label: "Net", color: "#A771CF" }]} />} />
             <div className="h-72 p-4 pt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={series} margin={{ left: -8, right: 8, top: 8 }}>
                   <CartesianGrid {...gridProps} /><XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" /><YAxis tick={axisTick} tickLine={false} axisLine={false} tickFormatter={moneyTick} />
                   <Tooltip content={<ChartTooltip money />} cursor={cursorStyle} />
-                  <Bar dataKey="income" name="Income" fill="#14B8A6" radius={[6, 6, 0, 0]} maxBarSize={28} />
-                  <Bar dataKey="expense" name="Expenses" fill="#F43F5E" radius={[6, 6, 0, 0]} maxBarSize={28} />
-                  <Line dataKey="net" name="Net" type="monotone" stroke="#4F46E5" strokeWidth={2.5} dot={false} />
+                  <Bar dataKey="income" name="Income" fill="#7D41AB" radius={[6, 6, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="expense" name="Expenses" fill="#4D1882" radius={[6, 6, 0, 0]} maxBarSize={28} />
+                  <Line dataKey="net" name="Net" type="monotone" stroke="#A771CF" strokeWidth={2.5} dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

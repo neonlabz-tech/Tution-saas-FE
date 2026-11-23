@@ -72,14 +72,14 @@ export default function OverviewPage() {
   ];
 
   const kpis = [
-    { label: "Total students", value: String(kpiData.totalStudents.value), icon: GraduationCap, gradient: "from-indigo-500 to-violet-500", color: "#6366F1", spark: kpiData.totalStudents.spark, delta: kpiData.totalStudents.delta },
-    { label: "Active students", value: String(kpiData.activeStudents.value), icon: UserCheck, gradient: "from-teal-500 to-emerald-500", color: "#14B8A6", sub: `${kpiData.activeStudents.percentOfEnrollment}% of enrollment`, spark: kpiData.activeStudents.spark },
-    { label: "Total teachers", value: String(kpiData.totalTeachers.value), icon: Users, gradient: "from-sky-500 to-indigo-500", color: "#0EA5E9", sub: `${kpiData.totalTeachers.activeTeachers} currently active` },
-    { label: "Active modules", value: String(kpiData.activeModules.value), icon: BookOpen, gradient: "from-fuchsia-500 to-purple-500", color: "#A855F7", sub: `${kpiData.activeModules.totalModules} modules in total` },
-    { label: "Today's attendance", value: kpiData.todayAttendance.markedCount ? `${kpiData.todayAttendance.rate}%` : "—", icon: Percent, gradient: "from-emerald-500 to-teal-500", color: "#10B981", sub: `${kpiData.todayAttendance.markedCount} students marked today`, spark: kpiData.todayAttendance.spark },
-    { label: "Monthly income", value: fmtLKR(kpiData.monthlyIncome.value), icon: TrendingUp, gradient: "from-green-500 to-emerald-500", color: "#22C55E", spark: kpiData.monthlyIncome.spark, delta: kpiData.monthlyIncome.delta },
-    { label: "Monthly expenses", value: fmtLKR(kpiData.monthlyExpenses.value), icon: TrendingDown, gradient: "from-rose-500 to-pink-500", color: "#F43F5E", spark: kpiData.monthlyExpenses.spark, delta: kpiData.monthlyExpenses.delta, deltaGoodWhenUp: false },
-    { label: "Outstanding payments", value: fmtLKR(kpiData.outstandingPayments.value), icon: Banknote, gradient: "from-amber-500 to-orange-500", color: "#F59E0B", sub: `${kpiData.outstandingPayments.studentsWithBalances} students with balances` },
+    { label: "Total students", value: String(kpiData.totalStudents.value), icon: GraduationCap, gradient: "from-[#8B51BE] to-[#6D3599]", color: "#8B51BE", spark: kpiData.totalStudents.spark, delta: kpiData.totalStudents.delta },
+    { label: "Active students", value: String(kpiData.activeStudents.value), icon: UserCheck, gradient: "from-[#A771CF] to-[#552780]", color: "#A771CF", sub: `${kpiData.activeStudents.percentOfEnrollment}% of enrollment`, spark: kpiData.activeStudents.spark },
+    { label: "Total teachers", value: String(kpiData.totalTeachers.value), icon: Users, gradient: "from-[#BC99D9] to-[#713E99]", color: "#9A6DBC", sub: `${kpiData.totalTeachers.activeTeachers} currently active` },
+    { label: "Active modules", value: String(kpiData.activeModules.value), icon: BookOpen, gradient: "from-[#CBADE3] to-[#A774D1]", color: "#A774D1", sub: `${kpiData.activeModules.totalModules} modules in total` },
+    { label: "Today's attendance", value: kpiData.todayAttendance.markedCount ? `${kpiData.todayAttendance.rate}%` : "—", icon: Percent, gradient: "from-[#7948A2] to-[#461A71]", color: "#7948A2", sub: `${kpiData.todayAttendance.markedCount} students marked today`, spark: kpiData.todayAttendance.spark },
+    { label: "Monthly income", value: fmtLKR(kpiData.monthlyIncome.value), icon: TrendingUp, gradient: "from-[#8B51BE] to-[#6D3599]", color: "#7D41AB", spark: kpiData.monthlyIncome.spark, delta: kpiData.monthlyIncome.delta },
+    { label: "Monthly expenses", value: fmtLKR(kpiData.monthlyExpenses.value), icon: TrendingDown, gradient: "from-[#4D1882] to-[#2B0A4D]", color: "#4D1882", spark: kpiData.monthlyExpenses.spark, delta: kpiData.monthlyExpenses.delta, deltaGoodWhenUp: false },
+    { label: "Outstanding payments", value: fmtLKR(kpiData.outstandingPayments.value), icon: Banknote, gradient: "from-[#693AA0] to-[#2F164E]", color: "#693AA0", sub: `${kpiData.outstandingPayments.studentsWithBalances} students with balances` },
   ];
 
   return (
@@ -113,14 +113,14 @@ export default function OverviewPage() {
 
       <div className="mb-6 grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader title="Income vs expenses" subtitle="Last 6 months · LKR" action={<ChartLegend items={[{ label: "Income", color: "#14B8A6" }, { label: "Expenses", color: "#F43F5E" }]} />} />
+          <CardHeader title="Income vs expenses" subtitle="Last 6 months · LKR" action={<ChartLegend items={[{ label: "Income", color: "#7D41AB" }, { label: "Expenses", color: "#4D1882" }]} />} />
           <div className="h-72 p-4 pt-3">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={trends.incomeVsExpenses} margin={{ left: -8, right: 8, top: 8 }} barGap={6}>
                 <CartesianGrid {...gridProps} /><XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} /><YAxis tick={axisTick} tickLine={false} axisLine={false} tickFormatter={moneyTick} />
                 <Tooltip content={<ChartTooltip money />} cursor={cursorStyle} />
-                <Bar dataKey="income" name="Income" fill="#14B8A6" radius={[8, 8, 0, 0]} maxBarSize={34} />
-                <Bar dataKey="expense" name="Expenses" fill="#F43F5E" radius={[8, 8, 0, 0]} maxBarSize={34} />
+                <Bar dataKey="income" name="Income" fill="#7D41AB" radius={[8, 8, 0, 0]} maxBarSize={34} />
+                <Bar dataKey="expense" name="Expenses" fill="#4D1882" radius={[8, 8, 0, 0]} maxBarSize={34} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -153,22 +153,22 @@ export default function OverviewPage() {
           <div className="h-64 p-4 pt-3">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trends.studentEnrollment} margin={{ left: -15, right: 8, top: 8 }}>
-                <defs><linearGradient id="ovEnr" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.4} /><stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} /></linearGradient></defs>
+                <defs><linearGradient id="ovEnr" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7D41AB" stopOpacity={0.4} /><stop offset="100%" stopColor="#7D41AB" stopOpacity={0} /></linearGradient></defs>
                 <CartesianGrid {...gridProps} /><XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} /><YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip content={<ChartTooltip />} />
-                <Area type="monotone" dataKey="total" name="Students" stroke="#8B5CF6" strokeWidth={3} fill="url(#ovEnr)" />
+                <Area type="monotone" dataKey="total" name="Students" stroke="#7D41AB" strokeWidth={3} fill="url(#ovEnr)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
         <Card>
-          <CardHeader title="Attendance percentage" subtitle="Daily rate · last 14 days" action={<Badge tone="green">{trends.attendancePercentage.avgRate}% avg</Badge>} />
+          <CardHeader title="Attendance percentage" subtitle="Daily rate · last 14 days" action={<Badge tone="primary">{trends.attendancePercentage.avgRate}% avg</Badge>} />
           <div className="h-64 p-4 pt-3">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trends.attendancePercentage.days} margin={{ left: -15, right: 8, top: 8 }}>
                 <CartesianGrid {...gridProps} /><XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" /><YAxis domain={[0, 100]} tick={axisTick} tickLine={false} axisLine={false} unit="%" />
                 <Tooltip content={<ChartTooltip suffix="%" />} />
-                <Line type="monotone" dataKey="rate" name="Attendance" stroke="#14B8A6" strokeWidth={3} dot={{ r: 3, fill: "#14B8A6" }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="rate" name="Attendance" stroke="#A771CF" strokeWidth={3} dot={{ r: 3, fill: "#A771CF" }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

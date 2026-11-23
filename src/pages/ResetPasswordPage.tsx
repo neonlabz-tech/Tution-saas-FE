@@ -99,7 +99,7 @@ export default function ResetPasswordPage() {
         {/* Header branding */}
         <div className="mb-8 text-center">
           <div className="mb-4 flex items-center justify-center gap-3 text-left">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-violet-500 to-secondary shadow-lg shadow-primary/30">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8B51BE] via-[#7D41AB] to-[#A771CF] shadow-lg shadow-primary/30">
               <svg
                 viewBox="0 0 24 24"
                 className="h-5 w-5 text-white"
@@ -130,7 +130,7 @@ export default function ResetPasswordPage() {
 
         {!token && !success ? (
           <div className="space-y-6 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-500">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#4D1882]/15 text-[#4D1882] dark:text-[#CBADE3]">
               <AlertCircle className="h-6 w-6" />
             </div>
             <div>
@@ -147,7 +147,7 @@ export default function ResetPasswordPage() {
           </div>
         ) : success ? (
           <div className="space-y-6 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#7D41AB]/15 text-[#7D41AB]">
               <CheckCircle2 className="h-8 w-8" />
             </div>
             <div>
@@ -179,7 +179,7 @@ export default function ResetPasswordPage() {
                   aria-invalid={Boolean(errors.password)}
                   className={cn(
                     "pl-10 pr-10",
-                    errors.password && "border-rose-500 focus:border-rose-500 focus:ring-rose-500/15",
+                    errors.password && "border-[#4D1882] focus:border-[#4D1882] focus:ring-[#4D1882]/15",
                   )}
                 />
                 <button
@@ -210,7 +210,7 @@ export default function ResetPasswordPage() {
                   aria-invalid={Boolean(errors.confirmPassword)}
                   className={cn(
                     "pl-10 pr-10",
-                    errors.confirmPassword && "border-rose-500 focus:border-rose-500 focus:ring-rose-500/15",
+                    errors.confirmPassword && "border-[#4D1882] focus:border-[#4D1882] focus:ring-[#4D1882]/15",
                   )}
                 />
                 <button

@@ -45,16 +45,16 @@ import { addDays, cn, fmtDate, startOfWeek, toISO, todayISO } from "@/lib/utils"
 type View = "daily" | "weekly" | "monthly" | "records";
 const STATUSES: AttendanceStatus[] = ["present", "absent", "late", "excused"];
 const ST_COLOR: Record<AttendanceStatus, string> = {
-  present: "#10B981",
-  late: "#F59E0B",
-  absent: "#F43F5E",
-  excused: "#6366F1",
+  present: "#7D41AB",
+  late: "#A771CF",
+  absent: "#4D1882",
+  excused: "#BC99D9",
 };
 const ST_ACTIVE: Record<AttendanceStatus, string> = {
-  present: "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30",
-  absent: "bg-rose-500 text-white shadow-sm shadow-rose-500/30",
-  late: "bg-amber-500 text-white shadow-sm shadow-amber-500/30",
-  excused: "bg-indigo-500 text-white shadow-sm shadow-indigo-500/30",
+  present: "bg-[#7D41AB] text-white shadow-sm shadow-[#7D41AB]/30",
+  absent: "bg-[#4D1882] text-white shadow-sm shadow-[#4D1882]/30",
+  late: "bg-[#A771CF] text-white shadow-sm shadow-[#A771CF]/30",
+  excused: "bg-[#BC99D9] text-white shadow-sm shadow-[#BC99D9]/30",
 };
 
 interface Row {
@@ -595,22 +595,22 @@ export default function AttendancePage() {
       {
         accessorKey: "present",
         header: "Present",
-        cell: (c) => <span className="num font-semibold text-emerald-500">{c.getValue() as number}</span>,
+        cell: (c) => <span className="num font-semibold text-[#7D41AB]">{c.getValue() as number}</span>,
       },
       {
         accessorKey: "late",
         header: "Late",
-        cell: (c) => <span className="num font-semibold text-amber-500">{c.getValue() as number}</span>,
+        cell: (c) => <span className="num font-semibold text-[#A771CF]">{c.getValue() as number}</span>,
       },
       {
         accessorKey: "absent",
         header: "Absent",
-        cell: (c) => <span className="num font-semibold text-rose-500">{c.getValue() as number}</span>,
+        cell: (c) => <span className="num font-semibold text-[#4D1882]">{c.getValue() as number}</span>,
       },
       {
         accessorKey: "excused",
         header: "Excused",
-        cell: (c) => <span className="num font-semibold text-indigo-500">{c.getValue() as number}</span>,
+        cell: (c) => <span className="num font-semibold text-[#BC99D9]">{c.getValue() as number}</span>,
       },
       {
         accessorKey: "rate",
@@ -878,8 +878,8 @@ export default function AttendancePage() {
                     <AreaChart data={trend} margin={{ left: -15, right: 8, top: 8 }}>
                       <defs>
                         <linearGradient id="rateFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#9828FD" stopOpacity={0.4} />
-                          <stop offset="100%" stopColor="#4589FF" stopOpacity={0.05} />
+                          <stop offset="0%" stopColor="#7D41AB" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="#BC99D9" stopOpacity={0.05} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid {...gridProps} />
@@ -890,7 +890,7 @@ export default function AttendancePage() {
                         type="monotone"
                         dataKey="rate"
                         name="Rate"
-                        stroke="#9828FD"
+                        stroke="#7D41AB"
                         strokeWidth={2.5}
                         fill="url(#rateFill)"
                       />

@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { QRCodeSVG } from "qrcode.react";
 import {
   AlertCircle,
   Camera,
@@ -9,9 +8,6 @@ import {
   Keyboard,
   RefreshCw,
   ScanLine,
-  SlidersHorizontal,
-  Sparkles,
-  Zap,
 } from "lucide-react";
 import type { AttendanceRecord, Student } from "@/types";
 import {
@@ -22,9 +18,9 @@ import {
   CardHeader,
   Field,
   Input,
-  MockNote,
   PageHeader,
   Select,
+  StatusBadge,
 } from "@/components/ui/primitives";
 import { ScanResult } from "@/components/qr/ScanResult";
 import { useToast } from "@/components/ui/toast";
@@ -67,10 +63,37 @@ export default function QrScannerPage() {
   const [error, setError] = useState("");
   const [manual, setManual] = useState("");
   const [recent, setRecent] = useState<RecentScan[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  const demoStudents = students.filter((s) => s.status === "active").slice(0, 12);
-  const [demoId, setDemoId] = useState(demoStudents[0]?.id ?? "");
-  const demo = students.find((s) => s.id === demoId);
+  // Suggestions matching the typed query (min 2 characters)
+  const suggestions = useMemo(() => {
+    const q = manual.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return students
+      .filter((s) => {
+        return (
+          s.fullName.toLowerCase().includes(q) ||
+          s.id.toLowerCase().includes(q) ||
+          (s.phone && s.phone.includes(q)) ||
+          (s.email && s.email.toLowerCase().includes(q)) ||
+          (s.batch && s.batch.toLowerCase().includes(q))
+        );
+      })
+      .slice(0, 6);
+  }, [students, manual]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   // Discover available cameras
   useEffect(() => {
@@ -272,7 +295,7 @@ export default function QrScannerPage() {
         playScanFeedback("error");
         setResult(null);
         setVerifyData(null);
-        setError("This QR code does not match any student record. Ask the student to display their valid EduFlow QR pass.");
+        setError(msg || "This QR code or query does not match any student record.");
         const failedEntry: RecentScan = {
           id: code.slice(0, 12),
           name: "Unknown code",
@@ -286,6 +309,16 @@ export default function QrScannerPage() {
       }
     },
     [selectedModuleId, students, modules, autoMark, markAttendance, toast],
+  );
+
+  const handleSelectStudent = useCallback(
+    (student: Student) => {
+      setManual("");
+      setDropdownOpen(false);
+      setSelectedIndex(-1);
+      void resolve(student.id);
+    },
+    [resolve],
   );
 
   const start = async () => {
@@ -350,61 +383,6 @@ export default function QrScannerPage() {
         description="Fast contactless attendance marking & student verification using high-speed QR camera scanning."
       />
 
-      {/* Target Module & Auto-mark Controls Toolbar */}
-      <Card className="mb-6 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-muted">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-brand" /> Active class / module:
-            </span>
-            <div className="w-64">
-              <Select
-                value={selectedModuleId}
-                onChange={(e) => setSelectedModuleId(e.target.value)}
-                aria-label="Active module for attendance"
-              >
-                <option value="all">Auto-detect from student profile</option>
-                {modules.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.code})
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-xs font-semibold text-ink cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={autoMark}
-                onChange={(e) => setAutoMark(e.target.checked)}
-                className="h-4 w-4 rounded accent-[#9828FD]"
-              />
-              <span className="flex items-center gap-1">
-                <Zap className="h-3.5 w-3.5 text-brand" /> Auto-mark Present on scan
-              </span>
-            </label>
-
-            {cameras.length > 1 && (
-              <div className="w-48">
-                <Select
-                  value={selectedCameraId}
-                  onChange={(e) => setSelectedCameraId(e.target.value)}
-                  aria-label="Select camera"
-                >
-                  {cameras.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            )}
-          </div>
-        </div>
-      </Card>
-
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Left Column: Camera Viewfinder & Manual Entry */}
         <div className="space-y-6">
@@ -415,7 +393,7 @@ export default function QrScannerPage() {
                   <Camera className="h-4 w-4 text-brand" />
                   Camera scanner
                   {scanning && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-500 animate-pulse">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#7D41AB]/15 px-2 py-0.5 text-[11px] font-bold text-[#7D41AB] animate-pulse">
                       ● Live
                     </span>
                   )}
@@ -423,11 +401,28 @@ export default function QrScannerPage() {
               }
               subtitle="Align student QR code within the target frame"
               action={
-                scanning && (
-                  <Button size="sm" variant="dangerSoft" onClick={stop}>
-                    <CameraOff className="h-3.5 w-3.5" /> Stop scanner
-                  </Button>
-                )
+                <div className="flex items-center gap-2">
+                  {cameras.length > 1 && (
+                    <div className="w-40">
+                      <Select
+                        value={selectedCameraId}
+                        onChange={(e) => setSelectedCameraId(e.target.value)}
+                        aria-label="Select camera"
+                      >
+                        {cameras.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  )}
+                  {scanning && (
+                    <Button size="sm" variant="dangerSoft" onClick={stop}>
+                      <CameraOff className="h-3.5 w-3.5" /> Stop scanner
+                    </Button>
+                  )}
+                </div>
               }
             />
 
@@ -438,14 +433,14 @@ export default function QrScannerPage() {
                 {!scanning && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-center text-white">
                     <div className="relative flex h-24 w-24 items-center justify-center rounded-3xl border border-white/20 bg-white/5 shadow-2xl">
-                      <ScanLine className="h-10 w-10 text-[#4589FF]" />
+                      <ScanLine className="h-10 w-10 text-[#A771CF]" />
                       {[
                         "left-0 top-0 border-l-2 border-t-2 rounded-tl-2xl",
                         "right-0 top-0 border-r-2 border-t-2 rounded-tr-2xl",
                         "left-0 bottom-0 border-l-2 border-b-2 rounded-bl-2xl",
                         "right-0 bottom-0 border-r-2 border-b-2 rounded-br-2xl",
                       ].map((c) => (
-                        <span key={c} className={`absolute h-5 w-5 border-[#9828FD] ${c}`} />
+                        <span key={c} className={`absolute h-5 w-5 border-[#7D41AB] ${c}`} />
                       ))}
                     </div>
 
@@ -469,49 +464,147 @@ export default function QrScannerPage() {
                 {/* Laser scan animation when camera is live */}
                 {scanning && (
                   <>
-                    <div className="pointer-events-none absolute inset-x-12 top-1/2 h-0.5 animate-pulse bg-gradient-to-r from-transparent via-[#4589FF] to-transparent shadow-[0_0_12px_#4589FF]" />
-                    <div className="pointer-events-none absolute inset-10 rounded-2xl border-2 border-[#9828FD]/40" />
+                    <div className="pointer-events-none absolute inset-x-12 top-1/2 h-0.5 animate-pulse bg-gradient-to-r from-transparent via-[#A771CF] to-transparent shadow-[0_0_12px_#A771CF]" />
+                    <div className="pointer-events-none absolute inset-10 rounded-2xl border-2 border-[#7D41AB]/40" />
                   </>
                 )}
               </div>
             </div>
           </Card>
+        </div>
 
+        {/* Right Column: Manual Entry, Verification Results & Feed */}
+        <div className="space-y-6">
           {/* Manual Entry Fallback */}
-          <Card>
+          <Card className="overflow-visible relative">
             <CardHeader
               title={
                 <span className="flex items-center gap-2">
                   <Keyboard className="h-4 w-4 text-brand" /> Manual Entry & Handheld Reader
                 </span>
               }
-              subtitle="Type a Student ID (STU-…) or paste barcode scanner input"
+              subtitle="Type student name, Student ID, or phone number to see live suggestions"
             />
             <form
-              className="flex gap-2 p-5 pt-1"
+              ref={dropdownRef}
+              className="p-5 pt-1"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (manual.trim()) {
-                  void resolve(manual.trim());
-                  setManual("");
+                if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+                  handleSelectStudent(suggestions[selectedIndex]);
+                  return;
                 }
+                const trimmed = manual.trim();
+                if (!trimmed) return;
+                if (suggestions.length === 1) {
+                  handleSelectStudent(suggestions[0]);
+                  return;
+                }
+                if (trimmed.length < 3 && !trimmed.toUpperCase().startsWith("STU-")) {
+                  toast.error("Please enter at least 3 characters to search by student name.");
+                  return;
+                }
+                setDropdownOpen(false);
+                void resolve(trimmed);
+                setManual("");
               }}
             >
-              <Input
-                value={manual}
-                onChange={(e) => setManual(e.target.value)}
-                placeholder="STU-2026-001 or QR ref code…"
-                className="num font-mono"
-              />
-              <Button type="submit" disabled={!manual.trim()}>
-                Verify
-              </Button>
+              <div className="flex gap-2 relative">
+                <div className="relative flex-1">
+                  <Input
+                    value={manual}
+                    onChange={(e) => {
+                      setManual(e.target.value);
+                      setDropdownOpen(true);
+                      setSelectedIndex(-1);
+                    }}
+                    onFocus={() => {
+                      if (manual.trim().length >= 2) setDropdownOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!dropdownOpen || suggestions.length === 0) return;
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setSelectedIndex((prev) => (prev + 1) % suggestions.length);
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+                      } else if (e.key === "Enter") {
+                        if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+                          e.preventDefault();
+                          handleSelectStudent(suggestions[selectedIndex]);
+                        }
+                      } else if (e.key === "Escape") {
+                        setDropdownOpen(false);
+                      }
+                    }}
+                    placeholder="Type student name, STU-2026-001, or phone…"
+                    className="font-medium"
+                    autoComplete="off"
+                  />
+
+                  {/* Floating Dropdown suggestions */}
+                  {dropdownOpen && manual.trim().length >= 2 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-1.5 max-h-72 overflow-y-auto rounded-2xl border border-line bg-surface/95 backdrop-blur-md shadow-2xl divide-y divide-line/30">
+                      {suggestions.length > 0 ? (
+                        suggestions.map((s, idx) => {
+                          const isSelected = idx === selectedIndex;
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => handleSelectStudent(s)}
+                              onMouseEnter={() => setSelectedIndex(idx)}
+                              className={`flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left transition-colors cursor-pointer ${
+                                isSelected
+                                  ? "bg-[#7D41AB]/15 text-foreground"
+                                  : "hover:bg-surface-elevated text-foreground"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <Avatar name={s.fullName} size="sm" />
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="truncate font-heading text-sm font-bold text-foreground">
+                                      {s.fullName}
+                                    </p>
+                                    <span className="shrink-0 rounded-md bg-muted/15 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-muted">
+                                      {s.id}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-muted">
+                                    {s.batch && <span>{s.batch}</span>}
+                                    {s.batch && s.phone && <span>•</span>}
+                                    {s.phone && <span>{s.phone}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="shrink-0 flex items-center gap-2">
+                                <StatusBadge status={s.status} />
+                                <span className="text-[11px] font-bold text-[#7D41AB] opacity-0 group-hover:opacity-100 sm:inline-block hidden">
+                                  Select ↵
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="px-4 py-3 text-center text-xs text-muted">
+                          No student matching &ldquo;{manual.trim()}&rdquo;. Press{" "}
+                          <span className="font-semibold text-foreground">Verify</span> to search via backend.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <Button type="submit" disabled={!manual.trim()}>
+                  Verify
+                </Button>
+              </div>
             </form>
           </Card>
-        </div>
 
-        {/* Right Column: Verification Results & Feed */}
-        <div className="space-y-6">
           {error && (
             <div className="flex gap-3 rounded-3xl border border-rose-500/30 bg-rose-500/10 p-5 shadow-sm">
               <AlertCircle className="h-5 w-5 shrink-0 text-rose-500" />
@@ -562,53 +655,6 @@ export default function QrScannerPage() {
             )
           )}
 
-          {/* Demo codes simulator */}
-          <Card>
-            <CardHeader
-              title={
-                <span className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-amber-500" /> Test with demo QR codes
-                </span>
-              }
-              subtitle="Simulate quick scans or scan on screen using a mobile camera"
-            />
-            <div className="grid gap-5 p-5 sm:grid-cols-[auto_1fr]">
-              <div className="mx-auto rounded-2xl border border-line bg-white p-3 shadow-sm">
-                {demo && <QRCodeSVG value={qrPayload(demo.ref)} size={128} level="M" />}
-              </div>
-              <div className="space-y-3">
-                <Field label="Choose demo student">
-                  <Select value={demoId} onChange={(e) => setDemoId(e.target.value)}>
-                    {demoStudents.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.fullName} ({s.id})
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                {demo && (
-                  <div className="flex items-center gap-2">
-                    <Avatar name={demo.fullName} size="sm" />
-                    <span className="text-xs text-muted">
-                      Payload: <span className="num font-mono">{qrPayload(demo.ref).slice(0, 16)}…</span>
-                    </span>
-                  </div>
-                )}
-                <Button
-                  variant="soft"
-                  onClick={() => demo && void resolve(qrPayload(demo.ref))}
-                >
-                  <Zap className="h-3.5 w-3.5" /> Simulate Scan
-                </Button>
-              </div>
-            </div>
-            <div className="px-5 pb-5">
-              <MockNote>
-                QR codes contain opaque student references. Verification validates identity, module enrollment, and duplicate status against the API.
-              </MockNote>
-            </div>
-          </Card>
-
           {/* Session Scan History */}
           {recent.length > 0 && (
             <Card>
@@ -627,12 +673,12 @@ export default function QrScannerPage() {
                       <span
                         className={`h-2 w-2 rounded-full ${
                           r.status === "Present"
-                            ? "bg-emerald-500"
+                            ? "bg-[#7D41AB]"
                             : r.status === "Duplicate"
-                            ? "bg-amber-500"
+                            ? "bg-[#A771CF]"
                             : r.status === "Verified"
-                            ? "bg-[#4589FF]"
-                            : "bg-rose-500"
+                            ? "bg-[#BC99D9]"
+                            : "bg-[#4D1882]"
                         }`}
                       />
                       <b className="font-semibold">{r.name}</b>

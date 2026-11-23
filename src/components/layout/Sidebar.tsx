@@ -71,7 +71,7 @@ function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: bool
                     {({ isActive }) => (
                       <>
                         {isActive && (
-                          <motion.span layoutId={collapsed ? "nav-active-c" : "nav-active"} className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/90 to-violet-600/70 shadow-lg shadow-primary/30" transition={{ type: "spring", bounce: 0.18, duration: 0.45 }} />
+                          <motion.span layoutId={collapsed ? "nav-active-c" : "nav-active"} className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary to-[#6D3599] shadow-lg shadow-primary/30" transition={{ type: "spring", bounce: 0.18, duration: 0.45 }} />
                         )}
                         <item.icon className={cn("relative h-[19px] w-[19px] shrink-0", !isActive && "text-slate-400 group-hover:text-white")} />
                         {!collapsed && <span className="relative truncate">{item.title}</span>}
@@ -116,7 +116,7 @@ function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: bool
                   toast.success("Logged out");
                 });
               }}
-              className="rounded-lg p-2 text-slate-400 hover:bg-rose-500/20 hover:text-rose-300"
+              className="rounded-lg p-2 text-slate-400 hover:bg-[#4D1882]/40 hover:text-[#DEC8ED]"
             >
               <LogOut className="h-4 w-4" />
             </button>

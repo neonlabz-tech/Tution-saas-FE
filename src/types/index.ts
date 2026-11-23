@@ -385,3 +385,33 @@ export interface Notice {
   priority: NoticePriority;
   status: "published" | "draft";
 }
+
+export type BatchStatus = "active" | "upcoming" | "archived";
+export type BatchCategory = "al" | "grade";
+
+export interface BatchItem {
+  id: string;
+  name: string;
+  code: string;
+  year?: string;
+  description?: string;
+  status: BatchStatus;
+  category?: BatchCategory;
+  studentCount?: number;
+  moduleCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateBatchDto {
+  name: string;
+  code?: string;
+  year?: string;
+  description?: string;
+  status?: BatchStatus;
+  category?: BatchCategory;
+}
+
+export type UpdateBatchDto = Partial<CreateBatchDto>;
+
+
