@@ -129,7 +129,15 @@ export default function LoginPage() {
       const res = await authApi.forgotPassword({ email: forgotEmail.trim() });
       toast.success(res.message);
       setForgotSent(true);
-      setDevResetUrl(res.devResetUrl);
+      if (res.devResetUrl) {
+        const tokenMatch = res.devResetUrl.match(/token=([a-zA-Z0-9]+)/);
+        const normalizedUrl = tokenMatch
+          ? `${window.location.origin}/reset-password?token=${tokenMatch[1]}`
+          : res.devResetUrl;
+        setDevResetUrl(normalizedUrl);
+      } else {
+        setDevResetUrl(undefined);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send reset link");
     } finally {

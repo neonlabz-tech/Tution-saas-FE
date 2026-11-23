@@ -13,7 +13,12 @@ interface FormErrors {
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
-  const token = searchParams.get("token") ?? "";
+  const rawToken = searchParams.get("token");
+  const hashToken =
+    typeof window !== "undefined" && window.location.hash.includes("token=")
+      ? new URLSearchParams(window.location.hash.split("?")[1] || "").get("token")
+      : null;
+  const token = rawToken || hashToken || "";
   const toast = useToast();
   const navigate = useNavigate();
 
