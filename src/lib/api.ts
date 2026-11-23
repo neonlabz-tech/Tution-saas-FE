@@ -214,8 +214,9 @@ export async function requestWithMeta<T>(
   init?: RequestInit,
 ): Promise<{ data: T; message?: string }> {
   const token = getAuthToken();
+  const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(init?.headers as Record<string, string> | undefined),
   };
@@ -458,6 +459,38 @@ export const settingsApi = {
       method: "PATCH",
       body: JSON.stringify(payload),
     });
+  },
+};
+
+export interface UploadResult {
+  url: string;
+  key: string;
+  bucket: string;
+  size?: number;
+  mimeType?: string;
+}
+
+export const storageApi = {
+  upload(file: File, folder?: string) {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (folder) formData.append("folder", folder);
+    return request<UploadResult>("/storage/upload", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  uploadBase64(base64: string, folder?: string, prefix?: string) {
+    return request<UploadResult>("/storage/upload-base64", {
+      method: "POST",
+      body: JSON.stringify({ base64, folder, prefix }),
+    });
+  },
+  delete(key: string) {
+    return request<{ success: boolean; message: string }>(
+      `/storage?key=${encodeURIComponent(key)}`,
+      { method: "DELETE" },
+    );
   },
 };
 

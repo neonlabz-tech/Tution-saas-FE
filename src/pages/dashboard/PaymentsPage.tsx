@@ -46,12 +46,14 @@ import { DataTable, type Columns } from "@/components/ui/data-table";
 import { ConfirmDialog, Drawer, Modal } from "@/components/ui/overlays";
 import { PeriodFilter, usePeriod } from "@/components/ui/PeriodFilter";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/hooks/useAuth";
 import {
   deletePayment,
   listPayments,
   listPaymentStudents,
   updatePayment,
 } from "@/api/payments";
+import { createNotification } from "@/api/notifications";
 import { getStudentById } from "@/api/students";
 import { BATCHES, INCOME_CATEGORIES, PAYMENT_METHODS } from "@/lib/constants";
 import {
@@ -228,6 +230,7 @@ function EditPaymentModal({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [amount, setAmount] = useState("");
   const [discount, setDiscount] = useState("0");
   const [method, setMethod] = useState<string>(PAYMENT_METHODS[0]);
@@ -276,6 +279,23 @@ function EditPaymentModal({
         description: description.trim(),
         status,
       });
+
+      const receiptNo = payment.receiptNo || payment.id;
+      const studentName = payment.student?.fullName || payment.studentId;
+      try {
+        await createNotification({
+          type: "payment",
+          title: "Payment Updated",
+          subtitle: `Receipt ${receiptNo} for ${studentName} updated (${status}, LKR ${amt.toLocaleString()}) by ${user?.fullName || "Admin"}.`,
+          link: `/dashboard/payments?q=${encodeURIComponent(receiptNo)}`,
+          targetRoles: ["super_admin"],
+          actorId: user?.id,
+          metadata: { paymentId: payment.id, receiptNo, amount: amt, status },
+        });
+      } catch {
+        // non-blocking
+      }
+
       toast.success(`Payment ${payment.receiptNo || payment.id} updated`);
       onSaved();
       onClose();
@@ -739,6 +759,7 @@ function StudentPaymentDrawer({
 
 export default function PaymentsPage() {
   const toast = useToast();
+  const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const [tab, setTab] = useState<Tab>("students");
   const period = usePeriod("year");
@@ -954,6 +975,20 @@ export default function PaymentsPage() {
     setIsDeleting(true);
     try {
       await deletePayment(delPaymentItem.id);
+      const receiptNo = delPaymentItem.receiptNo || delPaymentItem.id;
+      try {
+        await createNotification({
+          type: "payment",
+          title: "Payment Deleted",
+          subtitle: `Receipt ${receiptNo} has been deleted by ${user?.fullName || "Admin"}.`,
+          link: "/dashboard/payments",
+          targetRoles: ["super_admin"],
+          actorId: user?.id,
+          metadata: { paymentId: delPaymentItem.id, receiptNo },
+        });
+      } catch {
+        // non-blocking
+      }
       toast.success("Payment deleted and balances recalculated");
       setDelPaymentItem(null);
       if (tab === "history" && historyList.length <= 1 && historyPage > 1) {
