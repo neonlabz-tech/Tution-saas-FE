@@ -3,7 +3,7 @@ import { Building2, ImagePlus, Mail, Trash2, UserCog } from "lucide-react";
 import { Avatar, Button, Card, CardHeader, Field, Input, PageHeader, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/useAuth";
-import { authApi, settingsApi } from "@/lib/api";
+import { authApi, settingsApi, storageApi } from "@/lib/api";
 
 export default function SettingsPage() {
   const toast = useToast();
@@ -11,6 +11,7 @@ export default function SettingsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [logo, setLogo] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [inst, setInst] = useState({
     name: "Bright Future Institute",
     email: "hello@brightfuture.lk",
@@ -55,13 +56,24 @@ export default function SettingsPage() {
     };
   }, []);
 
-  const onLogo = (f?: File) => {
+  const onLogo = async (f?: File) => {
     if (!f) return;
     if (!f.type.startsWith("image/")) return toast.error("Please choose an image file (PNG, JPG, SVG).");
     if (f.size > 2 * 1024 * 1024) return toast.error("Logo must be under 2 MB.");
-    const r = new FileReader();
-    r.onload = () => setLogo(String(r.result));
-    r.readAsDataURL(f);
+
+    setUploadingLogo(true);
+    try {
+      const res = await storageApi.upload(f, "logos");
+      setLogo(res.url);
+      toast.success("Logo uploaded to Cloudflare R2");
+    } catch {
+      // Fallback to local Data URL
+      const r = new FileReader();
+      r.onload = () => setLogo(String(r.result));
+      r.readAsDataURL(f);
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   const saveInstitute = async () => {
@@ -121,7 +133,9 @@ export default function SettingsPage() {
               </div>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onLogo(e.target.files?.[0])} />
               <div className="flex gap-2">
-                <Button size="sm" variant="soft" onClick={() => fileRef.current?.click()}><ImagePlus className="h-3.5 w-3.5" /> Upload</Button>
+                <Button size="sm" variant="soft" onClick={() => fileRef.current?.click()} disabled={uploadingLogo}>
+                  <ImagePlus className="h-3.5 w-3.5" /> {uploadingLogo ? "Uploading..." : "Upload"}
+                </Button>
                 {logo && <Button size="sm" variant="dangerSoft" onClick={() => setLogo(null)} aria-label="Remove logo"><Trash2 className="h-3.5 w-3.5" /></Button>}
               </div>
               <p className="text-center text-[11px] text-muted">PNG, JPG or SVG up to 2 MB.</p>
