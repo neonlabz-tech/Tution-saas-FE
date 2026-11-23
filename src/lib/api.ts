@@ -214,8 +214,9 @@ export async function requestWithMeta<T>(
   init?: RequestInit,
 ): Promise<{ data: T; message?: string }> {
   const token = getAuthToken();
+  const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(init?.headers as Record<string, string> | undefined),
   };
@@ -578,7 +579,7 @@ export const modulesApi = {
   },
 };
 
-export type NoticePayload = Omit<Notice, "id" | "state">;
+export type NoticePayload = Omit<Notice, "id" | "state" | "attachment" | "attachmentExpired">;
 export type NoticeCounts = Record<"all" | NoticeState, number>;
 export interface NoticeListResponse {
   items: Notice[];
@@ -601,7 +602,7 @@ export const noticesApi = {
     });
   },
 
-  update(id: string, payload: NoticePayload) {
+  update(id: string, payload: Partial<NoticePayload>) {
     return request<Notice>(`/notices/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
@@ -612,6 +613,85 @@ export const noticesApi = {
     return request<{ deleted: boolean; id: string }>(`/notices/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
+  },
+
+  uploadAttachment(id: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request<Notice>(`/notices/${encodeURIComponent(id)}/attachment`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  removeAttachment(id: string) {
+    return request<Notice | { removed: boolean; id: string }>(
+      `/notices/${encodeURIComponent(id)}/attachment`,
+      { method: "DELETE" },
+    );
+  },
+
+  async downloadAttachment(id: string, fallbackFileName = "notice-document.pdf") {
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE}/notices/${encodeURIComponent(id)}/attachment`, {
+      method: "GET",
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!res.ok) {
+      if (res.status === 401 && typeof window !== "undefined") {
+        clearAuthToken();
+        window.dispatchEvent(new Event("eduflow:unauthorized"));
+      }
+      let message = `Download failed (${res.status})`;
+      try {
+        const body = (await res.json()) as { message?: string | string[] };
+        if (Array.isArray(body.message)) message = body.message.join(", ");
+        else if (typeof body.message === "string" && body.message) message = body.message;
+      } catch {
+        /* ignore non-JSON error */
+      }
+      throw new ApiError(res.status, message);
+    }
+
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const json = (await res.json()) as {
+        data?: { url?: string; fileName?: string };
+        url?: string;
+        fileName?: string;
+      };
+      const url = json.data?.url ?? json.url;
+      const fileName = json.data?.fileName ?? json.fileName ?? fallbackFileName;
+      if (!url) throw new ApiError(500, "Download URL missing in server response");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.target = "_blank";
+      a.rel = "noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return;
+    }
+
+    const disposition = res.headers.get("content-disposition") ?? "";
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const fileName = utf8Match?.[1]
+      ? decodeURIComponent(utf8Match[1])
+      : (plainMatch?.[1] ?? fallbackFileName);
+
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   },
 };
 

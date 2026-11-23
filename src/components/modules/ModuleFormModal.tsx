@@ -8,7 +8,7 @@ import { Button, Field, Input, MultiSelect, Select, Skeleton, Textarea } from "@
 import { useToast } from "@/components/ui/toast";
 import { createModule, updateModule } from "@/api/modules";
 import { applyApiValidationErrors, teachersApi, type TeacherListItem } from "@/lib/api";
-import { BATCHES } from "@/lib/constants";
+import { useBatches } from "@/hooks/useBatches";
 
 const schema = z.object({
   code: z.string().trim().min(3, "e.g. MTH-101"),
@@ -65,6 +65,7 @@ function Inner({
   const toast = useToast();
   const [teachers, setTeachers] = useState<TeacherListItem[]>(teachersProp ?? []);
   const [loadingTeachers, setLoadingTeachers] = useState(!teachersProp);
+  const { batches: batchOptions, registerBatches } = useBatches(item?.batches);
 
   const {
     register,
@@ -135,6 +136,7 @@ function Inner({
         saved = await createModule(payload);
         toast.success(`${saved.name} created`);
       }
+      registerBatches(base.batches);
       onSaved?.(saved);
       onClose();
     } catch (err: unknown) {
@@ -201,7 +203,9 @@ function Inner({
             <MultiSelect
               value={field.value}
               onChange={field.onChange}
-              options={BATCHES.map((b) => ({ value: b, label: b }))}
+              options={batchOptions.map((b) => ({ value: b, label: b }))}
+              allowCustom
+              onAddCustom={(newBatch) => registerBatches([newBatch])}
             />
           )}
         />

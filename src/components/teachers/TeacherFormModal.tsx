@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/overlays";
 import { Button, Field, Input, MultiSelect, Select } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
-import { BATCHES } from "@/data/mock";
+import { useBatches } from "@/hooks/useBatches";
 import { todayISO } from "@/lib/utils";
 
 const schema = z.object({
@@ -33,6 +33,7 @@ function Inner({
   onSubmittingChange: (submitting: boolean) => void;
 }) {
   const { teachers, modules, saveTeacher, teacherModules } = useAppData();
+  const { batches: batchOptions, registerBatches } = useBatches(item?.batches);
   const toast = useToast();
   const {
     register,
@@ -99,7 +100,7 @@ function Inner({
         <Controller control={control} name="moduleIds" render={({ field }) => <MultiSelect value={field.value} onChange={field.onChange} options={modules.map((m) => ({ value: m.id, label: `${m.name} (${m.code})` }))} />} />
       </Field>
       <Field label="Assigned batches (optional)" error={errors.batches?.message} className="sm:col-span-2">
-        <Controller control={control} name="batches" render={({ field }) => <MultiSelect value={field.value} onChange={field.onChange} options={BATCHES.map((b) => ({ value: b, label: b }))} />} />
+        <Controller control={control} name="batches" render={({ field }) => <MultiSelect value={field.value} onChange={field.onChange} options={batchOptions.map((b) => ({ value: b, label: b }))} allowCustom onAddCustom={(newBatch) => registerBatches([newBatch])} />} />
       </Field>
     </form>
   );

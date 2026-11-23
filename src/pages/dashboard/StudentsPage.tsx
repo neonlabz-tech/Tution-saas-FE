@@ -11,11 +11,11 @@ import { useAppData } from "@/hooks/useAppData";
 import { listModules } from "@/api/modules";
 import { deleteStudent } from "@/api/students";
 import { useStudents } from "@/hooks/useStudents";
-import { BATCHES } from "@/lib/constants";
+import { useBatches } from "@/hooks/useBatches";
 import { StudentFormModal } from "@/components/students/StudentFormModal";
 import { StudentDetail } from "@/components/students/StudentDetail";
 import { RecordPaymentModal, type PaymentStudentSummary } from "@/components/finance/RecordPaymentModal";
-import { fmtDate, fmtLKR } from "@/lib/utils";
+import { formatLkrPrice, formatShortDate } from "@/lib/utils";
 
 const PAGE_LIMIT = 8;
 
@@ -118,6 +118,7 @@ export default function StudentsPage() {
   const items = data?.items ?? [];
   const pagination = data?.pagination ?? { total: 0, page, limit: PAGE_LIMIT, totalPages: 1 };
   const summary = data?.summary ?? { total: 0, activeCount: 0, filteredTotal: 0 };
+  const { batches: batchOptions } = useBatches(items.map((s) => s.batch));
 
   const columns = useMemo<Columns<StudentListItem>>(
     () => [
@@ -169,7 +170,7 @@ export default function StudentsPage() {
         id: "enrollmentDate",
         header: "Enrolled",
         accessorFn: (s) => s.enrollmentDate,
-        cell: (c) => <span className="text-xs text-muted">{fmtDate(c.getValue() as string)}</span>,
+        cell: (c) => <span className="text-xs text-muted">{formatShortDate(c.getValue() as string)}</span>,
       },
       {
         id: "outstanding",
@@ -179,7 +180,7 @@ export default function StudentsPage() {
           const v = (c.getValue() as number) ?? 0;
           return (
             <span className={`num text-sm font-semibold ${v > 0 ? "text-rose-500" : "text-emerald-500"}`}>
-              {v > 0 ? fmtLKR(v) : "Settled"}
+              {v > 0 ? formatLkrPrice(v) : "Settled"}
             </span>
           );
         },
@@ -276,7 +277,7 @@ export default function StudentsPage() {
             aria-label="Filter by batch"
           >
             <option value="all">All batches</option>
-            {BATCHES.map((b) => (
+            {batchOptions.map((b) => (
               <option key={b} value={b}>
                 {b}
               </option>

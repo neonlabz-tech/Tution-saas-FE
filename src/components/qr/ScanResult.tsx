@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
 import { getStudentById } from "@/api/students";
 import { attendanceApi } from "@/lib/api";
-import { fmtLKR, todayISO } from "@/lib/utils";
+import { formatLkrPrice, todayISO } from "@/lib/utils";
 
 type ScanStudent = (Student | StudentListItem | StudentDetail) & {
   feeTotal?: number;
@@ -334,12 +334,12 @@ export function ScanResult({
               <div className="grid grid-cols-3 gap-2 rounded-xl bg-surface/80 p-2.5 text-center">
                 <div>
                   <p className="text-[10px] font-medium text-muted">Total fees</p>
-                  <p className="num text-xs font-bold sm:text-sm">{fmtLKR(resolvedFeeTotal)}</p>
+                  <p className="num text-xs font-bold sm:text-sm">{formatLkrPrice(resolvedFeeTotal)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-medium text-muted">Paid</p>
                   <p className="num text-xs font-bold text-emerald-500 sm:text-sm">
-                    {fmtLKR(resolvedPaidTotal)}
+                    {formatLkrPrice(resolvedPaidTotal)}
                   </p>
                 </div>
                 <div>
@@ -349,7 +349,7 @@ export function ScanResult({
                       owed > 0 ? "text-rose-500" : "text-emerald-500"
                     }`}
                   >
-                    {owed > 0 ? fmtLKR(owed) : "Settled"}
+                    {owed > 0 ? formatLkrPrice(owed) : "Settled"}
                   </p>
                 </div>
               </div>

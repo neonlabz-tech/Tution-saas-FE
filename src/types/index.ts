@@ -585,6 +585,15 @@ export interface DeleteOnlineClassResponse {
 export type NoticePriority = "low" | "medium" | "high";
 /** Computed by the backend from status + publish/expiry dates. "expired" is only returned to admins. */
 export type NoticeState = "draft" | "scheduled" | "active" | "expired";
+
+export interface NoticeAttachment {
+  key: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  uploadedAt?: string;
+}
+
 export interface Notice {
   id: string;
   title: string;
@@ -594,9 +603,15 @@ export interface Notice {
   batches: string[];
   publishDate: string;
   expiryDate: string;
+  /** 24h local time (HH:mm), e.g. "23:59" or "14:30" */
+  expiryTime?: string;
+  /** Full ISO-8601 UTC expiry timestamp used by R2 auto-cleanup */
+  expiresAt?: string;
   priority: NoticePriority;
   status: "published" | "draft";
   state?: NoticeState;
+  attachment?: NoticeAttachment | null;
+  attachmentExpired?: boolean;
 }
 
 export type UserRole = "super_admin" | "admin" | "teacher" | "student";

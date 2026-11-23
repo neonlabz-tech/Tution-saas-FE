@@ -12,7 +12,7 @@ import { createOnlineClass, updateOnlineClass } from "@/api/onlineClasses";
 import { createNotification } from "@/api/notifications";
 import { useAuth } from "@/hooks/useAuth";
 import { applyApiValidationErrors, teachersApi, type TeacherListItem } from "@/lib/api";
-import { BATCHES } from "@/lib/constants";
+import { useBatches } from "@/hooks/useBatches";
 import { todayISO } from "@/lib/utils";
 
 const schema = z
@@ -88,6 +88,8 @@ function Inner({
 }) {
   const toast = useToast();
   const { user } = useAuth();
+  const { batches: batchOptions, registerBatches } = useBatches(item?.batch ? [item.batch] : undefined);
+  const [customBatch, setCustomBatch] = useState(false);
   const [modules, setModules] = useState<ModuleListItem[]>(modulesProp ?? []);
   const [teachers, setTeachers] = useState<TeacherListItem[]>(teachersProp ?? []);
   const [loadingModules, setLoadingModules] = useState(!modulesProp);
@@ -166,6 +168,11 @@ function Inner({
   }, [moduleId, item, modules]);
 
   const onSubmit = async (v: Values) => {
+    const trimmedBatch = v.batch.trim();
+    if (!trimmedBatch) {
+      setError("batch", { message: "Select or enter a batch" });
+      return;
+    }
     const start = `${v.date}T${v.startTime}`;
     const end = `${v.date}T${v.endTime}`;
     const desc = v.description.trim();
@@ -178,7 +185,7 @@ function Inner({
           title: v.title.trim(),
           moduleId: v.moduleId,
           teacherId: v.teacherId,
-          batch: v.batch,
+          batch: trimmedBatch,
           start,
           end,
           link: v.link.trim(),
@@ -208,7 +215,7 @@ function Inner({
           title: v.title.trim(),
           moduleId: v.moduleId,
           teacherId: v.teacherId,
-          batch: v.batch,
+          batch: trimmedBatch,
           start,
           end,
           link: v.link.trim(),
@@ -246,6 +253,7 @@ function Inner({
           // non-blocking
         }
       }
+      registerBatches([saved.batch || trimmedBatch]);
       onSaved?.(saved);
       onClose();
     } catch (err: unknown) {
@@ -294,14 +302,42 @@ function Inner({
         )}
       </Field>
       <Field label="Batch" error={errors.batch?.message}>
-        <Select {...register("batch")}>
-          <option value="">Select batch…</option>
-          {BATCHES.map((b) => (
-            <option key={b} value={b}>
-              {b}
-            </option>
-          ))}
-        </Select>
+        <div className="space-y-1.5">
+          {customBatch ? (
+            <Input
+              {...register("batch")}
+              placeholder="e.g. 2027-AL"
+              autoFocus
+            />
+          ) : (
+            <Select {...register("batch")}>
+              <option value="">Select batch…</option>
+              {batchOptions.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </Select>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (customBatch) {
+                setCustomBatch(false);
+                setValue("batch", item?.batch || "", {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              } else {
+                setCustomBatch(true);
+                setValue("batch", "", { shouldDirty: true });
+              }
+            }}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            {customBatch ? "Choose existing batch" : "+ New batch"}
+          </button>
+        </div>
       </Field>
       <Field label="Status" error={errors.status?.message}>
         <Select {...register("status")}>

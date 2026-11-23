@@ -33,7 +33,7 @@ import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
 import { useAuth } from "@/hooks/useAuth";
 import { createNotification } from "@/api/notifications";
-import { BATCHES } from "@/data/mock";
+import { useBatches } from "@/hooks/useBatches";
 import { ChartLegend, ChartTooltip, axisTick, cursorStyle, gridProps } from "@/components/analytics/chartParts";
 import { attendanceCounts, attendanceRate, attendanceSeries } from "@/lib/stats";
 import {
@@ -42,7 +42,7 @@ import {
   type StudentAttendanceSummary,
   type StudentHistoryResponse,
 } from "@/lib/api";
-import { addDays, cn, fmtDate, startOfWeek, toISO, todayISO } from "@/lib/utils";
+import { addDays, cn, formatShortDate, startOfWeek, toISO, todayISO } from "@/lib/utils";
 
 type View = "daily" | "weekly" | "monthly" | "records";
 const STATUSES: AttendanceStatus[] = ["present", "absent", "late", "excused"];
@@ -147,7 +147,7 @@ function HistoryModal({ student, onClose }: { student: Student; onClose: () => v
                 <div>
                   <p className="text-sm font-semibold">{modName}</p>
                   <p className="text-[11px] text-muted flex items-center gap-1.5">
-                    <span>{fmtDate(r.date)}</span>
+                    <span>{formatShortDate(r.date)}</span>
                     <span>·</span>
                     <span className="capitalize">{r.method}</span>
                     {remarks && <span className="italic opacity-80">({remarks})</span>}
@@ -178,6 +178,7 @@ export default function AttendancePage() {
   } = useAppData();
   const toast = useToast();
   const { user } = useAuth();
+  const { batches: batchOptions } = useBatches(students.map((s) => s.batch));
 
   const [view, setView] = useState<View>("daily");
   const [date, setDate] = useState(todayISO());
@@ -414,7 +415,7 @@ export default function AttendancePage() {
       // Local update as backup/optimistic
       rows.filter((r) => !r.record).forEach((r) => markAttendance(r.student.id, r.module.id, date, "present"));
       toast.success(
-        `Marked ${serverMarked > 0 ? serverMarked : unmarked} unmarked students present for ${fmtDate(date)}`,
+        `Marked ${serverMarked > 0 ? serverMarked : unmarked} unmarked students present for ${formatShortDate(date)}`,
       );
     } finally {
       setBulkActing(false);
@@ -663,7 +664,7 @@ export default function AttendancePage() {
       {
         accessorKey: "date",
         header: "Date",
-        cell: (c) => <span className="text-sm font-medium">{fmtDate(c.getValue() as string)}</span>,
+        cell: (c) => <span className="text-sm font-medium">{formatShortDate(c.getValue() as string)}</span>,
       },
       {
         id: "student",
@@ -822,7 +823,7 @@ export default function AttendancePage() {
           <Field label="Batch">
             <Select value={batch} onChange={(e) => setBatch(e.target.value)}>
               <option value="all">All batches</option>
-              {BATCHES.map((b) => (
+              {batchOptions.map((b) => (
                 <option key={b}>{b}</option>
               ))}
             </Select>
@@ -858,7 +859,7 @@ export default function AttendancePage() {
           ]}
         />
         <p className="text-xs font-semibold text-muted bg-surface-2 px-3 py-1 rounded-xl border border-line">
-          {view === "daily" ? fmtDate(date) : `${fmtDate(range.from, false)} – ${fmtDate(range.to)}`}
+          {view === "daily" ? formatShortDate(date) : `${formatShortDate(range.from)} – ${formatShortDate(range.to)}`}
         </p>
       </div>
 

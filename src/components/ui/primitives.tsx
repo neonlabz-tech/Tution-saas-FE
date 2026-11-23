@@ -1,4 +1,4 @@
-import { useId, type ComponentProps, type ReactNode } from "react";
+import { useId, useState, type ComponentProps, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown, Search, X } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
@@ -126,32 +126,77 @@ export function MultiSelect({
   value,
   onChange,
   className,
+  allowCustom = false,
+  customPlaceholder = "Add new batch…",
+  onAddCustom,
 }: {
   options: { value: string; label: string; hint?: string }[];
   value: string[];
   onChange: (v: string[]) => void;
   className?: string;
+  allowCustom?: boolean;
+  customPlaceholder?: string;
+  onAddCustom?: (newValue: string) => void;
 }) {
+  const [draft, setDraft] = useState("");
   const toggle = (v: string) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
+
+  const mergedOptions = [...options];
+  for (const selected of value) {
+    if (selected && !mergedOptions.some((o) => o.value === selected)) {
+      mergedOptions.push({ value: selected, label: selected });
+    }
+  }
+
+  const addCustom = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    if (!value.includes(trimmed)) onChange([...value, trimmed]);
+    onAddCustom?.(trimmed);
+    setDraft("");
+  };
+
   return (
-    <div className={cn("flex flex-wrap gap-2", className)}>
-      {options.map((o) => {
-        const on = value.includes(o.value);
-        return (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => toggle(o.value)}
-            className={cn(
-              "cursor-pointer rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
-              on ? "border-primary bg-primary/10 text-brand" : "border-line bg-surface text-muted hover:border-primary/40 hover:text-ink",
-            )}
-          >
-            {on ? "✓ " : ""}
-            {o.label}
-          </button>
-        );
-      })}
+    <div className={cn("space-y-2.5", className)}>
+      <div className="flex flex-wrap gap-2">
+        {mergedOptions.map((o) => {
+          const on = value.includes(o.value);
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => toggle(o.value)}
+              className={cn(
+                "cursor-pointer rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+                on ? "border-primary bg-primary/10 text-brand" : "border-line bg-surface text-muted hover:border-primary/40 hover:text-ink",
+              )}
+            >
+              {on ? "✓ " : ""}
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+      {allowCustom && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.stopPropagation();
+                addCustom();
+              }
+            }}
+            placeholder={customPlaceholder}
+            className="h-9 max-w-[230px] text-xs"
+          />
+          <Button type="button" size="sm" variant="soft" onClick={addCustom} disabled={!draft.trim()}>
+            + Add
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

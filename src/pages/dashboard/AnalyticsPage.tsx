@@ -7,7 +7,7 @@ import { useAppData } from "@/hooks/useAppData";
 import { COLORS, ChartLegend, ChartTooltip, axisTick, cursorStyle, gridProps, moneyTick } from "@/components/analytics/chartParts";
 import { attendanceRate, attendanceSeries, enrollmentSeries, financeSeries, groupSum, sumBy } from "@/lib/stats";
 import { inRange } from "@/lib/period";
-import { fmtLKR } from "@/lib/utils";
+import { formatLkrPrice } from "@/lib/utils";
 
 function ChartCard({ title, subtitle, legend, children, className = "" }: { title: string; subtitle?: string; legend?: { label: string; color: string }[]; children: React.ReactNode; className?: string }) {
   return (
@@ -58,12 +58,12 @@ export default function AnalyticsPage() {
   }, [students, feeTotal, outstanding, paidTotal]);
 
   const kpis = [
-    { l: "Revenue", v: fmtLKR(income), i: TrendingUp, c: "from-emerald-500 to-teal-500" },
-    { l: "Expenses", v: fmtLKR(expense), i: TrendingDown, c: "from-rose-500 to-pink-500" },
+    { l: "Revenue", v: formatLkrPrice(income), i: TrendingUp, c: "from-emerald-500 to-teal-500" },
+    { l: "Expenses", v: formatLkrPrice(expense), i: TrendingDown, c: "from-rose-500 to-pink-500" },
     { l: "Profit margin", v: `${margin}%`, i: Percent, c: "from-indigo-500 to-violet-500" },
     { l: "New students", v: String(newStudents), i: GraduationCap, c: "from-sky-500 to-indigo-500" },
     { l: "Avg attendance", v: `${attendanceRate(attRecs)}%`, i: UserCheck, c: "from-teal-500 to-emerald-500" },
-    { l: "Outstanding", v: fmtLKR(totalOut), i: Banknote, c: "from-amber-500 to-orange-500" },
+    { l: "Outstanding", v: formatLkrPrice(totalOut), i: Banknote, c: "from-amber-500 to-orange-500" },
   ];
 
   return (
@@ -193,8 +193,8 @@ export default function AnalyticsPage() {
                 <tr key={m.id} className="border-t border-line/60">
                   <td className="px-4 py-3"><span className="flex items-center gap-2 font-semibold"><span className="h-2.5 w-2.5 rounded-full" style={{ background: m.color }} />{m.name}</span></td>
                   <td className="num px-4 py-3 font-semibold">{m.enrolled}</td>
-                  <td className="num px-4 py-3 font-semibold text-emerald-500">{fmtLKR(m.collected)}</td>
-                  <td className="num px-4 py-3 font-semibold text-rose-500">{fmtLKR(m.owed)}</td>
+                  <td className="num px-4 py-3 font-semibold text-emerald-500">{formatLkrPrice(m.collected)}</td>
+                  <td className="num px-4 py-3 font-semibold text-rose-500">{formatLkrPrice(m.owed)}</td>
                   <td className="px-4 py-3"><div className="flex min-w-[130px] items-center gap-2"><ProgressBar value={m.rate} tone={m.rate >= 85 ? "teal" : m.rate >= 70 ? "amber" : "rose"} /><span className="num w-12 text-xs font-bold">{m.rate}%</span></div></td>
                 </tr>
               ))}

@@ -55,12 +55,13 @@ import {
 } from "@/api/payments";
 import { createNotification } from "@/api/notifications";
 import { getStudentById } from "@/api/students";
-import { BATCHES, INCOME_CATEGORIES, PAYMENT_METHODS } from "@/lib/constants";
+import { INCOME_CATEGORIES, PAYMENT_METHODS } from "@/lib/constants";
+import { useBatches } from "@/hooks/useBatches";
 import {
   RecordPaymentModal,
   type PaymentStudentSummary,
 } from "@/components/finance/RecordPaymentModal";
-import { cn, fmtDate, fmtLKR, todayISO } from "@/lib/utils";
+import { cn, formatLkrPrice, formatShortDate, todayISO } from "@/lib/utils";
 
 type Tab = "students" | "history";
 
@@ -124,7 +125,7 @@ function downloadPaymentReceiptPdf(params: {
   doc.setTextColor(15, 23, 42);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10.5);
-  doc.text(fmtDate(payment.date), 32, y);
+  doc.text(formatShortDate(payment.date), 32, y);
   doc.text(payment.method || "Cash", pageW / 2 - 20, y);
   doc.text(payment.status.toUpperCase(), pageW - 32, y, { align: "right" });
 
@@ -183,7 +184,7 @@ function downloadPaymentReceiptPdf(params: {
     maxWidth: pageW - 190,
   });
   if (payment.discount > 0) {
-    doc.text(fmtLKR(payment.discount), 140, y + 88);
+    doc.text(formatLkrPrice(payment.discount), 140, y + 88);
   }
 
   // Amount highlight
@@ -195,7 +196,7 @@ function downloadPaymentReceiptPdf(params: {
   doc.setFontSize(10);
   doc.text("AMOUNT PAID", 48, y + 31);
   doc.setFontSize(18);
-  doc.text(fmtLKR(payment.amount), pageW - 48, y + 33, { align: "right" });
+  doc.text(formatLkrPrice(payment.amount), pageW - 48, y + 33, { align: "right" });
 
   if (payment.collectedBy) {
     y += 74;
@@ -615,12 +616,12 @@ function StudentPaymentDrawer({
             <div className="grid grid-cols-3 gap-3 text-center">
               <div>
                 <p className="text-[11px] text-muted">Total fees</p>
-                <p className="num mt-0.5 text-sm font-bold">{fmtLKR(detail.feeTotal)}</p>
+                <p className="num mt-0.5 text-sm font-bold">{formatLkrPrice(detail.feeTotal)}</p>
               </div>
               <div>
                 <p className="text-[11px] text-muted">Paid</p>
                 <p className="num mt-0.5 text-sm font-bold text-emerald-500">
-                  {fmtLKR(detail.paidTotal)}
+                  {formatLkrPrice(detail.paidTotal)}
                 </p>
               </div>
               <div>
@@ -631,7 +632,7 @@ function StudentPaymentDrawer({
                     detail.outstanding > 0 ? "text-rose-500" : "text-emerald-500",
                   )}
                 >
-                  {fmtLKR(detail.outstanding)}
+                  {formatLkrPrice(detail.outstanding)}
                 </p>
               </div>
             </div>
@@ -655,7 +656,7 @@ function StudentPaymentDrawer({
                       <p className="font-semibold">{m.name}</p>
                       <p className="num text-[11px] text-muted">{m.code}</p>
                     </div>
-                    <span className="num font-semibold">{fmtLKR(m.fee)}</span>
+                    <span className="num font-semibold">{formatLkrPrice(m.fee)}</span>
                   </div>
                 ))}
               </div>
@@ -694,7 +695,7 @@ function StudentPaymentDrawer({
                           <ReceiptStatusBadge status={p.status} />
                         </div>
                         <p className="mt-0.5 text-xs text-muted">
-                          {fmtDate(p.date)} · {p.method || "Cash"} ·{" "}
+                          {formatShortDate(p.date)} · {p.method || "Cash"} ·{" "}
                           <span className="num font-medium">{p.receiptNo || p.id}</span>
                         </p>
                       </div>
@@ -705,7 +706,7 @@ function StudentPaymentDrawer({
                             p.status === "completed" ? "text-emerald-500" : "text-muted line-through",
                           )}
                         >
-                          +{fmtLKR(p.amount)}
+                          +{formatLkrPrice(p.amount)}
                         </span>
                         <Button
                           variant="ghost"
@@ -764,6 +765,7 @@ export default function PaymentsPage() {
   const [tab, setTab] = useState<Tab>("students");
   const period = usePeriod("year");
   const [refreshKey, setRefreshKey] = useState(0);
+  const { batches: batchOptions } = useBatches();
 
   // Modals & Drawers
   const [payModal, setPayModal] = useState<{
@@ -1142,7 +1144,7 @@ export default function PaymentsPage() {
         header: "Total Fees",
         cell: (c) => (
           <span className="num whitespace-nowrap text-sm font-medium">
-            {fmtLKR(c.getValue() as number)}
+            {formatLkrPrice(c.getValue() as number)}
           </span>
         ),
       },
@@ -1156,7 +1158,7 @@ export default function PaymentsPage() {
             <div className="w-32 space-y-1">
               <div className="flex items-center justify-between text-xs">
                 <span className="num font-semibold text-emerald-500">
-                  {fmtLKR(s.paidTotal)}
+                  {formatLkrPrice(s.paidTotal)}
                 </span>
                 <span className="num text-[10px] text-muted">{Math.round(pct)}%</span>
               </div>
@@ -1177,7 +1179,7 @@ export default function PaymentsPage() {
                 val > 0 ? "text-rose-500" : "text-emerald-500",
               )}
             >
-              {val > 0 ? fmtLKR(val) : "LKR 0"}
+              {val > 0 ? formatLkrPrice(val) : "LKR 0"}
             </span>
           );
         },
@@ -1199,10 +1201,10 @@ export default function PaymentsPage() {
           }
           return (
             <div className="whitespace-nowrap">
-              <p className="text-xs font-medium">{fmtDate(s.lastPaymentDate)}</p>
+              <p className="text-xs font-medium">{formatShortDate(s.lastPaymentDate)}</p>
               {typeof s.lastPaymentAmount === "number" && (
                 <p className="num text-[11px] text-muted">
-                  +{fmtLKR(s.lastPaymentAmount)}
+                  +{formatLkrPrice(s.lastPaymentAmount)}
                 </p>
               )}
             </div>
@@ -1270,7 +1272,7 @@ export default function PaymentsPage() {
         header: "Date",
         cell: (c) => (
           <span className="whitespace-nowrap text-sm">
-            {fmtDate(c.getValue() as string)}
+            {formatShortDate(c.getValue() as string)}
           </span>
         ),
       },
@@ -1355,11 +1357,11 @@ export default function PaymentsPage() {
                   : "text-muted line-through",
               )}
             >
-              +{fmtLKR(row.original.amount)}
+              +{formatLkrPrice(row.original.amount)}
             </span>
             {row.original.discount > 0 && (
               <p className="num text-[10px] text-muted">
-                Disc: {fmtLKR(row.original.discount)}
+                Disc: {formatLkrPrice(row.original.discount)}
               </p>
             )}
           </div>
@@ -1413,14 +1415,14 @@ export default function PaymentsPage() {
   const kpiCards = [
     {
       label: "Tuition collected",
-      value: fmtLKR(globalSummary.totalCollected),
+      value: formatLkrPrice(globalSummary.totalCollected),
       sub: "Total paid across active students",
       icon: Wallet,
       color: "from-emerald-500 to-teal-500",
     },
     {
       label: "Total outstanding",
-      value: fmtLKR(globalSummary.totalOutstanding),
+      value: formatLkrPrice(globalSummary.totalOutstanding),
       sub: "Pending tuition balance",
       icon: Banknote,
       color: "from-rose-500 to-pink-500",
@@ -1524,7 +1526,7 @@ export default function PaymentsPage() {
                   aria-label="Filter by batch"
                 >
                   <option value="all">All batches</option>
-                  {BATCHES.map((b) => (
+                  {batchOptions.map((b) => (
                     <option key={b} value={b}>
                       {b}
                     </option>
@@ -1600,9 +1602,9 @@ export default function PaymentsPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <PeriodFilter state={period} />
               <p className="text-xs text-muted">
-                {fmtDate(period.range.from)} – {fmtDate(period.range.to)} ·{" "}
+                {formatShortDate(period.range.from)} – {formatShortDate(period.range.to)} ·{" "}
                 <b className="num text-ink">{historySummary.totalCount}</b> receipts ·{" "}
-                <b className="num text-emerald-500">{fmtLKR(historySummary.totalCollected)}</b>
+                <b className="num text-emerald-500">{formatLkrPrice(historySummary.totalCollected)}</b>
               </p>
             </div>
 
@@ -1718,7 +1720,7 @@ export default function PaymentsPage() {
         title="Delete payment receipt?"
         text={
           <>
-            Receipt <b>{delPaymentItem?.receiptNo}</b> ({fmtLKR(delPaymentItem?.amount ?? 0)})
+            Receipt <b>{delPaymentItem?.receiptNo}</b> ({formatLkrPrice(delPaymentItem?.amount ?? 0)})
             will be removed from Payments and Finance, and the student’s outstanding balance will
             be recalculated.
           </>

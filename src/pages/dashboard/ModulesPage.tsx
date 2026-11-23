@@ -38,10 +38,10 @@ import { useToast } from "@/components/ui/toast";
 import { deleteModule, setModuleEnrollments, updateModule } from "@/api/modules";
 import { useModuleDetail, useModules } from "@/hooks/useModules";
 import { teachersApi, type TeacherListItem } from "@/lib/api";
-import { BATCHES } from "@/lib/constants";
+import { useBatches } from "@/hooks/useBatches";
 import { ModuleFormModal } from "@/components/modules/ModuleFormModal";
 import { RegisterStudentsModal } from "@/components/modules/RegisterStudentsModal";
-import { cn, fmtLKR } from "@/lib/utils";
+import { cn, formatLkrPrice } from "@/lib/utils";
 
 const GRADS = [
   "from-indigo-500 to-violet-500",
@@ -136,6 +136,8 @@ export default function ModulesPage() {
     refresh: refreshDetail,
   } = useModuleDetail(detailId, detailRefreshKey);
 
+  const { batches: batchOptions, registerBatches } = useBatches(modules.flatMap((m) => m.batches));
+
   const teacherMap = useMemo(() => new Map(teachers.map((t) => [t.id, t])), [teachers]);
 
   const resolveTeacherName = (m: ModuleListItem): string | null => {
@@ -168,7 +170,7 @@ export default function ModulesPage() {
         id: "fee",
         header: "Fee",
         accessorFn: (m) => m.fee,
-        cell: (c) => <span className="num text-sm font-semibold">{fmtLKR(c.getValue() as number)}</span>,
+        cell: (c) => <span className="num text-sm font-semibold">{formatLkrPrice(c.getValue() as number)}</span>,
       },
       {
         id: "enrolled",
@@ -346,7 +348,7 @@ export default function ModulesPage() {
         </Select>
         <Select value={batch} onChange={(e) => setBatch(e.target.value)} aria-label="Batch">
           <option value="all">All batches</option>
-          {BATCHES.map((b) => (
+          {batchOptions.map((b) => (
             <option key={b} value={b}>
               {b}
             </option>
@@ -425,7 +427,7 @@ export default function ModulesPage() {
                     <div className="flex flex-1 flex-col p-5">
                       <div className="mb-3 flex items-center justify-between">
                         <StatusBadge status={m.status} />
-                        <span className="num text-base font-bold">{fmtLKR(m.fee)}</span>
+                        <span className="num text-base font-bold">{formatLkrPrice(m.fee)}</span>
                       </div>
                       <p className="line-clamp-2 text-sm text-muted">{m.description}</p>
                       <div className="mt-4 flex items-center gap-2">
@@ -550,7 +552,7 @@ export default function ModulesPage() {
               <p className="text-sm text-muted">{detail.description}</p>
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-2xl bg-surface-2 p-3 text-center">
-                  <p className="num text-lg font-bold">{fmtLKR(detail.fee).replace("LKR ", "")}</p>
+                  <p className="num text-lg font-bold">{formatLkrPrice(detail.fee).replace("LKR ", "")}</p>
                   <p className="text-[11px] text-muted">Fee (LKR)</p>
                 </div>
                 <div className="rounded-2xl bg-surface-2 p-3 text-center">
@@ -567,7 +569,7 @@ export default function ModulesPage() {
                   <StatusBadge status={detail.status} />
                 </InfoRow>
                 <InfoRow label="Revenue potential">
-                  <span className="num">{fmtLKR(detail.revenuePotential)}</span>
+                  <span className="num">{formatLkrPrice(detail.revenuePotential)}</span>
                 </InfoRow>
               </div>
               <Field label="Assigned teacher">
@@ -588,8 +590,10 @@ export default function ModulesPage() {
                 <div className={cn(patchingField === "batches" && "pointer-events-none opacity-60")}>
                   <MultiSelect
                     value={detail.batches}
-                    options={BATCHES.map((b) => ({ value: b, label: b }))}
+                    options={batchOptions.map((b) => ({ value: b, label: b }))}
                     onChange={(v) => void handleInlineBatchesChange(v)}
+                    allowCustom
+                    onAddCustom={(newBatch) => registerBatches([newBatch])}
                   />
                 </div>
               </Field>
