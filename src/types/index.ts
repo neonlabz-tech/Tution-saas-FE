@@ -583,13 +583,18 @@ export interface DeleteOnlineClassResponse {
 }
 
 export type NoticePriority = "low" | "medium" | "high";
+/** Computed by the backend from status + publish/expiry dates. "expired" is only returned to admins. */
+export type NoticeState = "draft" | "scheduled" | "active" | "expired";
 export interface Notice {
   id: string;
   title: string;
   description: string;
-  batches: string[]; // empty = all batches
+  /** true = every batch (batches is then empty) */
+  allBatches?: boolean;
+  batches: string[];
   publishDate: string;
   expiryDate: string;
   priority: NoticePriority;
   status: "published" | "draft";
+  state?: NoticeState;
 }

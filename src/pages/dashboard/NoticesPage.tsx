@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarClock, Megaphone, Pencil, Plus, Trash2, Users } from "lucide-react";
-import type { Notice } from "@/types";
-import { Badge, Button, Card, EmptyState, InfoRow, PageHeader, SearchInput, Select, StatusBadge, Tabs } from "@/components/ui/primitives";
+import { CalendarClock, Eye, Megaphone, Pencil, Plus, Trash2, Users } from "lucide-react";
+import type { Notice, NoticeState } from "@/types";
+import { Badge, Button, Card, EmptyState, InfoRow, PageHeader, SearchInput, Select, StatusBadge } from "@/components/ui/primitives";
 import { ConfirmDialog, Modal } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { BATCHES } from "@/data/mock";
@@ -11,7 +11,15 @@ import { NoticeFormModal } from "@/components/notices/NoticeFormModal";
 import { noticesApi } from "@/lib/api";
 import { cn, diffDays, fmtDate, todayISO } from "@/lib/utils";
 
-type Filter = "all" | "active" | "expired" | "draft";
+type Filter = "all" | NoticeState;
+// Status dropdown. "active" is shown as "Published". Expired notices have no option; they show under "All statuses".
+const STATUS_OPTIONS: { id: Filter; label: string }[] = [
+  { id: "all", label: "All statuses" },
+  { id: "active", label: "Published" },
+  { id: "scheduled", label: "Scheduled" },
+  { id: "draft", label: "Draft" },
+];
+const isAllBatches = (n: Notice) => n.allBatches === true || n.batches.length === 0;
 const PRIORITY_BAR = { high: "bg-rose-500", medium: "bg-amber-500", low: "bg-teal-500" };
 
 export default function NoticesPage() {
@@ -31,7 +39,7 @@ export default function NoticesPage() {
   const loadNotices = () => {
     setLoading(true);
     noticesApi.list()
-      .then(setNotices)
+      .then((res) => setNotices(res.items))
       .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Could not load notices"))
       .finally(() => setLoading(false));
   };
@@ -42,12 +50,18 @@ export default function NoticesPage() {
     if (params.get("new") === "1") { setForm({ open: true, item: null }); setParams({}, { replace: true }); }
   }, [params, setParams]);
 
-  const state = (n: Notice): Filter => (n.status === "draft" ? "draft" : n.expiryDate < today ? "expired" : "active");
-  const counts = useMemo(() => ({ all: notices.length, active: notices.filter((n) => state(n) === "active").length, expired: notices.filter((n) => state(n) === "expired").length, draft: notices.filter((n) => state(n) === "draft").length }), [notices]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Prefer the backend-computed state; fall back for safety.
+  const state = (n: Notice): NoticeState =>
+    n.state ?? (n.status === "draft" ? "draft" : n.publishDate > today ? "scheduled" : n.expiryDate < today ? "expired" : "active");
+  const counts = useMemo(() => {
+    const c: Record<Filter, number> = { all: notices.length, active: 0, scheduled: 0, expired: 0, draft: 0 };
+    notices.forEach((n) => { c[state(n)] += 1; });
+    return c;
+  }, [notices]); // eslint-disable-line react-hooks/exhaustive-deps
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
     return notices
-      .filter((n) => (filter === "all" || state(n) === filter) && (priority === "all" || n.priority === priority) && (batch === "all" || n.batches.length === 0 || n.batches.includes(batch)) && (!s || n.title.toLowerCase().includes(s) || n.description.toLowerCase().includes(s)))
+      .filter((n) => (filter === "all" || state(n) === filter) && (priority === "all" || n.priority === priority) && (batch === "all" || isAllBatches(n) || n.batches.includes(batch)) && (!s || n.title.toLowerCase().includes(s) || n.description.toLowerCase().includes(s)))
       .sort((a, b) => b.publishDate.localeCompare(a.publishDate));
   }, [notices, filter, priority, batch, q]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -55,19 +69,22 @@ export default function NoticesPage() {
   const delN = delId ? notices.find((n) => n.id === delId) : undefined;
 
   const BatchChips = ({ n }: { n: Notice }) =>
-    n.batches.length === 0 ? <Badge tone="teal"><Users className="h-3 w-3" /> All batches</Badge> : <>{n.batches.map((b) => <Badge key={b} tone="neutral">{b}</Badge>)}</>;
+    isAllBatches(n) ? <Badge tone="teal"><Users className="h-3 w-3" /> All batches</Badge> : <>{n.batches.map((b) => <Badge key={b} tone="neutral">{b}</Badge>)}</>;
 
   return (
     <>
-      <PageHeader title="Notices" description="Announcements for students and batches — set priority and expiry." actions={<Button onClick={() => setForm({ open: true, item: null })}><Plus className="h-4 w-4" /> Create notice</Button>} />
+      <PageHeader
+        title="Notices"
+        description="Announcements for students and batches."
+        actions={<Button onClick={() => setForm({ open: true, item: null })}><Plus className="h-4 w-4" /> Create notice</Button>}
+      />
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={filter} onChange={setFilter} items={(["all", "active", "expired", "draft"] as Filter[]).map((f) => ({ id: f, label: `${f[0].toUpperCase()}${f.slice(1)} (${counts[f]})` }))} />
-        <div className="flex flex-wrap gap-2">
-          <SearchInput placeholder="Search notices…" value={q} onChange={(e) => setQ(e.target.value)} className="w-52" />
-          <div className="w-36"><Select value={priority} onChange={(e) => setPriority(e.target.value)} aria-label="Priority"><option value="all">All priorities</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></Select></div>
-          <div className="w-44"><Select value={batch} onChange={(e) => setBatch(e.target.value)} aria-label="Batch"><option value="all">All batches</option>{BATCHES.map((b) => <option key={b}>{b}</option>)}</Select></div>
-        </div>
+      {/* Filters, right above the cards */}
+      <div className="mb-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+        <SearchInput placeholder="Search notices…" value={q} onChange={(e) => setQ(e.target.value)} className="col-span-2 sm:w-56" />
+        <div className="sm:w-44"><Select value={filter} onChange={(e) => setFilter(e.target.value as Filter)} aria-label="Status">{STATUS_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label} ({counts[o.id]})</option>)}</Select></div>
+        <div className="sm:w-40"><Select value={priority} onChange={(e) => setPriority(e.target.value)} aria-label="Priority"><option value="all">All priorities</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></Select></div>
+        <div className="col-span-2 sm:w-44"><Select value={batch} onChange={(e) => setBatch(e.target.value)} aria-label="Batch"><option value="all">All batches</option>{BATCHES.map((b) => <option key={b}>{b}</option>)}</Select></div>
       </div>
 
       {loading ? (
@@ -91,8 +108,9 @@ export default function NoticesPage() {
                       <div className="mt-4 flex flex-wrap gap-1.5"><BatchChips n={n} /></div>
                     </button>
                     <div className="flex items-center justify-between border-t border-line px-5 py-3 pl-6">
-                      <span className="flex items-center gap-1.5 text-[11px] text-muted"><CalendarClock className="h-3.5 w-3.5" />{st === "draft" ? "Draft" : st === "expired" ? `Expired ${fmtDate(n.expiryDate, false)}` : left === 0 ? "Expires today" : `${left}d left`}</span>
+                      <span className="flex items-center gap-1.5 text-[11px] text-muted"><CalendarClock className="h-3.5 w-3.5" />{st === "draft" ? "Draft" : st === "scheduled" ? `Publishes ${fmtDate(n.publishDate, false)}` : st === "expired" ? `Expired ${fmtDate(n.expiryDate, false)}` : left === 0 ? "Expires today" : `${left}d left`}</span>
                       <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" aria-label="View" title="View" onClick={() => setDetailId(n.id)}><Eye className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" aria-label="Edit" onClick={() => setForm({ open: true, item: n })}><Pencil className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" aria-label="Delete" className="hover:text-rose-500" onClick={() => setDelId(n.id)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
@@ -130,7 +148,7 @@ export default function NoticesPage() {
         open={!!delN}
         onClose={() => setDelId(null)}
         title="Delete notice?"
-        text={<>“{delN?.title}” will be permanently removed.</>}
+        text={<>“{delN?.title}” will be permanently deleted. This cannot be undone.</>}
         onConfirm={() => {
           if (!delId) return;
           const id = delId;
