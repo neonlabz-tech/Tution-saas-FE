@@ -9,6 +9,8 @@ import { Button, Field, Input, Select, Skeleton, Textarea } from "@/components/u
 import { useToast } from "@/components/ui/toast";
 import { listModules } from "@/api/modules";
 import { createOnlineClass, updateOnlineClass } from "@/api/onlineClasses";
+import { createNotification } from "@/api/notifications";
+import { useAuth } from "@/hooks/useAuth";
 import { applyApiValidationErrors, teachersApi, type TeacherListItem } from "@/lib/api";
 import { BATCHES } from "@/lib/constants";
 import { todayISO } from "@/lib/utils";
@@ -85,6 +87,7 @@ function Inner({
   onSubmittingChange: (submitting: boolean) => void;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [modules, setModules] = useState<ModuleListItem[]>(modulesProp ?? []);
   const [teachers, setTeachers] = useState<TeacherListItem[]>(teachersProp ?? []);
   const [loadingModules, setLoadingModules] = useState(!modulesProp);
@@ -184,6 +187,22 @@ function Inner({
         };
         saved = await updateOnlineClass(item.id, payload);
         toast.success("Online class updated");
+
+        try {
+          await createNotification({
+            type: "class",
+            title: "Class Schedule Updated",
+            subtitle: `${saved.title} updated for ${v.date} at ${v.startTime} (${saved.batch}).`,
+            link: "/dashboard/online-classes",
+            targetRoles: ["teacher", "student"],
+            targetBatch: saved.batch,
+            targetUserIds: [saved.teacherId],
+            actorId: user?.id,
+            metadata: { classId: saved.id },
+          });
+        } catch {
+          // non-blocking
+        }
       } else {
         const payload: CreateOnlineClassDto = {
           title: v.title.trim(),
@@ -198,6 +217,34 @@ function Inner({
         };
         saved = await createOnlineClass(payload);
         toast.success("Online class scheduled");
+
+        try {
+          // 1. Teacher alert
+          await createNotification({
+            type: "class",
+            title: "New Class Scheduled",
+            subtitle: `${saved.title} has been scheduled for ${v.date} at ${v.startTime} (${saved.batch}).`,
+            link: "/dashboard/online-classes",
+            targetRoles: ["teacher"],
+            targetUserIds: [saved.teacherId],
+            actorId: user?.id,
+            metadata: { classId: saved.id, moduleId: saved.moduleId, batch: saved.batch },
+          });
+
+          // 2. Student alert for enrolled batch
+          await createNotification({
+            type: "class",
+            title: "New Class Added to Your Schedule",
+            subtitle: `${saved.title} on ${v.date} at ${v.startTime}. Tap to view details.`,
+            link: "/dashboard/online-classes",
+            targetRoles: ["student"],
+            targetBatch: saved.batch,
+            actorId: user?.id,
+            metadata: { classId: saved.id, batch: saved.batch },
+          });
+        } catch {
+          // non-blocking
+        }
       }
       onSaved?.(saved);
       onClose();

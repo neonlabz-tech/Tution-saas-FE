@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, Bell, BookOpen, CalendarClock, ChevronRight, GraduationCap, Menu, Moon, PanelLeft, Search, Sun, UserCog, Users, Wallet, X } from "lucide-react";
 import { ALL_NAV } from "@/lib/nav";
 import { useAppData } from "@/hooks/useAppData";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { useNotifications } from "@/hooks/useNotifications";
 import { Avatar, Badge } from "@/components/ui/primitives";
 import { Dropdown } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
-import { notificationsApi, type NotificationItem } from "@/lib/api";
+import type { AppNotification } from "@/types";
+import { fmtNotificationDateTime } from "@/lib/utils";
 
 function GlobalSearch({ className = "" }: { className?: string }) {
   const { students, teachers, modules } = useAppData();
@@ -66,86 +68,51 @@ function GlobalSearch({ className = "" }: { className?: string }) {
 }
 
 function Notifications() {
-  const { user } = useAuth();
   const toast = useToast();
-  const [backendItems, setBackendItems] = useState<NotificationItem[]>([]);
-  const inFlightRef = useRef<Set<string>>(new Set());
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
-  useEffect(() => {
-    if (!user) {
-      setBackendItems([]);
-      return;
+  const handleNotificationClick = async (item: AppNotification, close: () => void) => {
+    close();
+    if (!item.read) {
+      await markAsRead(item.id);
     }
-    let active = true;
-    notificationsApi
-      .list()
-      .then((res) => {
-        if (!active) return;
-        setBackendItems(res.items);
-      })
-      .catch(() => {
-        /* keep empty list if offline */
-      });
-    return () => {
-      active = false;
-    };
-  }, [user]);
-
-  // Unread first; notice expiry reminders come from the backend.
-  const items = useMemo(
-    () =>
-      [...backendItems].sort((a, b) => {
-        if (a.read === b.read) return 0;
-        return a.read ? 1 : -1;
-      }),
-    [backendItems],
-  );
-
-  const unreadCount = items.filter((i) => !i.read).length;
+  };
 
   const handleMarkAllAsRead = async () => {
     if (unreadCount === 0) return;
-    setBackendItems((prev) => prev.map((entry) => ({ ...entry, read: true })));
     try {
-      await notificationsApi.markAllAsRead();
+      await markAllAsRead();
       toast.success("All notifications marked as read");
     } catch {
       toast.error("Failed to mark all as read");
     }
   };
 
-  const handleNotificationClick = async (item: NotificationItem, close: () => void) => {
-    close();
-    if (item.read || inFlightRef.current.has(item.id)) return;
-
-    inFlightRef.current.add(item.id);
-    setBackendItems((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, read: true } : entry)));
-    try {
-      await notificationsApi.markAsRead(item.id);
-    } catch {
-      setBackendItems((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, read: false } : entry)));
-      toast.error("Failed to mark notification as read");
-    } finally {
-      inFlightRef.current.delete(item.id);
-    }
+  const metaFor = (type: AppNotification["type"]) => {
+    if (type === "student") return { icon: GraduationCap, tone: "bg-teal-500/10 text-teal-600 dark:text-teal-400" };
+    if (type === "notice") return { icon: AlertTriangle, tone: "bg-rose-500/10 text-rose-600 dark:text-rose-400" };
+    if (type === "class") return { icon: CalendarClock, tone: "bg-blue-500/10 text-blue-600 dark:text-blue-400" };
+    if (type === "payment") return { icon: Wallet, tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" };
+    if (type === "attendance") return { icon: GraduationCap, tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400" };
+    return { icon: Bell, tone: "bg-purple-500/10 text-purple-600 dark:text-purple-400" };
   };
 
-  const metaFor = (type: NotificationItem["type"]) => {
-    if (type === "student") return { icon: GraduationCap, tone: "bg-emerald-500/10 text-emerald-500" };
-    if (type === "notice") return { icon: AlertTriangle, tone: "bg-rose-500/10 text-rose-500" };
-    if (type === "class") return { icon: CalendarClock, tone: "bg-primary/10 text-brand" };
-    if (type === "payment") return { icon: Wallet, tone: "bg-amber-500/10 text-amber-500" };
-    return { icon: Bell, tone: "bg-primary/10 text-brand" };
-  };
+  const recentItems = notifications.slice(0, 8);
 
   return (
     <Dropdown
-      width="w-80"
+      width="w-84 sm:w-96"
       trigger={({ toggle }) => (
-        <button onClick={toggle} aria-label="Notifications" className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-surface text-muted transition hover:text-ink">
+        <button
+          onClick={toggle}
+          aria-label="Notifications"
+          className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-surface text-muted transition hover:text-ink hover:border-line-hover"
+        >
           <Bell className="h-[18px] w-[18px]" />
           {unreadCount > 0 && (
-            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-surface" />
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-surface">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
           )}
         </button>
       )}
@@ -155,7 +122,7 @@ function Notifications() {
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <div className="flex items-center gap-2">
               <p className="font-heading text-sm font-bold">Notifications</p>
-              <Badge tone={unreadCount > 0 ? "primary" : "neutral"}>
+              <Badge tone={unreadCount > 0 ? "rose" : "neutral"}>
                 {unreadCount > 0 ? `${unreadCount} new` : "All read"}
               </Badge>
             </div>
@@ -179,19 +146,25 @@ function Notifications() {
               </button>
             </div>
           </div>
-          <div className="max-h-80 overflow-y-auto divide-y divide-line/40">
-            {items.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-muted">No notifications</p>
+
+          <div className="max-h-84 overflow-y-auto divide-y divide-line/40">
+            {recentItems.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-muted">
+                <Bell className="mx-auto mb-2 h-6 w-6 opacity-30" />
+                <p className="font-medium text-ink">No notifications</p>
+                <p className="text-xs text-muted">You're completely caught up!</p>
+              </div>
             ) : (
-              items.map((i) => {
+              recentItems.map((i) => {
                 const m = metaFor(i.type);
+                const targetLink = i.link || "/dashboard/notifications";
                 return (
                   <Link
                     key={i.id}
-                    to={i.link}
+                    to={targetLink}
                     onClick={() => void handleNotificationClick(i, close)}
                     className={`flex items-start gap-3 px-4 py-3 transition hover:bg-surface-2 ${
-                      i.read ? "opacity-70 bg-transparent" : "bg-primary/[0.04]"
+                      i.read ? "opacity-75 bg-transparent" : "bg-primary/[0.04]"
                     }`}
                   >
                     <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${m.tone}`}>
@@ -201,7 +174,14 @@ function Notifications() {
                       <span className={`line-clamp-2 block text-sm leading-snug ${i.read ? "font-normal text-muted" : "font-semibold text-ink"}`}>
                         {i.title}
                       </span>
-                      <span className="mt-0.5 block text-[11px] text-muted">{i.subtitle}</span>
+                      {i.subtitle && (
+                        <span className="mt-0.5 line-clamp-1 block text-[11px] text-muted">
+                          {i.subtitle}
+                        </span>
+                      )}
+                      <span className="mt-1 block text-[10px] text-muted/70">
+                        {fmtNotificationDateTime(i.createdAt)}
+                      </span>
                     </span>
                     {!i.read && (
                       <span aria-label="Unread notification" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
@@ -210,6 +190,17 @@ function Notifications() {
                 );
               })
             )}
+          </div>
+
+          <div className="border-t border-line/70 bg-surface-2/40 px-4 py-2.5 text-center">
+            <Link
+              to="/dashboard/notifications"
+              onClick={close}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand transition hover:underline"
+            >
+              <span>Open Notification Center</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </div>
       )}

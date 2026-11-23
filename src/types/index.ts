@@ -598,3 +598,66 @@ export interface Notice {
   status: "published" | "draft";
   state?: NoticeState;
 }
+
+export type UserRole = "super_admin" | "admin" | "teacher" | "student";
+
+export type NotificationType = "payment" | "attendance" | "class" | "notice" | "student" | "system";
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  subtitle: string;
+  link?: string;
+  read: boolean;
+  persisted?: boolean;
+  createdAt?: string;
+  actorId?: string;
+  actorRole?: UserRole;
+  targetRoles?: UserRole[];
+  targetUserIds?: string[];
+  targetBatch?: string;
+  priority?: "low" | "medium" | "high" | "urgent";
+  metadata?: Record<string, unknown>;
+}
+
+export interface NotificationQueryParams {
+  type?: NotificationType | "all";
+  read?: boolean;
+  q?: string;
+  page?: number;
+  limit?: number;
+  from?: string;
+  to?: string;
+}
+
+export interface NotificationListResponse {
+  items: AppNotification[];
+  pagination?: PaginationMeta;
+  summary?: {
+    total: number;
+    unreadCount: number;
+    byType?: Record<string, number>;
+  };
+  unreadCount?: number;
+}
+
+export interface CreateNotificationDto {
+  type?: NotificationType;
+  title: string;
+  subtitle?: string;
+  link?: string;
+  actorId?: string;
+  actorRole?: UserRole;
+  targetRoles?: UserRole[];
+  targetUserIds?: string[];
+  targetBatch?: string;
+  priority?: "low" | "medium" | "high" | "urgent";
+  metadata?: Record<string, unknown>;
+}
+
+export interface DeleteNotificationResponse {
+  deleted: boolean;
+  id?: string;
+}
+

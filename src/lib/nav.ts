@@ -1,4 +1,5 @@
 import {
+  Bell,
   BookOpen,
   CalendarDays,
   ChartNoAxesCombined,
@@ -42,6 +43,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "Income & Expenses", route: "/dashboard/finance", icon: Wallet },
       { title: "Payments", route: "/dashboard/payments", icon: CreditCard },
       { title: "Notices", route: "/dashboard/notices", icon: Megaphone },
+      { title: "Notifications", route: "/dashboard/notifications", icon: Bell },
       { title: "QR Scanner", route: "/dashboard/qr-scanner", icon: ScanLine },
     ],
   },

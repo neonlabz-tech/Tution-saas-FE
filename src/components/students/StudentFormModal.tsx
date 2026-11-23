@@ -8,6 +8,8 @@ import { Button, Field, Input, MultiSelect, Select, Skeleton, Textarea } from "@
 import { useToast } from "@/components/ui/toast";
 import { listModules } from "@/api/modules";
 import { createStudentWithMeta, getStudentById, updateStudent } from "@/api/students";
+import { createNotification } from "@/api/notifications";
+import { useAuth } from "@/hooks/useAuth";
 import { applyApiValidationErrors } from "@/lib/api";
 import { BATCHES } from "@/lib/constants";
 import { toDateInput, todayISO } from "@/lib/utils";
@@ -106,6 +108,7 @@ function Inner({
   onSubmittingChange: (submitting: boolean) => void;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [modules, setModules] = useState<Module[]>(modulesProp ?? []);
   const [loadingModules, setLoadingModules] = useState(!modulesProp?.length);
   const [loadingItem, setLoadingItem] = useState(
@@ -193,6 +196,21 @@ function Inner({
       if (item) {
         const saved = await updateStudent(item.id, payload);
         toast.success(`${saved.fullName} updated`);
+
+        try {
+          await createNotification({
+            type: "student",
+            title: "Student Profile Updated",
+            subtitle: `${saved.fullName} (${saved.id}) profile updated by ${user?.fullName || "Admin"}.`,
+            link: `/dashboard/students?q=${encodeURIComponent(saved.id)}`,
+            targetRoles: ["super_admin"],
+            actorId: user?.id,
+            metadata: { studentId: saved.id },
+          });
+        } catch {
+          // non-blocking
+        }
+
         onSaved?.(saved);
       } else {
         const { student: saved, message } = await createStudentWithMeta(payload);
@@ -201,6 +219,34 @@ function Inner({
             ? message
             : `Registration email sent to ${saved.email}`;
         toast.success(`${saved.fullName} added as ${saved.id} (${saved.status}) — QR generated. ${emailFeedback}`);
+
+        try {
+          // 1. Super Admin alert
+          await createNotification({
+            type: "student",
+            title: "New Student Enrolled",
+            subtitle: `${saved.fullName} (${saved.id}) enrolled into Batch ${saved.batch} by ${user?.fullName || "Admin"}.`,
+            link: `/dashboard/students?q=${encodeURIComponent(saved.id)}`,
+            targetRoles: ["super_admin"],
+            actorId: user?.id,
+            metadata: { studentId: saved.id, batch: saved.batch },
+          });
+
+          // 2. Student welcome alert (targeted to new student)
+          await createNotification({
+            type: "student",
+            title: "Welcome to Bright Future Institute! 🎉",
+            subtitle: "Your enrollment is complete. Welcome to your student portal! You can now view your classes, timetable, and study materials.",
+            link: "/dashboard/modules",
+            targetRoles: ["student"],
+            targetUserIds: [saved.id],
+            actorId: user?.id,
+            metadata: { studentId: saved.id },
+          });
+        } catch {
+          // non-blocking
+        }
+
         onSaved?.(saved);
       }
       onClose();

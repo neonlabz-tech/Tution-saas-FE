@@ -16,6 +16,7 @@ import FinancePage from "@/pages/dashboard/FinancePage";
 import PaymentsPage from "@/pages/dashboard/PaymentsPage";
 import OnlineClassesPage from "@/pages/dashboard/OnlineClassesPage";
 import NoticesPage from "@/pages/dashboard/NoticesPage";
+import NotificationsPage from "@/pages/dashboard/NotificationsPage";
 import QrScannerPage from "@/pages/dashboard/QrScannerPage";
 import AnalyticsPage from "@/pages/dashboard/AnalyticsPage";
 import SettingsPage from "@/pages/dashboard/SettingsPage";
@@ -124,6 +125,7 @@ export default function App() {
                     <Route path="payments" element={<PaymentsPage />} />
                     <Route path="online-classes" element={<OnlineClassesPage />} />
                     <Route path="notices" element={<NoticesPage />} />
+                    <Route path="notifications" element={<NotificationsPage />} />
                     <Route path="qr-scanner" element={<QrScannerPage />} />
                     <Route path="analytics" element={<AnalyticsPage />} />
                     <Route path="settings" element={<SettingsPage />} />

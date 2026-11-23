@@ -55,6 +55,27 @@ export function fmtDateTime(iso?: string | null): string {
   });
 }
 
+/** Formats date & time strictly as DD/Jan/YYYY, hh:mm A (e.g. 23/Nov/2026, 01:36 PM) */
+export function fmtNotificationDateTime(iso?: string | null): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return String(iso);
+
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const formattedHours = String(hours).padStart(2, "0");
+
+  return `${day}/${month}/${year}, ${formattedHours}:${minutes} ${ampm}`;
+}
+
 export function buildQuery(
   params: Record<string, string | number | boolean | undefined | null>,
 ): string {
