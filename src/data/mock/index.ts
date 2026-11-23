@@ -2,7 +2,6 @@ import type {
   AttendanceRecord,
   AttendanceStatus,
   Module,
-  Notice,
   OnlineClass,
   Student,
   Teacher,
@@ -67,7 +66,6 @@ export interface MockData {
   attendance: AttendanceRecord[];
   transactions: Transaction[];
   classes: OnlineClass[];
-  notices: Notice[];
 }
 
 export function buildMockData(): MockData {
@@ -203,19 +201,7 @@ export function buildMockData(): MockData {
     }
   });
 
-  const D = (n2: number) => toISO(addDays(today, n2));
-  const notices: Notice[] = [
-    { id: "ntc_1", title: "Today's class has been cancelled", description: "Due to unforeseen circumstances, the evening Physics class scheduled for today is cancelled. A make-up session will be announced shortly.", batches: [BATCHES[0], BATCHES[1]], publishDate: D(0), expiryDate: D(1), priority: "high", status: "published" },
-    { id: "ntc_2", title: "The exam has been postponed until next week", description: "The Term 2 mock examination is now scheduled for next Saturday. Please collect the revised timetable from the front desk.", batches: [], publishDate: D(-1), expiryDate: D(9), priority: "high", status: "published" },
-    { id: "ntc_3", title: "A new online class schedule is available", description: "The updated weekly online class timetable is live on the Online Classes page. Check your batch and module for changes.", batches: [], publishDate: D(-2), expiryDate: D(14), priority: "medium", status: "published" },
-    { id: "ntc_4", title: "Fee payment reminder", description: "Students with outstanding balances are kindly requested to settle instalments before the end of this month.", batches: [BATCHES[1], BATCHES[3]], publishDate: D(-4), expiryDate: D(12), priority: "medium", status: "published" },
-    { id: "ntc_5", title: "Weekend ICT lab orientation", description: "New weekend batch students are invited to a lab orientation on Saturday at 9:00 AM.", batches: [BATCHES[2]], publishDate: D(-3), expiryDate: D(5), priority: "low", status: "published" },
-    { id: "ntc_6", title: "Institute holiday — Poya day", description: "The institute will remain closed for the Poya holiday. All classes will resume next day.", batches: [], publishDate: D(-20), expiryDate: D(-12), priority: "low", status: "published" },
-    { id: "ntc_7", title: "Parent–teacher meeting", description: "Parent–teacher meetings for the 2025-A Morning batch. Slot bookings open at the front desk.", batches: [BATCHES[0]], publishDate: D(-25), expiryDate: D(-6), priority: "medium", status: "published" },
-    { id: "ntc_8", title: "Scholarship programme announcement (draft)", description: "Details of the merit scholarship programme are being finalised and will be published soon.", batches: [], publishDate: D(3), expiryDate: D(30), priority: "low", status: "draft" },
-  ];
-
-  return { students, teachers, modules, attendance, transactions, classes, notices };
+  return { students, teachers, modules, attendance, transactions, classes };
 }
 
 function makeRefSeeded(rand: () => number): string {

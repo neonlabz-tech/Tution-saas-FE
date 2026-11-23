@@ -1,15 +1,41 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { AlertCircle, AlertTriangle, CheckCircle2, Clock, CreditCard, RefreshCw, UserCheck, X } from "lucide-react";
-import type { AttendanceRecord, AttendanceStatus, Student, StudentDetail, StudentListItem } from "@/types";
-import { Avatar, Badge, Button, Select, StatusBadge } from "@/components/ui/primitives";
+import type {
+  AttendanceRecord,
+  AttendanceStatus,
+  Student,
+  StudentDetail,
+  StudentListItem,
+  StudentPaymentStatus,
+} from "@/types";
+import { Avatar, Badge, Button, ProgressBar, Select, Skeleton, StatusBadge } from "@/components/ui/primitives";
 import { RecordPaymentModal } from "@/components/finance/RecordPaymentModal";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
+import { getStudentById } from "@/api/students";
 import { attendanceApi } from "@/lib/api";
 import { fmtLKR, todayISO } from "@/lib/utils";
 
-type ScanStudent = Student | StudentListItem | StudentDetail;
+type ScanStudent = (Student | StudentListItem | StudentDetail) & {
+  feeTotal?: number;
+  paidTotal?: number;
+  outstanding?: number;
+  paymentStatus?: StudentPaymentStatus;
+};
+
+interface LiveBalance {
+  feeTotal: number;
+  paidTotal: number;
+  outstanding: number;
+  paymentStatus: StudentPaymentStatus;
+}
+
+function deriveStatus(paidTotal: number, outstanding: number): StudentPaymentStatus {
+  if (outstanding <= 0) return "paid";
+  if (paidTotal > 0) return "partial";
+  return "unpaid";
+}
 
 interface ScanResultProps {
   student: ScanStudent;
@@ -40,10 +66,68 @@ export function ScanResult({
   const [moduleId, setModuleId] = useState(defaultModule);
   const [pay, setPay] = useState(false);
   const [marking, setMarking] = useState(false);
-  const [owedOverride, setOwedOverride] = useState<number | null>(null);
 
-  const hasServerOutstanding = "outstanding" in student && typeof student.outstanding === "number";
-  const owed = owedOverride ?? (hasServerOutstanding ? student.outstanding! : outstanding(student.id));
+  const hasInitialServerBalance =
+    typeof student.feeTotal === "number" &&
+    typeof student.paidTotal === "number" &&
+    typeof student.outstanding === "number";
+
+  const [liveBalance, setLiveBalance] = useState<LiveBalance | null>(() =>
+    hasInitialServerBalance
+      ? {
+          feeTotal: student.feeTotal!,
+          paidTotal: student.paidTotal!,
+          outstanding: student.outstanding!,
+          paymentStatus:
+            student.paymentStatus ?? deriveStatus(student.paidTotal!, student.outstanding!),
+        }
+      : null,
+  );
+  const [loadingBalance, setLoadingBalance] = useState(!hasInitialServerBalance);
+
+  // Sync live balance when student changes, or fetch from backend if not provided on scan
+  useEffect(() => {
+    if (
+      typeof student.feeTotal === "number" &&
+      typeof student.paidTotal === "number" &&
+      typeof student.outstanding === "number"
+    ) {
+      setLiveBalance({
+        feeTotal: student.feeTotal,
+        paidTotal: student.paidTotal,
+        outstanding: student.outstanding,
+        paymentStatus:
+          student.paymentStatus ?? deriveStatus(student.paidTotal, student.outstanding),
+      });
+      setLoadingBalance(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setLoadingBalance(true);
+    getStudentById(student.id, controller.signal)
+      .then((res) => {
+        setLiveBalance({
+          feeTotal: res.feeTotal,
+          paidTotal: res.paidTotal,
+          outstanding: res.outstanding,
+          paymentStatus: deriveStatus(res.paidTotal, res.outstanding),
+        });
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingBalance(false);
+      });
+
+    return () => controller.abort();
+  }, [student.id, student.feeTotal, student.paidTotal, student.outstanding, student.paymentStatus]);
+
+  const resolvedFeeTotal = liveBalance?.feeTotal ?? feeTotal(student.id);
+  const resolvedPaidTotal = liveBalance?.paidTotal ?? paidTotal(student.id);
+  const owed = liveBalance?.outstanding ?? outstanding(student.id);
+  const paymentStatus = liveBalance?.paymentStatus ?? deriveStatus(resolvedPaidTotal, owed);
   const today = todayISO();
 
   const localExisting = attendance.find((a) => a.id === `att_${student.id}_${moduleId}_${today}`);
@@ -203,21 +287,78 @@ export function ScanResult({
           </div>
         )}
 
-        {/* Outstanding Payment Section */}
+        {/* Live Payment Balance Section */}
         <div
-          className={`flex items-center justify-between rounded-2xl px-4 py-3 ${
-            owed > 0 ? "bg-rose-500/10" : "bg-emerald-500/10"
+          className={`space-y-3 rounded-2xl border p-4 ${
+            owed > 0
+              ? "border-rose-500/20 bg-rose-500/10"
+              : "border-emerald-500/20 bg-emerald-500/10"
           }`}
         >
-          <div>
-            <span className="text-sm font-semibold">Outstanding payment</span>
-            <p className="text-[11px] text-muted">
-              {owed > 0 ? "Pending tuition balance" : "All tuition fees up to date"}
-            </p>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className="text-sm font-semibold">Tuition payment status</span>
+              <p className="text-[11px] text-muted">
+                {owed > 0 ? "Pending tuition balance" : "All tuition fees up to date"}
+              </p>
+            </div>
+            {loadingBalance ? (
+              <Skeleton className="h-5 w-16 rounded-full" />
+            ) : (
+              <Badge
+                tone={
+                  paymentStatus === "paid"
+                    ? "green"
+                    : paymentStatus === "partial"
+                      ? "amber"
+                      : "rose"
+                }
+              >
+                {paymentStatus === "paid"
+                  ? "Paid"
+                  : paymentStatus === "partial"
+                    ? "Partial"
+                    : "Unpaid"}
+              </Badge>
+            )}
           </div>
-          <span className={`num text-lg font-bold ${owed > 0 ? "text-rose-500" : "text-emerald-500"}`}>
-            {owed > 0 ? fmtLKR(owed) : "Settled"}
-          </span>
+
+          {loadingBalance ? (
+            <div className="grid grid-cols-3 gap-2">
+              <Skeleton className="h-10 rounded-xl" />
+              <Skeleton className="h-10 rounded-xl" />
+              <Skeleton className="h-10 rounded-xl" />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-2 rounded-xl bg-surface/80 p-2.5 text-center">
+                <div>
+                  <p className="text-[10px] font-medium text-muted">Total fees</p>
+                  <p className="num text-xs font-bold sm:text-sm">{fmtLKR(resolvedFeeTotal)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium text-muted">Paid</p>
+                  <p className="num text-xs font-bold text-emerald-500 sm:text-sm">
+                    {fmtLKR(resolvedPaidTotal)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium text-muted">Balance</p>
+                  <p
+                    className={`num text-xs font-bold sm:text-sm ${
+                      owed > 0 ? "text-rose-500" : "text-emerald-500"
+                    }`}
+                  >
+                    {owed > 0 ? fmtLKR(owed) : "Settled"}
+                  </p>
+                </div>
+              </div>
+              <ProgressBar
+                tone="teal"
+                value={resolvedFeeTotal ? (resolvedPaidTotal / resolvedFeeTotal) * 100 : 100}
+              />
+            </>
+          )}
         </div>
 
         {/* Inactive Student Warning */}
@@ -295,17 +436,25 @@ export function ScanResult({
         open={pay}
         studentId={student.id}
         studentSummary={
-          hasServerOutstanding
+          liveBalance
             ? {
                 id: student.id,
                 fullName: student.fullName,
-                feeTotal: "feeTotal" in student && typeof student.feeTotal === "number" ? student.feeTotal : feeTotal(student.id),
-                paidTotal: "paidTotal" in student && typeof student.paidTotal === "number" ? student.paidTotal : paidTotal(student.id),
-                outstanding: owed,
+                feeTotal: liveBalance.feeTotal,
+                paidTotal: liveBalance.paidTotal,
+                outstanding: liveBalance.outstanding,
               }
             : undefined
         }
-        onDone={(res) => setOwedOverride(res.studentSummary.outstanding)}
+        onDone={(res) => {
+          const s = res.studentSummary;
+          setLiveBalance({
+            feeTotal: s.feeTotal,
+            paidTotal: s.paidTotal,
+            outstanding: s.outstanding,
+            paymentStatus: s.paymentStatus ?? deriveStatus(s.paidTotal, s.outstanding),
+          });
+        }}
         onClose={() => setPay(false)}
       />
     </motion.div>
