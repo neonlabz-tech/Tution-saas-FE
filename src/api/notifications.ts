@@ -51,6 +51,12 @@ export async function listNotifications(
       read: Boolean(item.read || item.isRead),
       persisted: true,
       createdAt: createdAt || new Date().toISOString(),
+      actorId: item.actorId,
+      actorRole: item.actorRole,
+      targetRoles: item.targetRoles,
+      targetUserIds: item.targetUserIds,
+      targetBatch: item.targetBatch,
+      priority: item.priority,
       metadata: item.metadata || {},
     };
   });
@@ -101,18 +107,26 @@ export async function createNotification(
   });
 
   const created: AppNotification = {
-    id: String(res.id || res._id || `notif_${Date.now()}`),
-    type: res.type || payload.type || "system",
-    title: res.title || payload.title,
-    subtitle: res.subtitle || res.message || payload.subtitle || "",
-    link: res.link || payload.link,
-    read: Boolean(res.read),
+    id: String(res?.id || res?._id || `notif_${Date.now()}`),
+    type: res?.type || payload.type || "system",
+    title: res?.title || payload.title,
+    subtitle: res?.subtitle || res?.message || payload.subtitle || "",
+    link: res?.link || payload.link,
+    read: Boolean(res?.read),
     persisted: true,
-    createdAt: res.createdAt || new Date().toISOString(),
-    metadata: res.metadata || payload.metadata,
+    createdAt: res?.createdAt || new Date().toISOString(),
+    actorId: res?.actorId || payload.actorId,
+    actorRole: res?.actorRole || payload.actorRole,
+    targetRoles: res?.targetRoles || payload.targetRoles,
+    targetUserIds: res?.targetUserIds || payload.targetUserIds,
+    targetBatch: res?.targetBatch || payload.targetBatch,
+    priority: res?.priority || payload.priority,
+    metadata: res?.metadata || payload.metadata,
   };
 
   if (typeof window !== "undefined") {
+    // Dispatch instant optimistic notification event with the object
+    window.dispatchEvent(new CustomEvent("eduflow:new-notification", { detail: created }));
     window.dispatchEvent(new Event("notifications-updated"));
   }
 

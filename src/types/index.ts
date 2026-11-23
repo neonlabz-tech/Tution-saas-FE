@@ -594,6 +594,8 @@ export interface Notice {
   status: "published" | "draft";
 }
 
+export type UserRole = "super_admin" | "admin" | "teacher" | "student";
+
 export type NotificationType = "payment" | "attendance" | "class" | "notice" | "student" | "system";
 
 export interface AppNotification {
@@ -605,6 +607,12 @@ export interface AppNotification {
   read: boolean;
   persisted?: boolean;
   createdAt?: string;
+  actorId?: string;
+  actorRole?: UserRole;
+  targetRoles?: UserRole[];
+  targetUserIds?: string[];
+  targetBatch?: string;
+  priority?: "low" | "medium" | "high" | "urgent";
   metadata?: Record<string, unknown>;
 }
 
@@ -634,6 +642,12 @@ export interface CreateNotificationDto {
   title: string;
   subtitle?: string;
   link?: string;
+  actorId?: string;
+  actorRole?: UserRole;
+  targetRoles?: UserRole[];
+  targetUserIds?: string[];
+  targetBatch?: string;
+  priority?: "low" | "medium" | "high" | "urgent";
   metadata?: Record<string, unknown>;
 }
 

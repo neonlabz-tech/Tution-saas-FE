@@ -31,6 +31,8 @@ import { DataTable, type Columns } from "@/components/ui/data-table";
 import { ConfirmDialog, Modal } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
+import { useAuth } from "@/hooks/useAuth";
+import { createNotification } from "@/api/notifications";
 import { BATCHES } from "@/data/mock";
 import { ChartLegend, ChartTooltip, axisTick, cursorStyle, gridProps } from "@/components/analytics/chartParts";
 import { attendanceCounts, attendanceRate, attendanceSeries } from "@/lib/stats";
@@ -175,6 +177,7 @@ export default function AttendancePage() {
     refreshAttendance,
   } = useAppData();
   const toast = useToast();
+  const { user } = useAuth();
 
   const [view, setView] = useState<View>("daily");
   const [date, setDate] = useState(todayISO());
@@ -375,8 +378,23 @@ export default function AttendancePage() {
   /* Mark single attendance */
   const mark = (s: Student, mid: string, status: AttendanceStatus, method: "manual" | "qr" = "manual") => {
     const res = markAttendance(s.id, mid, date, status, method);
+    const modCode = getModule(mid)?.code ?? "module";
+
+    if (status === "absent") {
+      createNotification({
+        type: "attendance",
+        title: "Student Marked Absent",
+        subtitle: `${s.fullName} was marked absent for ${modCode} on ${date} by ${user?.fullName || "Staff"}.`,
+        link: "/dashboard/attendance",
+        targetRoles: ["super_admin", "student"],
+        targetUserIds: [s.id],
+        actorId: user?.id,
+        metadata: { studentId: s.id, moduleId: mid, date, status },
+      }).catch(() => {});
+    }
+
     toast.success(
-      `${s.fullName} marked ${status} in ${getModule(mid)?.code ?? "module"} (${
+      `${s.fullName} marked ${status} in ${modCode} (${
         res === "created" ? "new record" : "updated"
       })`,
     );

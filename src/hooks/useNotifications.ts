@@ -54,7 +54,7 @@ export function sortNotificationsNewestFirst(a: AppNotification, b: AppNotificat
 
 export function useNotifications() {
   const { user } = useAuth();
-  const { students, outstanding } = useAppData();
+  const { students, outstanding, classes } = useAppData();
 
   const [backendItems, setBackendItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,38 +88,82 @@ export function useNotifications() {
     [user],
   );
 
-  // Initial fetch and 30s polling
+  // Initial fetch, instant custom event listener, and 30s background polling
   useEffect(() => {
     const controller = new AbortController();
     fetchBackendNotifications(controller.signal);
 
+    // Fast polling every 15s to keep counters fresh
     const interval = setInterval(() => {
       fetchBackendNotifications();
-    }, 30000);
+    }, 15000);
 
     const onFocus = () => {
       fetchBackendNotifications();
     };
+
+    // Instant local event listeners for 0ms lag
     const onNotifsUpdated = () => {
       fetchBackendNotifications();
     };
+    const onNewNotification = (e: Event) => {
+      const customEvent = e as CustomEvent<AppNotification>;
+      if (customEvent.detail) {
+        setBackendItems((prev) => {
+          if (prev.some((p) => p.id === customEvent.detail.id)) return prev;
+          return [customEvent.detail, ...prev];
+        });
+      }
+    };
+
     window.addEventListener("focus", onFocus);
     window.addEventListener("notifications-updated", onNotifsUpdated);
+    window.addEventListener("eduflow:new-notification", onNewNotification);
 
     return () => {
       controller.abort();
       clearInterval(interval);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("notifications-updated", onNotifsUpdated);
+      window.removeEventListener("eduflow:new-notification", onNewNotification);
     };
   }, [fetchBackendNotifications]);
 
-  // Generate contextual smart alerts ONLY from real active student balances (no fake classes or notices)
+  // Contextual smart alerts (Student debtors & 15-Minute Class Reminders)
   const contextualItems = useMemo(() => {
     const today = todayISO();
+    const now = new Date();
     const items: AppNotification[] = [];
 
-    // Students with overdue fees
+    // 1. 15-Minute Online Class Reminders (Only for Teacher & Students of that batch)
+    classes?.forEach((c) => {
+      if (c.status !== "scheduled" || !c.start) return;
+      const startDate = new Date(c.start);
+      if (isNaN(startDate.getTime())) return;
+      const diffMs = startDate.getTime() - now.getTime();
+      const diffMin = Math.round(diffMs / 60000);
+
+      // Starting between 0 and 15 minutes from right now
+      if (diffMin >= 0 && diffMin <= 15) {
+        const timeLabel = diffMin === 0 ? "starting now" : `in ${diffMin} min`;
+        items.push({
+          id: `class_reminder_15m_${c.id}_${today}`,
+          type: "class",
+          title: `Class Reminder: Starting ${timeLabel}`,
+          subtitle: `${c.title} (Batch ${c.batch}) starts soon. Tap to join class room.`,
+          link: c.link || "/dashboard/online-classes",
+          read: false,
+          persisted: false,
+          createdAt: new Date().toISOString(),
+          targetRoles: ["teacher", "student"],
+          targetUserIds: [c.teacherId],
+          targetBatch: c.batch,
+          priority: "urgent",
+        });
+      }
+    });
+
+    // 2. Students with overdue fees (Only for Super Admin & Admin)
     const debtors = (students || []).filter((s) => s.status === "active" && outstanding(s.id) > 0);
     if (debtors.length > 0) {
       const totalOverdue = debtors.reduce((sum, s) => sum + outstanding(s.id), 0);
@@ -132,13 +176,52 @@ export function useNotifications() {
         read: false,
         persisted: false,
         createdAt: new Date().toISOString(),
+        targetRoles: ["super_admin", "admin"],
       });
     }
 
     return items;
-  }, [students, outstanding]);
+  }, [classes, students, outstanding]);
 
-  // Combine backend + contextual notifications, applying local read & deleted filters
+  // Role filtering & Actor self-suppression logic
+  const isNotificationVisible = useCallback(
+    (item: AppNotification): boolean => {
+      if (!user) return true;
+
+      // 1. SELF-SUPPRESSION: If I performed the change, I do not see the alert!
+      if (item.actorId && item.actorId === user.id) {
+        return false;
+      }
+
+      // 2. Super Admin sees all oversight / audit alerts
+      if (user.role === "super_admin") {
+        return true;
+      }
+
+      // 3. Specific target user IDs (e.g. newly enrolled student, assigned teacher)
+      if (item.targetUserIds && item.targetUserIds.length > 0) {
+        if (item.targetUserIds.includes(user.id)) return true;
+      }
+
+      // 4. Target roles filter
+      if (item.targetRoles && item.targetRoles.length > 0) {
+        if (!item.targetRoles.includes(user.role)) return false;
+      }
+
+      // 5. Target batch filter (for students)
+      if (user.role === "student" && item.targetBatch) {
+        const studentRecord = students?.find((s) => s.id === user.id || s.email === user.email);
+        if (studentRecord && studentRecord.batch !== item.targetBatch) {
+          return false;
+        }
+      }
+
+      return true;
+    },
+    [user, students],
+  );
+
+  // Combine backend + contextual notifications, applying filters & sorting
   const notifications = useMemo(() => {
     const seenTitles = new Set<string>();
     const result: AppNotification[] = [];
@@ -146,6 +229,8 @@ export function useNotifications() {
     // Backend items first
     backendItems.forEach((item) => {
       if (localDeletedIds.has(item.id)) return;
+      if (!isNotificationVisible(item)) return;
+
       const isRead = localReadIds.has(item.id) ? true : item.read;
       seenTitles.add(item.title.toLowerCase().trim());
       result.push({
@@ -154,10 +239,12 @@ export function useNotifications() {
       });
     });
 
-    // Merge contextual items if not deleted and not duplicates
+    // Merge contextual items if not deleted, visible, and not duplicates
     contextualItems.forEach((item) => {
       if (localDeletedIds.has(item.id)) return;
+      if (!isNotificationVisible(item)) return;
       if (seenTitles.has(item.title.toLowerCase().trim())) return;
+
       result.push({
         ...item,
         read: localReadIds.has(item.id),
@@ -166,7 +253,7 @@ export function useNotifications() {
 
     // Sort: Newest / Unread first!
     return result.sort(sortNotificationsNewestFirst);
-  }, [backendItems, contextualItems, localReadIds, localDeletedIds]);
+  }, [backendItems, contextualItems, localReadIds, localDeletedIds, isNotificationVisible]);
 
   const unreadCount = useMemo(() => {
     return notifications.filter((n) => !n.read).length;

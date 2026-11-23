@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/toast";
 import { createPayment, listPaymentStudents } from "@/api/payments";
 import { createNotification } from "@/api/notifications";
 import { getStudentById } from "@/api/students";
+import { useAuth } from "@/hooks/useAuth";
 import { INCOME_CATEGORIES, PAYMENT_METHODS } from "@/lib/constants";
 import { cn, fmtLKR, todayISO } from "@/lib/utils";
 import type { RecordStudentPaymentResponse } from "@/types";
@@ -32,6 +33,7 @@ function PaymentForm({
   onSubmittingChange: (submitting: boolean) => void;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [sid, setSid] = useState(initialStudentId ?? "");
   const [searchText, setSearchText] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -209,8 +211,11 @@ function PaymentForm({
         await createNotification({
           type: "payment",
           title: "Payment Received",
-          subtitle: `LKR ${amt.toLocaleString()} collected for ${studentName} (${receiptNo}).`,
+          subtitle: `LKR ${amt.toLocaleString()} collected for ${studentName} (${receiptNo}) by ${user?.fullName || "Admin"}.`,
           link: `/dashboard/payments?q=${encodeURIComponent(receiptNo)}`,
+          targetRoles: ["super_admin", "student"],
+          targetUserIds: [sid],
+          actorId: user?.id,
           metadata: { paymentId: result.payment?.id, receiptNo, studentId: sid, amount: amt },
         });
       } catch {

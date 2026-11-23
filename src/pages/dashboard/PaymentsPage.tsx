@@ -46,6 +46,7 @@ import { DataTable, type Columns } from "@/components/ui/data-table";
 import { ConfirmDialog, Drawer, Modal } from "@/components/ui/overlays";
 import { PeriodFilter, usePeriod } from "@/components/ui/PeriodFilter";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/hooks/useAuth";
 import {
   deletePayment,
   listPayments,
@@ -229,6 +230,7 @@ function EditPaymentModal({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [amount, setAmount] = useState("");
   const [discount, setDiscount] = useState("0");
   const [method, setMethod] = useState<string>(PAYMENT_METHODS[0]);
@@ -284,8 +286,10 @@ function EditPaymentModal({
         await createNotification({
           type: "payment",
           title: "Payment Updated",
-          subtitle: `Receipt ${receiptNo} for ${studentName} updated (${status}, LKR ${amt.toLocaleString()}).`,
+          subtitle: `Receipt ${receiptNo} for ${studentName} updated (${status}, LKR ${amt.toLocaleString()}) by ${user?.fullName || "Admin"}.`,
           link: `/dashboard/payments?q=${encodeURIComponent(receiptNo)}`,
+          targetRoles: ["super_admin"],
+          actorId: user?.id,
           metadata: { paymentId: payment.id, receiptNo, amount: amt, status },
         });
       } catch {
@@ -755,6 +759,7 @@ function StudentPaymentDrawer({
 
 export default function PaymentsPage() {
   const toast = useToast();
+  const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const [tab, setTab] = useState<Tab>("students");
   const period = usePeriod("year");
@@ -975,8 +980,10 @@ export default function PaymentsPage() {
         await createNotification({
           type: "payment",
           title: "Payment Deleted",
-          subtitle: `Receipt ${receiptNo} has been deleted and student balance recalculated.`,
+          subtitle: `Receipt ${receiptNo} has been deleted by ${user?.fullName || "Admin"}.`,
           link: "/dashboard/payments",
+          targetRoles: ["super_admin"],
+          actorId: user?.id,
           metadata: { paymentId: delPaymentItem.id, receiptNo },
         });
       } catch {
