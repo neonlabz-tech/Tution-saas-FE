@@ -13,6 +13,7 @@ import TeachersPage from "@/pages/dashboard/TeachersPage";
 import ModulesPage from "@/pages/dashboard/ModulesPage";
 import AttendancePage from "@/pages/dashboard/AttendancePage";
 import FinancePage from "@/pages/dashboard/FinancePage";
+import PaymentsPage from "@/pages/dashboard/PaymentsPage";
 import OnlineClassesPage from "@/pages/dashboard/OnlineClassesPage";
 import NoticesPage from "@/pages/dashboard/NoticesPage";
 import QrScannerPage from "@/pages/dashboard/QrScannerPage";
@@ -120,6 +121,7 @@ export default function App() {
                     <Route path="modules" element={<ModulesPage />} />
                     <Route path="attendance" element={<AttendancePage />} />
                     <Route path="finance" element={<FinancePage />} />
+                    <Route path="payments" element={<PaymentsPage />} />
                     <Route path="online-classes" element={<OnlineClassesPage />} />
                     <Route path="notices" element={<NoticesPage />} />
                     <Route path="qr-scanner" element={<QrScannerPage />} />

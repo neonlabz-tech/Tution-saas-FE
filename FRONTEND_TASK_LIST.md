@@ -337,11 +337,11 @@ Before wiring individual domain APIs, set up these shared building blocks so all
 5. Wire `ConfirmDialog` (`FinancePage.tsx:221-227`) to `DELETE /api/finance/transactions/:id`, refreshing KPIs, charts, and active table on success (and stepping back `page` if last item deleted).
 
 **Verification Checklist:**
-- [ ] Switching `PeriodFilter` (`week`, `month`, `year`, `custom`) and `category` re-queries `kpis`, `charts`, and `transactions` with `period`, `from`, `to`, `category`.
-- [ ] Overview charts render `series`, `incomeByCategory`, and `expenseByCategory` from `/api/finance/charts`.
-- [ ] Income, Expenses, and Overview tables paginate via server `page` & `limit`.
-- [ ] Adding, editing, and deleting a transaction updates the table, KPIs, and charts without sending read-only fields on `PATCH`.
-- [ ] Excel export includes all filtered transactions across pages (not just page 1).
+- [x] Switching `PeriodFilter` (`week`, `month`, `year`, `custom`) and `category` re-queries `kpis`, `charts`, and `transactions` with `period`, `from`, `to`, `category`.
+- [x] Overview charts render `series`, `incomeByCategory`, and `expenseByCategory` from `/api/finance/charts`.
+- [x] Income, Expenses, and Overview tables paginate via server `page` & `limit`.
+- [x] Adding, editing, and deleting a transaction updates the table, KPIs, and charts without sending read-only fields on `PATCH`.
+- [x] Excel export includes all filtered transactions across pages (not just page 1).
 
 ---
 
@@ -373,10 +373,10 @@ Before wiring individual domain APIs, set up these shared building blocks so all
    - Ensure `POST /api/finance/student-payments` sends `description` (NOT `note`) and consumes `{ transaction, studentSummary }` response to refresh Finance KPIs, charts, Payment History, and Debtors list.
 
 **Verification Checklist:**
-- [ ] Debtors / Student Payments panel loads from `GET /api/finance/student-payments` with working search, batch, status, `debtorsOnly`, `includeGraduated`, and pagination.
-- [ ] Clicking **Collect** pre-selects the student with accurate `feeTotal`, `paidTotal`, and `outstanding` from backend.
-- [ ] Submitting payment via `POST /api/finance/student-payments` uses `{ studentId, amount, method, category?, date?, description? }` and refreshes debtors, payment history, and Finance KPIs.
-- [ ] Editing or deleting a payment in Payment History recalculates outstanding balances and KPIs.
+- [x] Debtors / Student Payments panel loads from `GET /api/finance/student-payments` with working search, batch, status, `debtorsOnly`, `includeGraduated`, and pagination.
+- [x] Clicking **Collect** pre-selects the student with accurate `feeTotal`, `paidTotal`, and `outstanding` from backend.
+- [x] Submitting payment via `POST /api/finance/student-payments` uses `{ studentId, amount, method, category?, date?, description? }` and refreshes debtors, payment history, and Finance KPIs.
+- [x] Editing or deleting a payment in Payment History recalculates outstanding balances and KPIs.
 
 ---
 
@@ -407,9 +407,9 @@ Before wiring individual domain APIs, set up these shared building blocks so all
 4. Add independent loading/error states for KPIs, charts, transaction tables, and student payments panel, and eliminate all `useAppData()` calls from `FinancePage.tsx`, `TransactionFormModal.tsx`, and `RecordPaymentModal.tsx`.
 
 **Verification Checklist:**
-- [ ] All 8 endpoints in `src/api/finance.ts` match `Tution-saas-BE` query params, DTO fields, and response shapes.
-- [ ] Zero references to `useAppData()` remain in Finance components/page.
-- [ ] Recording a payment from `QrScannerPage` (`ScanResult.tsx`) also persists to `POST /api/finance/student-payments` and updates the displayed balance.
+- [x] All 8 endpoints in `src/api/finance.ts` match `Tution-saas-BE` query params, DTO fields, and response shapes.
+- [x] Zero references to `useAppData()` remain in Finance components/page.
+- [x] Recording a payment from `QrScannerPage` (`ScanResult.tsx`) also persists to `POST /api/finance/student-payments` and updates the displayed balance.
 
 ---
 
