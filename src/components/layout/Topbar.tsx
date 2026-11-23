@@ -9,12 +9,8 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { Avatar, Badge } from "@/components/ui/primitives";
 import { Dropdown } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
-<<<<<<< HEAD
 import type { AppNotification } from "@/types";
 import { fmtNotificationDateTime } from "@/lib/utils";
-=======
-import { notificationsApi, type NotificationItem } from "@/lib/api";
->>>>>>> origin/development
 
 function GlobalSearch({ className = "" }: { className?: string }) {
   const { students, teachers, modules } = useAppData();
@@ -72,58 +68,18 @@ function GlobalSearch({ className = "" }: { className?: string }) {
 }
 
 function Notifications() {
-<<<<<<< HEAD
   const toast = useToast();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
-=======
-  const { user } = useAuth();
-  const toast = useToast();
-  const [backendItems, setBackendItems] = useState<NotificationItem[]>([]);
-  const inFlightRef = useRef<Set<string>>(new Set());
->>>>>>> origin/development
 
   const handleNotificationClick = async (item: AppNotification, close: () => void) => {
     close();
     if (!item.read) {
       await markAsRead(item.id);
     }
-<<<<<<< HEAD
   };
 
   const handleMarkAllAsRead = async () => {
     if (unreadCount === 0) return;
-=======
-    let active = true;
-    notificationsApi
-      .list()
-      .then((res) => {
-        if (!active) return;
-        setBackendItems(res.items);
-      })
-      .catch(() => {
-        /* keep empty list if offline */
-      });
-    return () => {
-      active = false;
-    };
-  }, [user]);
-
-  // Unread first; notice expiry reminders come from the backend.
-  const items = useMemo(
-    () =>
-      [...backendItems].sort((a, b) => {
-        if (a.read === b.read) return 0;
-        return a.read ? 1 : -1;
-      }),
-    [backendItems],
-  );
-
-  const unreadCount = items.filter((i) => !i.read).length;
-
-  const handleMarkAllAsRead = async () => {
-    if (unreadCount === 0) return;
-    setBackendItems((prev) => prev.map((entry) => ({ ...entry, read: true })));
->>>>>>> origin/development
     try {
       await markAllAsRead();
       toast.success("All notifications marked as read");
@@ -132,7 +88,6 @@ function Notifications() {
     }
   };
 
-<<<<<<< HEAD
   const metaFor = (type: AppNotification["type"]) => {
     if (type === "student") return { icon: GraduationCap, tone: "bg-teal-500/10 text-teal-600 dark:text-teal-400" };
     if (type === "notice") return { icon: AlertTriangle, tone: "bg-rose-500/10 text-rose-600 dark:text-rose-400" };
@@ -140,22 +95,6 @@ function Notifications() {
     if (type === "payment") return { icon: Wallet, tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" };
     if (type === "attendance") return { icon: GraduationCap, tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400" };
     return { icon: Bell, tone: "bg-purple-500/10 text-purple-600 dark:text-purple-400" };
-=======
-  const handleNotificationClick = async (item: NotificationItem, close: () => void) => {
-    close();
-    if (item.read || inFlightRef.current.has(item.id)) return;
-
-    inFlightRef.current.add(item.id);
-    setBackendItems((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, read: true } : entry)));
-    try {
-      await notificationsApi.markAsRead(item.id);
-    } catch {
-      setBackendItems((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, read: false } : entry)));
-      toast.error("Failed to mark notification as read");
-    } finally {
-      inFlightRef.current.delete(item.id);
-    }
->>>>>>> origin/development
   };
 
   const recentItems = notifications.slice(0, 8);
