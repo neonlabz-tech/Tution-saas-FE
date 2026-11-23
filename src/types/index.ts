@@ -593,3 +593,52 @@ export interface Notice {
   priority: NoticePriority;
   status: "published" | "draft";
 }
+
+export type NotificationType = "payment" | "attendance" | "class" | "notice" | "student" | "system";
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  subtitle: string;
+  link?: string;
+  read: boolean;
+  persisted?: boolean;
+  createdAt?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface NotificationQueryParams {
+  type?: NotificationType | "all";
+  read?: boolean;
+  q?: string;
+  page?: number;
+  limit?: number;
+  from?: string;
+  to?: string;
+}
+
+export interface NotificationListResponse {
+  items: AppNotification[];
+  pagination?: PaginationMeta;
+  summary?: {
+    total: number;
+    unreadCount: number;
+    byType?: Record<string, number>;
+  };
+  unreadCount?: number;
+}
+
+export interface CreateNotificationDto {
+  type?: NotificationType;
+  title: string;
+  subtitle?: string;
+  link?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface DeleteNotificationResponse {
+  deleted: boolean;
+  id?: string;
+}
+
