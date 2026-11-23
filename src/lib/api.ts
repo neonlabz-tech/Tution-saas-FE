@@ -1,5 +1,5 @@
 import type { FieldValues, Path, UseFormSetError } from "react-hook-form";
-import type { ApiErrorDetail, AttendanceRecord, AttendanceStatus, Module, ModuleStatus, Notice, OnlineClass, Teacher } from "@/types";
+import type { ApiErrorDetail, AttendanceRecord, AttendanceStatus, Module, ModuleStatus, Notice, NoticeState, OnlineClass, Teacher } from "@/types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "")
@@ -97,6 +97,8 @@ export interface OverviewResponse {
       priority: Notice["priority"];
       status: Notice["status"];
     }[];
+    /** All live notices; activeNotices holds only the top 5. */
+    activeNoticesTotal?: number;
     timeline: {
       id: string;
       type: "registration" | "payment" | "notice" | "class";
@@ -576,11 +578,20 @@ export const modulesApi = {
   },
 };
 
-export type NoticePayload = Omit<Notice, "id">;
+export type NoticePayload = Omit<Notice, "id" | "state">;
+export type NoticeCounts = Record<"all" | NoticeState, number>;
+export interface NoticeListResponse {
+  items: Notice[];
+  counts: NoticeCounts;
+}
 
 export const noticesApi = {
   list() {
-    return request<Notice[]>("/notices");
+    return request<NoticeListResponse>("/notices");
+  },
+
+  get(id: string) {
+    return request<Notice>(`/notices/${encodeURIComponent(id)}`);
   },
 
   create(payload: NoticePayload) {
