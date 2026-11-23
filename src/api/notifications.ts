@@ -31,17 +31,29 @@ export async function listNotifications(
       ? res.items
       : [];
 
-  const items: AppNotification[] = rawItems.map((item, idx) => ({
-    id: String(item.id || item._id || `notif_${idx}`),
-    type: item.type || "system",
-    title: item.title || "Notification",
-    subtitle: item.subtitle || item.message || "",
-    link: item.link || item.url || undefined,
-    read: Boolean(item.read || item.isRead),
-    persisted: true,
-    createdAt: item.createdAt || item.date || new Date().toISOString(),
-    metadata: item.metadata || {},
-  }));
+  const items: AppNotification[] = rawItems.map((item, idx) => {
+    let createdAt = item.createdAt || item.date || item.timestamp;
+    if (!createdAt && typeof item._id === "string" && item._id.length === 24) {
+      try {
+        const ts = parseInt(item._id.substring(0, 8), 16) * 1000;
+        if (!isNaN(ts)) createdAt = new Date(ts).toISOString();
+      } catch {
+        // fallback below
+      }
+    }
+
+    return {
+      id: String(item.id || item._id || `notif_${idx}`),
+      type: item.type || "system",
+      title: item.title || "Notification",
+      subtitle: item.subtitle || item.message || "",
+      link: item.link || item.url || undefined,
+      read: Boolean(item.read || item.isRead),
+      persisted: true,
+      createdAt: createdAt || new Date().toISOString(),
+      metadata: item.metadata || {},
+    };
+  });
 
   const total = res?.pagination?.total ?? res?.summary?.total ?? items.length;
   const limit = res?.pagination?.limit ?? params.limit ?? Math.max(items.length, 10);

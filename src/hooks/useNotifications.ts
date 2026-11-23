@@ -35,9 +35,26 @@ function saveStorageSet(key: string, set: Set<string>) {
   }
 }
 
+export function sortNotificationsNewestFirst(a: AppNotification, b: AppNotification): number {
+  // 1. Unread (new) notifications ALWAYS at the top
+  if (a.read !== b.read) {
+    return a.read ? 1 : -1;
+  }
+  // 2. Newest timestamp first
+  const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+  const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+  const validA = !isNaN(tA) && tA > 0 ? tA : 0;
+  const validB = !isNaN(tB) && tB > 0 ? tB : 0;
+  if (validB !== validA) {
+    return validB - validA;
+  }
+  // 3. Fallback: newer ID first
+  return b.id.localeCompare(a.id);
+}
+
 export function useNotifications() {
   const { user } = useAuth();
-  const { notices, classes, students, outstanding } = useAppData();
+  const { students, outstanding } = useAppData();
 
   const [backendItems, setBackendItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +78,6 @@ export function useNotifications() {
         setBackendItems(res.items);
         setError(null);
       } catch (err) {
-        // Keep existing if transient network drop, surface error only if empty
         if (err instanceof Error && err.name !== "AbortError") {
           setError(err.message);
         }
@@ -93,60 +109,12 @@ export function useNotifications() {
     };
   }, [fetchBackendNotifications]);
 
-  // Generate contextual smart notifications from existing live app state
+  // Generate contextual smart alerts ONLY from real active student balances (no fake classes or notices)
   const contextualItems = useMemo(() => {
     const today = todayISO();
     const items: AppNotification[] = [];
 
-    // 1. Notice expiring today or active high-priority notices
-    notices?.forEach((n) => {
-      if (n.status !== "published") return;
-      const isExpiring = n.expiryDate === today;
-      const isHighPriority = n.priority === "high" && n.publishDate <= today && n.expiryDate >= today;
-
-      if (isExpiring) {
-        items.push({
-          id: `ctx_notice_exp_${n.id}`,
-          type: "notice",
-          title: `Notice expiring today: ${n.title}`,
-          subtitle: `Published for ${n.batches.length ? n.batches.join(", ") : "All batches"}. Expires by end of day.`,
-          link: "/dashboard/notices",
-          read: false,
-          persisted: false,
-          createdAt: n.publishDate,
-        });
-      } else if (isHighPriority) {
-        items.push({
-          id: `ctx_notice_high_${n.id}`,
-          type: "notice",
-          title: `Important Notice: ${n.title}`,
-          subtitle: n.description.length > 80 ? `${n.description.slice(0, 80)}…` : n.description,
-          link: "/dashboard/notices",
-          read: false,
-          persisted: false,
-          createdAt: n.publishDate,
-        });
-      }
-    });
-
-    // 2. Classes scheduled for today
-    classes?.forEach((c) => {
-      if (c.status === "scheduled" && c.start && c.start.startsWith(today)) {
-        const timePart = c.start.split("T")[1] || "";
-        items.push({
-          id: `ctx_class_${c.id}`,
-          type: "class",
-          title: `Live Class Scheduled: ${c.title}`,
-          subtitle: `Batch ${c.batch} • Starts at ${timePart || "Today"}. Tap to join or manage.`,
-          link: "/dashboard/online-classes",
-          read: false,
-          persisted: false,
-          createdAt: c.start,
-        });
-      }
-    });
-
-    // 3. Students with large overdue fees
+    // Students with overdue fees
     const debtors = (students || []).filter((s) => s.status === "active" && outstanding(s.id) > 0);
     if (debtors.length > 0) {
       const totalOverdue = debtors.reduce((sum, s) => sum + outstanding(s.id), 0);
@@ -163,7 +131,7 @@ export function useNotifications() {
     }
 
     return items;
-  }, [notices, classes, students, outstanding]);
+  }, [students, outstanding]);
 
   // Combine backend + contextual notifications, applying local read & deleted filters
   const notifications = useMemo(() => {
@@ -191,12 +159,8 @@ export function useNotifications() {
       });
     });
 
-    // Sort: newest first
-    return result.sort((a, b) => {
-      const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return tB - tA;
-    });
+    // Sort: Newest / Unread first!
+    return result.sort(sortNotificationsNewestFirst);
   }, [backendItems, contextualItems, localReadIds, localDeletedIds]);
 
   const unreadCount = useMemo(() => {

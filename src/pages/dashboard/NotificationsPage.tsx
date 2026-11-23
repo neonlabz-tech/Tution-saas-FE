@@ -196,11 +196,25 @@ export default function NotificationsPage() {
       );
     }
 
-    // Sort order
+    // Sort order: Unread/newest first
     list.sort((a, b) => {
+      // 1. Unread items always on top
+      if (a.read !== b.read) {
+        return a.read ? 1 : -1;
+      }
+      // 2. Timestamp sorting
       const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return sortOrder === "newest" ? timeB - timeA : timeA - timeB;
+      const validA = !isNaN(timeA) && timeA > 0 ? timeA : 0;
+      const validB = !isNaN(timeB) && timeB > 0 ? timeB : 0;
+
+      if (sortOrder === "newest") {
+        if (validB !== validA) return validB - validA;
+        return b.id.localeCompare(a.id);
+      } else {
+        if (validA !== validB) return validA - validB;
+        return a.id.localeCompare(b.id);
+      }
     });
 
     return list;
