@@ -100,12 +100,17 @@ export function useNotifications() {
     const onFocus = () => {
       fetchBackendNotifications();
     };
+    const onNotifsUpdated = () => {
+      fetchBackendNotifications();
+    };
     window.addEventListener("focus", onFocus);
+    window.addEventListener("notifications-updated", onNotifsUpdated);
 
     return () => {
       controller.abort();
       clearInterval(interval);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("notifications-updated", onNotifsUpdated);
     };
   }, [fetchBackendNotifications]);
 

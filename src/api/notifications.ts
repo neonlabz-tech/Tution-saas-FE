@@ -100,7 +100,7 @@ export async function createNotification(
     body: JSON.stringify(payload),
   });
 
-  return {
+  const created: AppNotification = {
     id: String(res.id || res._id || `notif_${Date.now()}`),
     type: res.type || payload.type || "system",
     title: res.title || payload.title,
@@ -111,6 +111,12 @@ export async function createNotification(
     createdAt: res.createdAt || new Date().toISOString(),
     metadata: res.metadata || payload.metadata,
   };
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("notifications-updated"));
+  }
+
+  return created;
 }
 
 export async function markAsRead(id: string): Promise<{ id: string; read: true }> {

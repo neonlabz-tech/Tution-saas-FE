@@ -4,6 +4,7 @@ import { Modal } from "@/components/ui/overlays";
 import { Avatar, Badge, Button, Field, Input, ProgressBar, Select, Skeleton } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { createPayment, listPaymentStudents } from "@/api/payments";
+import { createNotification } from "@/api/notifications";
 import { getStudentById } from "@/api/students";
 import { INCOME_CATEGORIES, PAYMENT_METHODS } from "@/lib/constants";
 import { cn, fmtLKR, todayISO } from "@/lib/utils";
@@ -200,6 +201,22 @@ function PaymentForm({
         date,
         ...(description.trim() ? { description: description.trim() } : {}),
       });
+
+      const receiptNo = result.payment?.receiptNo || result.payment?.id || "Receipt";
+      const studentName = activeStudent?.fullName ?? sid;
+
+      try {
+        await createNotification({
+          type: "payment",
+          title: "Payment Received",
+          subtitle: `LKR ${amt.toLocaleString()} collected for ${studentName} (${receiptNo}).`,
+          link: `/dashboard/payments?q=${encodeURIComponent(receiptNo)}`,
+          metadata: { paymentId: result.payment?.id, receiptNo, studentId: sid, amount: amt },
+        });
+      } catch {
+        // non-blocking
+      }
+
       const receiptSuffix = result.payment?.receiptNo ? ` · Receipt ${result.payment.receiptNo}` : "";
       toast.success(`${fmtLKR(amt)} payment recorded for ${activeStudent?.fullName ?? sid}${receiptSuffix}`);
       onDone?.(result);

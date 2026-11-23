@@ -52,6 +52,7 @@ import {
   listPaymentStudents,
   updatePayment,
 } from "@/api/payments";
+import { createNotification } from "@/api/notifications";
 import { getStudentById } from "@/api/students";
 import { BATCHES, INCOME_CATEGORIES, PAYMENT_METHODS } from "@/lib/constants";
 import {
@@ -276,6 +277,21 @@ function EditPaymentModal({
         description: description.trim(),
         status,
       });
+
+      const receiptNo = payment.receiptNo || payment.id;
+      const studentName = payment.student?.fullName || payment.studentId;
+      try {
+        await createNotification({
+          type: "payment",
+          title: "Payment Updated",
+          subtitle: `Receipt ${receiptNo} for ${studentName} updated (${status}, LKR ${amt.toLocaleString()}).`,
+          link: `/dashboard/payments?q=${encodeURIComponent(receiptNo)}`,
+          metadata: { paymentId: payment.id, receiptNo, amount: amt, status },
+        });
+      } catch {
+        // non-blocking
+      }
+
       toast.success(`Payment ${payment.receiptNo || payment.id} updated`);
       onSaved();
       onClose();
@@ -954,6 +970,18 @@ export default function PaymentsPage() {
     setIsDeleting(true);
     try {
       await deletePayment(delPaymentItem.id);
+      const receiptNo = delPaymentItem.receiptNo || delPaymentItem.id;
+      try {
+        await createNotification({
+          type: "payment",
+          title: "Payment Deleted",
+          subtitle: `Receipt ${receiptNo} has been deleted and student balance recalculated.`,
+          link: "/dashboard/payments",
+          metadata: { paymentId: delPaymentItem.id, receiptNo },
+        });
+      } catch {
+        // non-blocking
+      }
       toast.success("Payment deleted and balances recalculated");
       setDelPaymentItem(null);
       if (tab === "history" && historyList.length <= 1 && historyPage > 1) {
