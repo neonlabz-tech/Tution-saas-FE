@@ -3,6 +3,7 @@ import {
   CalendarDays,
   ChartNoAxesCombined,
   ClipboardCheck,
+  CreditCard,
   GraduationCap,
   LayoutDashboard,
   Megaphone,
@@ -39,6 +40,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Operations",
     items: [
       { title: "Income & Expenses", route: "/dashboard/finance", icon: Wallet },
+      { title: "Payments", route: "/dashboard/payments", icon: CreditCard },
       { title: "Notices", route: "/dashboard/notices", icon: Megaphone },
       { title: "QR Scanner", route: "/dashboard/qr-scanner", icon: ScanLine },
     ],
