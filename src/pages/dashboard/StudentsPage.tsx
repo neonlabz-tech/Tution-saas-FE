@@ -12,12 +12,11 @@ import { listModules } from "@/api/modules";
 import { listBatches } from "@/api/batches";
 import { deleteStudent } from "@/api/students";
 import { useStudents } from "@/hooks/useStudents";
-import { BATCHES } from "@/lib/constants";
 import { StudentFormModal } from "@/components/students/StudentFormModal";
 import { StudentDetail } from "@/components/students/StudentDetail";
 import { MoveBatchModal } from "@/components/students/MoveBatchModal";
 import { RecordPaymentModal, type PaymentStudentSummary } from "@/components/finance/RecordPaymentModal";
-import { fmtDate, fmtLKR } from "@/lib/utils";
+import { formatLkrPrice, formatShortDate } from "@/lib/utils";
 
 const PAGE_LIMIT = 8;
 
@@ -238,7 +237,7 @@ export default function StudentsPage() {
         id: "enrollmentDate",
         header: "Enrolled",
         accessorFn: (s) => s.enrollmentDate,
-        cell: (c) => <span className="text-xs text-muted">{fmtDate(c.getValue() as string)}</span>,
+        cell: (c) => <span className="text-xs text-muted">{formatShortDate(c.getValue() as string)}</span>,
       },
       {
         id: "outstanding",
@@ -248,7 +247,7 @@ export default function StudentsPage() {
           const v = (c.getValue() as number) ?? 0;
           return (
             <span className={`num text-sm font-semibold ${v > 0 ? "text-rose-500" : "text-emerald-500"}`}>
-              {v > 0 ? fmtLKR(v) : "Settled"}
+              {v > 0 ? formatLkrPrice(v) : "Settled"}
             </span>
           );
         },
@@ -293,9 +292,10 @@ export default function StudentsPage() {
 
   const allBatchOptions = useMemo(() => {
     const names = new Set<string>();
-    batches.forEach((b) => names.add(b.name));
-    BATCHES.forEach((b) => names.add(b));
-    return Array.from(names);
+    batches.forEach((b) => {
+      if (b.status === "active" || !b.status) names.add(b.name);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [batches]);
 
   const hasFilters = Boolean(debouncedQ || batch !== "all" || moduleId !== "all" || status !== "all");

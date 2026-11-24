@@ -16,7 +16,6 @@ import {
   Button,
   Card,
   CardHeader,
-  Field,
   Input,
   PageHeader,
   Select,
@@ -26,7 +25,7 @@ import { ScanResult } from "@/components/qr/ScanResult";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
 import { attendanceApi, type VerifyQrResponse } from "@/lib/api";
-import { parseQrPayload, playScanFeedback, qrPayload, todayISO } from "@/lib/utils";
+import { parseQrPayload, playScanFeedback, todayISO } from "@/lib/utils";
 
 const READER_ID = "eduflow-qr-reader";
 
@@ -55,8 +54,8 @@ export default function QrScannerPage() {
   const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
 
-  const [selectedModuleId, setSelectedModuleId] = useState<string>("all");
-  const [autoMark, setAutoMark] = useState(true);
+  const [selectedModuleId] = useState<string>("all");
+  const [autoMark] = useState(true);
 
   type ScannedStudent = Student & {
     feeTotal?: number;
@@ -501,7 +500,7 @@ export default function QrScannerPage() {
               subtitle="Type student name, Student ID, or phone number to see live suggestions"
             />
             <form
-              ref={dropdownRef}
+              ref={dropdownRef as any}
               className="p-5 pt-1"
               onSubmit={(e) => {
                 e.preventDefault();

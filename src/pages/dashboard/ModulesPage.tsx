@@ -41,11 +41,10 @@ import { deleteModule, setModuleEnrollments, updateModule } from "@/api/modules"
 import { deleteBatch, listBatches } from "@/api/batches";
 import { useModuleDetail, useModules } from "@/hooks/useModules";
 import { teachersApi, type TeacherListItem } from "@/lib/api";
-import { BATCHES } from "@/lib/constants";
 import { ModuleFormModal } from "@/components/modules/ModuleFormModal";
 import { BatchFormModal } from "@/components/modules/BatchFormModal";
 import { RegisterStudentsModal } from "@/components/modules/RegisterStudentsModal";
-import { cn, fmtLKR } from "@/lib/utils";
+import { cn, formatLkrPrice } from "@/lib/utils";
 
 const GRADS = [
   "from-indigo-500 to-violet-500",
@@ -146,8 +145,7 @@ export default function ModulesPage() {
   };
 
   const availableBatchNames = useMemo(() => {
-    const fromApi = batches.map((b) => b.name);
-    return Array.from(new Set([...fromApi, ...BATCHES]));
+    return Array.from(new Set(batches.map((b) => b.name))).sort((a, b) => a.localeCompare(b));
   }, [batches]);
 
   const filteredBatches = useMemo(() => {
@@ -265,7 +263,7 @@ export default function ModulesPage() {
         id: "fee",
         header: "Fee",
         accessorFn: (m) => m.fee,
-        cell: (c) => <span className="num text-sm font-semibold">{fmtLKR(c.getValue() as number)}</span>,
+        cell: (c) => <span className="num text-sm font-semibold">{formatLkrPrice(c.getValue() as number)}</span>,
       },
       {
         id: "enrolled",
@@ -544,7 +542,7 @@ export default function ModulesPage() {
                     <div className="flex flex-1 flex-col p-5">
                       <div className="mb-3 flex items-center justify-between">
                         <StatusBadge status={m.status} />
-                        <span className="num text-base font-bold">{fmtLKR(m.fee)}</span>
+                        <span className="num text-base font-bold">{formatLkrPrice(m.fee)}</span>
                       </div>
                       <p className="line-clamp-2 text-sm text-muted">{m.description}</p>
                       <div className="mt-4 flex items-center gap-2">
@@ -656,7 +654,7 @@ export default function ModulesPage() {
           </div>
           <h4 className="font-heading text-base font-bold">Could not load batches</h4>
           <p className="mt-1 max-w-sm text-sm text-muted">{batchError}</p>
-          <Button variant="secondary" size="sm" className="mt-4" onClick={fetchBatches}>
+          <Button variant="secondary" size="sm" className="mt-4" onClick={() => void fetchBatches()}>
             <RotateCw className="h-3.5 w-3.5" /> Retry
           </Button>
         </Card>
@@ -830,7 +828,7 @@ export default function ModulesPage() {
               <p className="text-sm text-muted">{detail.description}</p>
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-2xl bg-surface-2 p-3 text-center">
-                  <p className="num text-lg font-bold">{fmtLKR(detail.fee).replace("LKR ", "")}</p>
+                  <p className="num text-lg font-bold">{formatLkrPrice(detail.fee).replace("LKR ", "")}</p>
                   <p className="text-[11px] text-muted">Fee (LKR)</p>
                 </div>
                 <div className="rounded-2xl bg-surface-2 p-3 text-center">
@@ -847,7 +845,7 @@ export default function ModulesPage() {
                   <StatusBadge status={detail.status} />
                 </InfoRow>
                 <InfoRow label="Revenue potential">
-                  <span className="num">{fmtLKR(detail.revenuePotential)}</span>
+                  <span className="num">{formatLkrPrice(detail.revenuePotential)}</span>
                 </InfoRow>
               </div>
               <Field label="Assigned teacher">
@@ -868,7 +866,7 @@ export default function ModulesPage() {
                 <div className={cn(patchingField === "batches" && "pointer-events-none opacity-60")}>
                   <MultiSelect
                     value={detail.batches}
-                    options={BATCHES.map((b) => ({ value: b, label: b }))}
+                    options={availableBatchNames.map((b) => ({ value: b, label: b }))}
                     onChange={(v) => void handleInlineBatchesChange(v)}
                   />
                 </div>

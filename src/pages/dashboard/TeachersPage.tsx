@@ -8,15 +8,16 @@ import { DataTable, type Columns } from "@/components/ui/data-table";
 import { ConfirmDialog, Drawer } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
-import { BATCHES } from "@/data/mock";
+import { useBatches } from "@/hooks/useBatches";
 import { TeacherFormModal } from "@/components/teachers/TeacherFormModal";
 import { teachersApi, type TeacherListItem, type TeacherProfileResponse } from "@/lib/api";
-import { fmtDate, fmtTime, todayISO } from "@/lib/utils";
+import { formatDate, formatShortDate, formatTime, todayISO } from "@/lib/utils";
 
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function TeachersPage() {
   const { teachers, teacherModules, modules, students, classes, deleteTeacher } = useAppData();
+  const { batches: batchOptions } = useBatches();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -250,7 +251,7 @@ export default function TeachersPage() {
         </Select>
         <Select value={batch} onChange={(e) => setBatch(e.target.value)} aria-label="Filter by batch">
           <option value="all">All batches</option>
-          {BATCHES.map((b) => <option key={b}>{b}</option>)}
+          {batchOptions.map((b) => <option key={b}>{b}</option>)}
         </Select>
         <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
           <option value="all">All statuses</option>
@@ -298,7 +299,7 @@ export default function TeachersPage() {
                       </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
-                      <span className="text-[11px] text-muted">Joined {fmtDate(t.joiningDate)}</span>
+                      <span className="text-[11px] text-muted">Joined {formatShortDate(t.joiningDate)}</span>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" aria-label="View details" title="View details" onClick={() => setDetailId(t.id)}>
                           <Eye className="h-4 w-4" />
@@ -337,7 +338,7 @@ export default function TeachersPage() {
               <InfoRow label="Email"><span className="inline-flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 text-muted" />{detail.email}</span></InfoRow>
               <InfoRow label="Phone"><span className="num inline-flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-muted" />{detail.phone}</span></InfoRow>
               <InfoRow label="Specialization">{detail.specialization || "—"}</InfoRow>
-              <InfoRow label="Joined">{fmtDate(detail.joiningDate)}</InfoRow>
+              <InfoRow label="Joined">{formatDate(detail.joiningDate)}</InfoRow>
               <InfoRow label="Batches"><span className="flex flex-wrap justify-end gap-1">{detail.batches.length ? detail.batches.map((b) => <Badge key={b} tone="teal">{b}</Badge>) : <span className="text-muted">—</span>}</span></InfoRow>
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -369,7 +370,7 @@ export default function TeachersPage() {
                         <p className="text-[10px] font-bold uppercase">{WEEKDAY[new Date(c.start).getDay()]}</p>
                         <p className="num text-sm font-bold">{c.start.slice(8, 10)}</p>
                       </div>
-                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{c.title}</p><p className="text-[11px] text-muted">{fmtTime(c.start)} – {fmtTime(c.end)} · {c.batch}</p></div>
+                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{c.title}</p><p className="text-[11px] text-muted">{formatTime(c.start)} – {formatTime(c.end)} · {c.batch}</p></div>
                       <Video className="h-4 w-4 text-muted" />
                     </div>
                   ))}

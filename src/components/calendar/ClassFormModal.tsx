@@ -12,7 +12,7 @@ import { createOnlineClass, updateOnlineClass } from "@/api/onlineClasses";
 import { createNotification } from "@/api/notifications";
 import { useAuth } from "@/hooks/useAuth";
 import { applyApiValidationErrors, teachersApi, type TeacherListItem } from "@/lib/api";
-import { BATCHES } from "@/lib/constants";
+import { useBatches } from "@/hooks/useBatches";
 import { todayISO } from "@/lib/utils";
 
 const schema = z
@@ -88,6 +88,7 @@ function Inner({
 }) {
   const toast = useToast();
   const { user } = useAuth();
+  const { batches: batchOptions } = useBatches(item?.batch ? [item.batch] : undefined);
   const [modules, setModules] = useState<ModuleListItem[]>(modulesProp ?? []);
   const [teachers, setTeachers] = useState<TeacherListItem[]>(teachersProp ?? []);
   const [loadingModules, setLoadingModules] = useState(!modulesProp);
@@ -166,6 +167,11 @@ function Inner({
   }, [moduleId, item, modules]);
 
   const onSubmit = async (v: Values) => {
+    const trimmedBatch = v.batch.trim();
+    if (!trimmedBatch) {
+      setError("batch", { message: "Select or enter a batch" });
+      return;
+    }
     const start = `${v.date}T${v.startTime}`;
     const end = `${v.date}T${v.endTime}`;
     const desc = v.description.trim();
@@ -178,7 +184,7 @@ function Inner({
           title: v.title.trim(),
           moduleId: v.moduleId,
           teacherId: v.teacherId,
-          batch: v.batch,
+          batch: trimmedBatch,
           start,
           end,
           link: v.link.trim(),
@@ -208,7 +214,7 @@ function Inner({
           title: v.title.trim(),
           moduleId: v.moduleId,
           teacherId: v.teacherId,
-          batch: v.batch,
+          batch: trimmedBatch,
           start,
           end,
           link: v.link.trim(),
@@ -296,7 +302,7 @@ function Inner({
       <Field label="Batch" error={errors.batch?.message}>
         <Select {...register("batch")}>
           <option value="">Select batch…</option>
-          {BATCHES.map((b) => (
+          {batchOptions.map((b) => (
             <option key={b} value={b}>
               {b}
             </option>

@@ -121,9 +121,11 @@ function Inner({
     listBatches()
       .then((data) => {
         if (active) {
-          const names = data.map((b) => b.name);
+          const names = data
+            .filter((b) => b.status === "active" || !b.status)
+            .map((b) => b.name);
           const current = item?.batch ? [item.batch] : [];
-          setBatchOptions(Array.from(new Set([...current, ...names])));
+          setBatchOptions(Array.from(new Set([...current, ...names])).sort((a, b) => a.localeCompare(b)));
         }
       })
       .catch(() => {});
@@ -194,6 +196,11 @@ function Inner({
   }, [item, reset, toast]);
 
   const onSubmit = async (v: Values) => {
+    const trimmedBatch = v.batch.trim();
+    if (!trimmedBatch) {
+      setError("batch", { message: "Select or enter a batch" });
+      return;
+    }
     const payload: CreateStudentDto = {
       fullName: v.fullName.trim(),
       email: v.email.trim(),
@@ -202,7 +209,7 @@ function Inner({
       address: v.address.trim(),
       guardianName: v.guardianName.trim(),
       guardianPhone: v.guardianPhone.trim(),
-      batch: v.batch,
+      batch: trimmedBatch,
       moduleIds: v.moduleIds,
       ...(v.enrollmentDate ? { enrollmentDate: v.enrollmentDate } : {}),
       status: v.status,
