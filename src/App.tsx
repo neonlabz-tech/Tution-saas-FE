@@ -20,6 +20,16 @@ import NotificationsPage from "@/pages/dashboard/NotificationsPage";
 import QrScannerPage from "@/pages/dashboard/QrScannerPage";
 import AnalyticsPage from "@/pages/dashboard/AnalyticsPage";
 import SettingsPage from "@/pages/dashboard/SettingsPage";
+import { StudentRoot, RequireStudent } from "@/components/student/StudentRoot";
+import { StudentLayout } from "@/components/student/StudentLayout";
+import StudentLoginPage from "@/pages/student/StudentLoginPage";
+import StudentRegisterPage from "@/pages/student/StudentRegisterPage";
+import StudentForgotPasswordPage from "@/pages/student/StudentForgotPasswordPage";
+import StudentResetPasswordPage from "@/pages/student/StudentResetPasswordPage";
+import StudentOverviewPage from "@/pages/student/StudentOverviewPage";
+import StudentModulesPage from "@/pages/student/StudentModulesPage";
+import StudentModuleDetailPage from "@/pages/student/StudentModuleDetailPage";
+import StudentPaymentsPage from "@/pages/student/StudentPaymentsPage";
 
 class GlobalErrorBoundary extends Component<
   { children: ReactNode },
@@ -129,6 +139,26 @@ export default function App() {
                     <Route path="qr-scanner" element={<QrScannerPage />} />
                     <Route path="analytics" element={<AnalyticsPage />} />
                     <Route path="settings" element={<SettingsPage />} />
+                  </Route>
+                  {/* Student portal: /student/* (separate auth + data providers, see StudentRoot) */}
+                  <Route path="/student" element={<StudentRoot />}>
+                    <Route path="login" element={<StudentLoginPage />} />
+                    <Route path="register" element={<StudentRegisterPage />} />
+                    <Route path="forgot-password" element={<StudentForgotPasswordPage />} />
+                    <Route path="reset-password" element={<StudentResetPasswordPage />} />
+                    <Route
+                      element={
+                        <RequireStudent>
+                          <StudentLayout />
+                        </RequireStudent>
+                      }
+                    >
+                      <Route index element={<StudentOverviewPage />} />
+                      <Route path="modules" element={<StudentModulesPage />} />
+                      <Route path="modules/:moduleId" element={<StudentModuleDetailPage />} />
+                      <Route path="payments" element={<StudentPaymentsPage />} />
+                    </Route>
+                    <Route path="*" element={<Navigate to="/student" replace />} />
                   </Route>
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
