@@ -987,3 +987,22 @@ export const attendanceApi = {
     });
   },
 };
+
+/* ---------- Analytics ---------- */
+export type {
+  AnalyticsPeriod,
+  AnalyticsPeriodParams,
+  AnalyticsPeriodRange,
+  AnalyticsKpis,
+  AnalyticsFinanceSeriesItem,
+  AnalyticsEnrollmentSeriesItem,
+  AnalyticsAttendanceSeriesItem,
+  AnalyticsExpenseCategoryItem,
+  AnalyticsPaymentStatusItem,
+  AnalyticsOverviewResponse,
+  ModulePerformanceItem,
+  ModulePerformanceResponse,
+} from "@/types";
+
+export { analyticsApi, buildAnalyticsQuery } from "@/api/analytics";
+
