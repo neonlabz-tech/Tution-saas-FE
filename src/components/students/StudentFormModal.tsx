@@ -12,6 +12,7 @@ import { createStudentWithMeta, getStudentById, updateStudent } from "@/api/stud
 import { createNotification } from "@/api/notifications";
 import { useAuth } from "@/hooks/useAuth";
 import { applyApiValidationErrors } from "@/lib/api";
+import { registerBatches } from "@/hooks/useBatches";
 import { toDateInput, todayISO } from "@/lib/utils";
 
 const ALLOWED_NAV_KEYS = new Set([
@@ -109,6 +110,7 @@ function Inner({
 }) {
   const toast = useToast();
   const { user } = useAuth();
+  const [customBatch, setCustomBatch] = useState(false);
   const [modules, setModules] = useState<Module[]>(modulesProp ?? []);
   const [loadingModules, setLoadingModules] = useState(!modulesProp?.length);
   const [batchOptions, setBatchOptions] = useState<string[]>(() => (item?.batch ? [item.batch] : []));
@@ -138,6 +140,7 @@ function Inner({
     handleSubmit,
     reset,
     setError,
+    setValue,
     formState: { errors },
   } = useForm<Values>({
     resolver: zodResolver(schema),
@@ -194,6 +197,11 @@ function Inner({
   }, [item, reset, toast]);
 
   const onSubmit = async (v: Values) => {
+    const trimmedBatch = v.batch.trim();
+    if (!trimmedBatch) {
+      setError("batch", { message: "Select or enter a batch" });
+      return;
+    }
     const payload: CreateStudentDto = {
       fullName: v.fullName.trim(),
       email: v.email.trim(),
@@ -202,7 +210,7 @@ function Inner({
       address: v.address.trim(),
       guardianName: v.guardianName.trim(),
       guardianPhone: v.guardianPhone.trim(),
-      batch: v.batch,
+      batch: trimmedBatch,
       moduleIds: v.moduleIds,
       ...(v.enrollmentDate ? { enrollmentDate: v.enrollmentDate } : {}),
       status: v.status,
@@ -212,6 +220,7 @@ function Inner({
     try {
       if (item) {
         const saved = await updateStudent(item.id, payload);
+        registerBatches([saved.batch || trimmedBatch]);
         toast.success(`${saved.fullName} updated`);
 
         try {
@@ -231,6 +240,7 @@ function Inner({
         onSaved?.(saved);
       } else {
         const { student: saved, message } = await createStudentWithMeta(payload);
+        registerBatches([saved.batch || trimmedBatch]);
         const emailFeedback =
           message && /email/i.test(message)
             ? message
@@ -334,14 +344,42 @@ function Inner({
         />
       </Field>
       <Field label="Batch" error={errors.batch?.message}>
-        <Select {...register("batch")}>
-          <option value="">Select a batch</option>
-          {batchOptions.map((b) => (
-            <option key={b} value={b}>
-              {b}
-            </option>
-          ))}
-        </Select>
+        <div className="space-y-1.5">
+          {customBatch ? (
+            <Input
+              {...register("batch")}
+              placeholder="e.g. 2027-AL"
+              autoFocus
+            />
+          ) : (
+            <Select {...register("batch")}>
+              <option value="">Select a batch</option>
+              {batchOptions.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </Select>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (customBatch) {
+                setCustomBatch(false);
+                setValue("batch", item?.batch || "", {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              } else {
+                setCustomBatch(true);
+                setValue("batch", "", { shouldDirty: true });
+              }
+            }}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            {customBatch ? "Choose existing batch" : "+ New batch"}
+          </button>
+        </div>
       </Field>
       <Field label="Status" error={errors.status?.message}>
         <Select {...register("status")}>

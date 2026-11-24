@@ -8,7 +8,7 @@ import { createNotification } from "@/api/notifications";
 import { getStudentById } from "@/api/students";
 import { useAuth } from "@/hooks/useAuth";
 import { INCOME_CATEGORIES, PAYMENT_METHODS } from "@/lib/constants";
-import { cn, fmtLKR, todayISO } from "@/lib/utils";
+import { cn, formatLkrPrice, todayISO } from "@/lib/utils";
 import type { RecordStudentPaymentResponse } from "@/types";
 
 export interface PaymentStudentSummary {
@@ -189,7 +189,7 @@ function PaymentForm({
     if (!sid) return setError("Search and select a student first.");
     if (owed <= 0) return setError("This student has no outstanding balance.");
     if (amt <= 0) return setError("Enter a payment amount greater than zero.");
-    if (amt > owed) return setError(`Amount exceeds the outstanding balance of ${fmtLKR(owed)}.`);
+    if (amt > owed) return setError(`Amount exceeds the outstanding balance of ${formatLkrPrice(owed)}.`);
 
     setError("");
     setSubmitting(true);
@@ -223,7 +223,7 @@ function PaymentForm({
       }
 
       const receiptSuffix = result.payment?.receiptNo ? ` · Receipt ${result.payment.receiptNo}` : "";
-      toast.success(`${fmtLKR(amt)} payment recorded for ${activeStudent?.fullName ?? sid}${receiptSuffix}`);
+      toast.success(`${formatLkrPrice(amt)} payment recorded for ${activeStudent?.fullName ?? sid}${receiptSuffix}`);
       onDone?.(result);
       onClose();
     } catch (err: unknown) {
@@ -332,7 +332,7 @@ function PaymentForm({
                           s.outstanding > 0 ? "text-rose-500" : "text-emerald-500",
                         )}
                       >
-                        {s.outstanding > 0 ? fmtLKR(s.outstanding) : "Settled"}
+                        {s.outstanding > 0 ? formatLkrPrice(s.outstanding) : "Settled"}
                       </span>
                     </button>
                   ))
@@ -359,15 +359,15 @@ function PaymentForm({
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
                   <p className="text-[11px] text-muted">Total fees</p>
-                  <p className="num text-sm font-semibold">{fmtLKR(totalFee)}</p>
+                  <p className="num text-sm font-semibold">{formatLkrPrice(totalFee)}</p>
                 </div>
                 <div>
                   <p className="text-[11px] text-muted">Paid</p>
-                  <p className="num text-sm font-semibold text-emerald-500">{fmtLKR(totalPaid)}</p>
+                  <p className="num text-sm font-semibold text-emerald-500">{formatLkrPrice(totalPaid)}</p>
                 </div>
                 <div>
                   <p className="text-[11px] text-muted">Outstanding</p>
-                  <p className="num text-sm font-semibold text-rose-500">{fmtLKR(owed)}</p>
+                  <p className="num text-sm font-semibold text-rose-500">{formatLkrPrice(owed)}</p>
                 </div>
               </div>
               <ProgressBar className="mt-3" tone="teal" value={totalFee ? (totalPaid / totalFee) * 100 : 0} />
@@ -414,7 +414,7 @@ function PaymentForm({
             </Button>
             {amt > 0 && amt <= owed && (
               <Badge tone={amt === owed ? "green" : "amber"}>
-                {amt === owed ? "Settles in full" : `Partial · ${fmtLKR(owed - amt)} remains`}
+                {amt === owed ? "Settles in full" : `Partial · ${formatLkrPrice(owed - amt)} remains`}
               </Badge>
             )}
           </div>

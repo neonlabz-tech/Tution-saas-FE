@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { createTransaction, updateTransaction } from "@/api/finance";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, PAYMENT_METHODS } from "@/lib/constants";
 import { ApiError } from "@/lib/api";
-import { fmtLKR, todayISO } from "@/lib/utils";
+import { formatLkrPrice, todayISO } from "@/lib/utils";
 
 const schema = z.object({
   category: z.string().min(1, "Select a category"),
@@ -81,7 +81,7 @@ function Inner({
           method: v.method,
           ...(item.studentId ? { studentId: item.studentId } : {}),
         });
-        toast.success(`${type === "income" ? "Income" : "Expense"} updated: ${fmtLKR(v.amount)}`);
+        toast.success(`${type === "income" ? "Income" : "Expense"} updated: ${formatLkrPrice(v.amount)}`);
       } else {
         saved = await createTransaction({
           type,
@@ -91,7 +91,7 @@ function Inner({
           description: v.description,
           method: v.method,
         });
-        toast.success(`${type === "income" ? "Income" : "Expense"} added: ${fmtLKR(v.amount)}`);
+        toast.success(`${type === "income" ? "Income" : "Expense"} added: ${formatLkrPrice(v.amount)}`);
       }
       onSaved?.(saved);
       onClose();

@@ -19,7 +19,7 @@ import { Badge, Button, InfoRow, Skeleton, StatusBadge } from "@/components/ui/p
 import { useToast } from "@/components/ui/toast";
 import { updateOnlineClass } from "@/api/onlineClasses";
 import { useOnlineClassDetail } from "@/hooks/useOnlineClasses";
-import { fmtDate, fmtTime } from "@/lib/utils";
+import { formatDate, formatTime } from "@/lib/utils";
 
 export function ClassDetailDrawer({
   classId,
@@ -150,10 +150,10 @@ export function ClassDetailDrawer({
               </InfoRow>
               <InfoRow label="Teacher">{teacherName}</InfoRow>
               <InfoRow label="Batch">{item.batch}</InfoRow>
-              <InfoRow label="Date">{fmtDate(item.start)}</InfoRow>
+              <InfoRow label="Date">{formatDate(item.start)}</InfoRow>
               <InfoRow label="Time">
                 <span className="num">
-                  {fmtTime(item.start)} – {fmtTime(item.end)}
+                  {formatTime(item.start)} – {formatTime(item.end)}
                 </span>
               </InfoRow>
               <InfoRow label="Meeting link">
