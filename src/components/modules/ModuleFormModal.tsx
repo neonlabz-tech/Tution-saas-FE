@@ -69,21 +69,16 @@ function Inner({
     return Array.isArray(item?.batches) ? [...item.batches] : [];
   });
 
-  const handleAddCustomBatch = (newBatch: string) => {
-    const trimmed = newBatch.trim();
-    if (trimmed) {
-      setBatchOptions((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
-    }
-  };
-
   useEffect(() => {
     let active = true;
     listBatches()
       .then((data) => {
         if (active) {
-          const names = data.map((b) => b.name);
+          const names = data
+            .filter((b) => b.status === "active" || !b.status)
+            .map((b) => b.name);
           const current = Array.isArray(item?.batches) ? item.batches : [];
-          setBatchOptions(Array.from(new Set([...current, ...names])));
+          setBatchOptions(Array.from(new Set([...current, ...names])).sort((a, b) => a.localeCompare(b)));
         }
       })
       .catch(() => {});
@@ -228,8 +223,6 @@ function Inner({
               value={field.value}
               onChange={field.onChange}
               options={batchOptions.map((b) => ({ value: b, label: b }))}
-              allowCustom
-              onAddCustom={handleAddCustomBatch}
             />
           )}
         />

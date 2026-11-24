@@ -12,7 +12,6 @@ import { listModules } from "@/api/modules";
 import { listBatches } from "@/api/batches";
 import { deleteStudent } from "@/api/students";
 import { useStudents } from "@/hooks/useStudents";
-import { BATCHES } from "@/lib/constants";
 import { StudentFormModal } from "@/components/students/StudentFormModal";
 import { StudentDetail } from "@/components/students/StudentDetail";
 import { MoveBatchModal } from "@/components/students/MoveBatchModal";
@@ -293,9 +292,10 @@ export default function StudentsPage() {
 
   const allBatchOptions = useMemo(() => {
     const names = new Set<string>();
-    batches.forEach((b) => names.add(b.name));
-    BATCHES.forEach((b) => names.add(b));
-    return Array.from(names);
+    batches.forEach((b) => {
+      if (b.status === "active" || !b.status) names.add(b.name);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [batches]);
 
   const hasFilters = Boolean(debouncedQ || batch !== "all" || moduleId !== "all" || status !== "all");

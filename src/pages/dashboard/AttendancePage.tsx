@@ -178,7 +178,7 @@ export default function AttendancePage() {
   } = useAppData();
   const toast = useToast();
   const { user } = useAuth();
-  const { batches: batchOptions } = useBatches(students.map((s) => s.batch));
+  const { batches: batchOptions } = useBatches();
 
   const [view, setView] = useState<View>("daily");
   const [date, setDate] = useState(todayISO());

@@ -17,7 +17,7 @@ const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function TeachersPage() {
   const { teachers, teacherModules, modules, students, classes, deleteTeacher } = useAppData();
-  const { batches: batchOptions } = useBatches(teachers.flatMap((t) => t.batches));
+  const { batches: batchOptions } = useBatches();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<"grid" | "list">("grid");

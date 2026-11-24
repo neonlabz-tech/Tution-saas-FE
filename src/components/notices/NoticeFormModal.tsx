@@ -82,7 +82,7 @@ function Inner({
   const [dragOver, setDragOver] = useState(false);
 
   const activeSource = savedTarget ?? item;
-  const { batches: batchOptions, registerBatches } = useBatches(activeSource?.batches);
+  const { batches: batchOptions } = useBatches(activeSource?.batches);
   const {
     register,
     control,
@@ -184,7 +184,6 @@ function Inner({
         ? await noticesApi.update(savedTarget.id, payload)
         : await noticesApi.create(payload);
       setSavedTarget(currentSaved);
-      registerBatches(payload.batches);
     } catch (err: unknown) {
       applyApiValidationErrors(err, setError);
       toast.error(err instanceof Error ? err.message : "Could not save notice");
@@ -243,8 +242,6 @@ function Inner({
                 value={field.value}
                 onChange={field.onChange}
                 options={batchOptions.map((b) => ({ value: b, label: b }))}
-                allowCustom
-                onAddCustom={(newBatch) => registerBatches([newBatch])}
               />
             )}
           />

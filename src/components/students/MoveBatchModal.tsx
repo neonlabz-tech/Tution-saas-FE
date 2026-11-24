@@ -5,7 +5,6 @@ import { Modal } from "@/components/ui/overlays";
 import { Button, Field, Select } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { moveStudentsToBatch } from "@/api/students";
-import { BATCHES } from "@/lib/constants";
 
 interface MoveBatchModalProps {
   open: boolean;
@@ -36,15 +35,6 @@ export function MoveBatchModal({
         if (!grade.includes(b.name)) grade.push(b.name);
       } else {
         if (!al.includes(b.name)) al.push(b.name);
-      }
-    });
-
-    // Fallback/standard batches from constants
-    BATCHES.forEach((name) => {
-      if (/grade\s*\d+/i.test(name)) {
-        if (!grade.includes(name)) grade.push(name);
-      } else {
-        if (!al.includes(name)) al.push(name);
       }
     });
 
