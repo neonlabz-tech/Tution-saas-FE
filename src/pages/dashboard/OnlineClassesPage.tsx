@@ -56,7 +56,7 @@ export default function OnlineClassesPage() {
 
   const [modules, setModules] = useState<ModuleListItem[]>([]);
   const [teachers, setTeachers] = useState<TeacherListItem[]>([]);
-  const { batches: batchOptions } = useBatches(modules.flatMap((m) => m.batches));
+  const { batches: batchOptions } = useBatches();
 
   const [form, setForm] = useState<{ open: boolean; item: OnlineClassItem | null; draft: ClassDraft }>({
     open: false,

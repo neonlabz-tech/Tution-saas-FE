@@ -86,7 +86,7 @@ export default function NoticesPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const today = todayISO();
-  const { batches: batchOptions } = useBatches(notices.flatMap((n) => n.batches));
+  const { batches: batchOptions } = useBatches();
 
   const loadNotices = () => {
     setLoading(true);

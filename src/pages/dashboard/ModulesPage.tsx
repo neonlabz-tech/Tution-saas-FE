@@ -41,7 +41,6 @@ import { deleteModule, setModuleEnrollments, updateModule } from "@/api/modules"
 import { deleteBatch, listBatches } from "@/api/batches";
 import { useModuleDetail, useModules } from "@/hooks/useModules";
 import { teachersApi, type TeacherListItem } from "@/lib/api";
-import { BATCHES } from "@/lib/constants";
 import { ModuleFormModal } from "@/components/modules/ModuleFormModal";
 import { BatchFormModal } from "@/components/modules/BatchFormModal";
 import { RegisterStudentsModal } from "@/components/modules/RegisterStudentsModal";
@@ -146,8 +145,7 @@ export default function ModulesPage() {
   };
 
   const availableBatchNames = useMemo(() => {
-    const fromApi = batches.map((b) => b.name);
-    return Array.from(new Set([...fromApi, ...BATCHES]));
+    return Array.from(new Set(batches.map((b) => b.name))).sort((a, b) => a.localeCompare(b));
   }, [batches]);
 
   const filteredBatches = useMemo(() => {
