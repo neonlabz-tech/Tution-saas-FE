@@ -69,6 +69,13 @@ function Inner({
     return Array.isArray(item?.batches) ? [...item.batches] : [];
   });
 
+  const handleAddCustomBatch = (newBatch: string) => {
+    const trimmed = newBatch.trim();
+    if (trimmed) {
+      setBatchOptions((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+    }
+  };
+
   useEffect(() => {
     let active = true;
     listBatches()
@@ -221,6 +228,8 @@ function Inner({
               value={field.value}
               onChange={field.onChange}
               options={batchOptions.map((b) => ({ value: b, label: b }))}
+              allowCustom
+              onAddCustom={handleAddCustomBatch}
             />
           )}
         />

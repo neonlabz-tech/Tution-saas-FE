@@ -63,7 +63,8 @@ import {
   listStudentPayments,
   listTransactions,
 } from "@/api/finance";
-import { BATCHES, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/lib/constants";
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/lib/constants";
+import { useBatches } from "@/hooks/useBatches";
 import { TransactionFormModal } from "@/components/finance/TransactionFormModal";
 import { RecordPaymentModal, type PaymentStudentSummary } from "@/components/finance/RecordPaymentModal";
 import {
@@ -75,7 +76,7 @@ import {
   gridProps,
   moneyTick,
 } from "@/components/analytics/chartParts";
-import { cn, fmtDate, fmtLKR } from "@/lib/utils";
+import { cn, formatLkrPrice, formatShortDate } from "@/lib/utils";
 
 type Tab = "overview" | "income" | "expenses" | "payments";
 
@@ -93,6 +94,7 @@ export default function FinancePage() {
   const period = usePeriod("year");
   const [category, setCategory] = useState("all");
   const [refreshKey, setRefreshKey] = useState(0);
+  const { batches: batchOptions } = useBatches();
 
   // Form modals state
   const [form, setForm] = useState<{
@@ -563,7 +565,7 @@ export default function FinancePage() {
       header: "Date",
       cell: (c) => (
         <span className="whitespace-nowrap text-sm">
-          {fmtDate(c.getValue() as string)}
+          {formatShortDate(c.getValue() as string)}
         </span>
       ),
     },
@@ -605,7 +607,7 @@ export default function FinancePage() {
           )}
         >
           {type === "income" ? "+" : "−"}
-          {fmtLKR(c.getValue() as number)}
+          {formatLkrPrice(c.getValue() as number)}
         </span>
       ),
     },
@@ -647,7 +649,7 @@ export default function FinancePage() {
         header: "Date",
         cell: (c) => (
           <span className="whitespace-nowrap text-sm">
-            {fmtDate(c.getValue() as string)}
+            {formatShortDate(c.getValue() as string)}
           </span>
         ),
       },
@@ -702,7 +704,7 @@ export default function FinancePage() {
         header: "Amount",
         cell: (c) => (
           <span className="num text-sm font-bold text-emerald-500">
-            +{fmtLKR(c.getValue() as number)}
+            +{formatLkrPrice(c.getValue() as number)}
           </span>
         ),
       },
@@ -743,7 +745,7 @@ export default function FinancePage() {
         header: "Date",
         cell: (c) => (
           <span className="whitespace-nowrap text-sm">
-            {fmtDate(c.getValue() as string)}
+            {formatShortDate(c.getValue() as string)}
           </span>
         ),
       },
@@ -794,7 +796,7 @@ export default function FinancePage() {
             )}
           >
             {row.original.type === "income" ? "+" : "−"}
-            {fmtLKR(row.original.amount)}
+            {formatLkrPrice(row.original.amount)}
           </span>
         ),
       },
@@ -831,19 +833,19 @@ export default function FinancePage() {
   const cards = [
     {
       l: "Total income",
-      v: fmtLKR(kpis.totalIncome),
+      v: formatLkrPrice(kpis.totalIncome),
       i: ArrowUpRight,
       c: "from-emerald-500 to-teal-500",
     },
     {
       l: "Total expenses",
-      v: fmtLKR(kpis.totalExpense),
+      v: formatLkrPrice(kpis.totalExpense),
       i: ArrowDownRight,
       c: "from-rose-500 to-pink-500",
     },
     {
       l: "Net balance",
-      v: fmtLKR(kpis.netBalance),
+      v: formatLkrPrice(kpis.netBalance),
       i: Scale,
       c:
         kpis.netBalance >= 0
@@ -852,7 +854,7 @@ export default function FinancePage() {
     },
     {
       l: "Outstanding payments",
-      v: fmtLKR(kpis.totalOutstanding),
+      v: formatLkrPrice(kpis.totalOutstanding),
       i: Banknote,
       c: "from-amber-500 to-orange-500",
     },
@@ -928,7 +930,7 @@ export default function FinancePage() {
           </div>
         </div>
         <p className="text-xs text-muted">
-          {fmtDate(period.range.from)} – {fmtDate(period.range.to)} ·{" "}
+          {formatShortDate(period.range.from)} – {formatShortDate(period.range.to)} ·{" "}
           <b className="num text-ink">
             {kpisLoading ? "…" : kpis.totalCount}
           </b>{" "}
@@ -1080,7 +1082,7 @@ export default function FinancePage() {
                             {d.name}
                           </span>
                           <span className="num text-xs font-semibold">
-                            {fmtLKR(d.value)}
+                            {formatLkrPrice(d.value)}
                           </span>
                         </li>
                       ))}
@@ -1115,7 +1117,7 @@ export default function FinancePage() {
         <Card>
           <CardHeader
             title="Income"
-            subtitle={`${incomePagination.total} entries · ${fmtLKR(kpis.totalIncome)}`}
+            subtitle={`${incomePagination.total} entries · ${formatLkrPrice(kpis.totalIncome)}`}
             action={
               <Button size="sm" onClick={() => openForm("income")}>
                 <Plus className="h-3.5 w-3.5" /> Add income
@@ -1144,7 +1146,7 @@ export default function FinancePage() {
         <Card>
           <CardHeader
             title="Expenses"
-            subtitle={`${expensePagination.total} entries · ${fmtLKR(kpis.totalExpense)}`}
+            subtitle={`${expensePagination.total} entries · ${formatLkrPrice(kpis.totalExpense)}`}
             action={
               <Button size="sm" onClick={() => openForm("expense")}>
                 <Plus className="h-3.5 w-3.5" /> Add expense
@@ -1204,7 +1206,7 @@ export default function FinancePage() {
               subtitle={
                 debtorsLoading
                   ? "Loading balances…"
-                  : `${debtorsSummary.debtorCount} students owe ${fmtLKR(debtorsSummary.totalOutstanding)}`
+                  : `${debtorsSummary.debtorCount} students owe ${formatLkrPrice(debtorsSummary.totalOutstanding)}`
               }
             />
             <div className="space-y-3 p-4 pt-0">
@@ -1228,7 +1230,7 @@ export default function FinancePage() {
                   className="text-xs"
                 >
                   <option value="all">All batches</option>
-                  {BATCHES.map((b) => (
+                  {batchOptions.map((b) => (
                     <option key={b} value={b}>
                       {b}
                     </option>
@@ -1317,7 +1319,7 @@ export default function FinancePage() {
                             item.outstanding > 0 ? "text-rose-500" : "text-emerald-500",
                           )}
                         >
-                          {item.outstanding > 0 ? fmtLKR(item.outstanding) : "Settled"}
+                          {item.outstanding > 0 ? formatLkrPrice(item.outstanding) : "Settled"}
                         </p>
                         <div className="mt-0.5 flex justify-end gap-1">
                           {item.paymentStatus && (
@@ -1329,8 +1331,8 @@ export default function FinancePage() {
 
                     <div className="space-y-1">
                       <div className="flex justify-between text-[10px] text-muted">
-                        <span>Paid: {fmtLKR(item.paidTotal)}</span>
-                        <span>Total: {fmtLKR(item.feeTotal)}</span>
+                        <span>Paid: {formatLkrPrice(item.paidTotal)}</span>
+                        <span>Total: {formatLkrPrice(item.feeTotal)}</span>
                       </div>
                       <ProgressBar
                         tone="teal"
@@ -1341,7 +1343,7 @@ export default function FinancePage() {
                     <div className="flex items-center justify-between pt-1">
                       <span className="text-[10px] text-muted">
                         {item.lastPaymentDate
-                          ? `Last: ${fmtDate(item.lastPaymentDate)}`
+                          ? `Last: ${formatShortDate(item.lastPaymentDate)}`
                           : "No payments yet"}
                       </span>
                       {item.outstanding > 0 && (
@@ -1424,7 +1426,7 @@ export default function FinancePage() {
         title="Delete transaction?"
         text={
           <>
-            “{delTx?.description}” ({fmtLKR(delTx?.amount ?? 0)}) will be removed from the ledger and balances recalculated.
+            “{delTx?.description}” ({formatLkrPrice(delTx?.amount ?? 0)}) will be removed from the ledger and balances recalculated.
           </>
         }
         confirmLabel="Delete"

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { fmtCompact, fmtLKR } from "@/lib/utils";
+import { fmtCompact, formatLkrPrice } from "@/lib/utils";
 
 export const COLORS = [
   "#7D41AB",
@@ -44,7 +44,7 @@ export function ChartTooltip({
             <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
             {p.name}
           </span>
-          <span className="num font-semibold text-ink">{money && typeof p.value === "number" ? fmtLKR(p.value) : `${p.value}${suffix}`}</span>
+          <span className="num font-semibold text-ink">{money && typeof p.value === "number" ? formatLkrPrice(p.value) : `${p.value}${suffix}`}</span>
         </div>
       ))}
     </div>

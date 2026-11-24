@@ -8,7 +8,7 @@ import { RecordPaymentModal } from "@/components/finance/RecordPaymentModal";
 import { useAuth } from "@/hooks/useAuth";
 import { ChartLegend, ChartTooltip, axisTick, cursorStyle, gridProps, moneyTick } from "@/components/analytics/chartParts";
 import { overviewApi, type OverviewResponse } from "@/lib/api";
-import { cn, fmtDate, fmtLKR, fmtTime } from "@/lib/utils";
+import { cn, formatLkrPrice, formatShortDate, formatTime } from "@/lib/utils";
 
 const EMPTY_OVERVIEW: OverviewResponse = {
   summary: { classesToday: 0, attendanceMarkedToday: 0, studentsWithPendingFees: 0 },
@@ -77,9 +77,9 @@ export default function OverviewPage() {
     { label: "Total teachers", value: String(kpiData.totalTeachers.value), icon: Users, gradient: "from-[#BC99D9] to-[#713E99]", color: "#9A6DBC", sub: `${kpiData.totalTeachers.activeTeachers} currently active` },
     { label: "Active modules", value: String(kpiData.activeModules.value), icon: BookOpen, gradient: "from-[#CBADE3] to-[#A774D1]", color: "#A774D1", sub: `${kpiData.activeModules.totalModules} modules in total` },
     { label: "Today's attendance", value: kpiData.todayAttendance.markedCount ? `${kpiData.todayAttendance.rate}%` : "—", icon: Percent, gradient: "from-[#7948A2] to-[#461A71]", color: "#7948A2", sub: `${kpiData.todayAttendance.markedCount} students marked today`, spark: kpiData.todayAttendance.spark },
-    { label: "Monthly income", value: fmtLKR(kpiData.monthlyIncome.value), icon: TrendingUp, gradient: "from-[#8B51BE] to-[#6D3599]", color: "#7D41AB", spark: kpiData.monthlyIncome.spark, delta: kpiData.monthlyIncome.delta },
-    { label: "Monthly expenses", value: fmtLKR(kpiData.monthlyExpenses.value), icon: TrendingDown, gradient: "from-[#4D1882] to-[#2B0A4D]", color: "#4D1882", spark: kpiData.monthlyExpenses.spark, delta: kpiData.monthlyExpenses.delta, deltaGoodWhenUp: false },
-    { label: "Outstanding payments", value: fmtLKR(kpiData.outstandingPayments.value), icon: Banknote, gradient: "from-[#693AA0] to-[#2F164E]", color: "#693AA0", sub: `${kpiData.outstandingPayments.studentsWithBalances} students with balances` },
+    { label: "Monthly income", value: formatLkrPrice(kpiData.monthlyIncome.value), icon: TrendingUp, gradient: "from-[#8B51BE] to-[#6D3599]", color: "#7D41AB", spark: kpiData.monthlyIncome.spark, delta: kpiData.monthlyIncome.delta },
+    { label: "Monthly expenses", value: formatLkrPrice(kpiData.monthlyExpenses.value), icon: TrendingDown, gradient: "from-[#4D1882] to-[#2B0A4D]", color: "#4D1882", spark: kpiData.monthlyExpenses.spark, delta: kpiData.monthlyExpenses.delta, deltaGoodWhenUp: false },
+    { label: "Outstanding payments", value: formatLkrPrice(kpiData.outstandingPayments.value), icon: Banknote, gradient: "from-[#693AA0] to-[#2F164E]", color: "#693AA0", sub: `${kpiData.outstandingPayments.studentsWithBalances} students with balances` },
   ];
 
   return (
@@ -137,7 +137,7 @@ export default function OverviewPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">{c.title}</p>
-                  <p className="num truncate text-[11px] text-muted">{fmtTime(c.start)} · {c.teacherName}</p>
+                  <p className="num truncate text-[11px] text-muted">{formatTime(c.start)} · {c.teacherName}</p>
                 </div>
                 <a href={c.link} target="_blank" rel="noreferrer" aria-label="Join class" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-brand hover:bg-primary/10"><Video className="h-4 w-4" /></a>
               </div>
@@ -182,7 +182,7 @@ export default function OverviewPage() {
             {activityFeeds.recentRegistrations.map((s) => (
               <Link key={s.id} to={`/dashboard/students?q=${s.id}`} className="flex items-center gap-3 rounded-xl p-2.5 hover:bg-surface-2">
                 <Avatar name={s.fullName} size="sm" />
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{s.fullName}</p><p className="truncate text-[11px] text-muted">{s.batch} · {fmtDate(s.enrollmentDate, false)}</p></div>
+                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{s.fullName}</p><p className="truncate text-[11px] text-muted">{s.batch} · {formatShortDate(s.enrollmentDate)}</p></div>
                 <StatusBadge status={s.status} />
               </Link>
             ))}
@@ -195,8 +195,8 @@ export default function OverviewPage() {
             {activityFeeds.recentPayments.map((p) => (
               <div key={p.id} className="flex items-center gap-3 rounded-xl p-2.5 hover:bg-surface-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500"><Wallet className="h-4 w-4" /></div>
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{p.studentName}</p><p className="truncate text-[11px] text-muted">{fmtDate(p.date, false)} · {p.method}</p></div>
-                <span className="num text-xs font-bold text-emerald-500">+{fmtLKR(p.amount)}</span>
+                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{p.studentName}</p><p className="truncate text-[11px] text-muted">{formatShortDate(p.date)} · {p.method}</p></div>
+                <span className="num text-xs font-bold text-emerald-500">+{formatLkrPrice(p.amount)}</span>
               </div>
             ))}
             {activityFeeds.recentPayments.length === 0 && <p className="py-8 text-center text-sm text-muted">No recent payments</p>}
@@ -207,7 +207,7 @@ export default function OverviewPage() {
           <div className="space-y-2 p-4">
             {activityFeeds.activeNotices.map((n) => (
               <Link key={n.id} to="/dashboard/notices" className="block rounded-2xl border border-line p-3 transition hover:border-primary/40">
-                <div className="mb-1 flex items-center justify-between gap-2"><StatusBadge status={n.priority} /><span className="text-[11px] text-muted">until {fmtDate(n.expiryDate, false)}</span></div>
+                <div className="mb-1 flex items-center justify-between gap-2"><StatusBadge status={n.priority} /><span className="text-[11px] text-muted">until {formatShortDate(n.expiryDate)}</span></div>
                 <p className={cn("line-clamp-2 text-sm font-semibold leading-snug")}>{n.title}</p>
                 <p className="mt-1 truncate text-[11px] text-muted">{n.batches.length ? n.batches.join(", ") : "All batches"}</p>
               </Link>

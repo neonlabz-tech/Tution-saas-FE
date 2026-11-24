@@ -585,6 +585,15 @@ export interface DeleteOnlineClassResponse {
 export type NoticePriority = "low" | "medium" | "high";
 /** Computed by the backend from status + publish/expiry dates. "expired" is only returned to admins. */
 export type NoticeState = "draft" | "scheduled" | "active" | "expired";
+
+export interface NoticeAttachment {
+  key: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  uploadedAt?: string;
+}
+
 export interface Notice {
   id: string;
   title: string;
@@ -594,9 +603,15 @@ export interface Notice {
   batches: string[];
   publishDate: string;
   expiryDate: string;
+  /** 24h local time (HH:mm), e.g. "23:59" or "14:30" */
+  expiryTime?: string;
+  /** Full ISO-8601 UTC expiry timestamp used by R2 auto-cleanup */
+  expiresAt?: string;
   priority: NoticePriority;
   status: "published" | "draft";
   state?: NoticeState;
+  attachment?: NoticeAttachment | null;
+  attachmentExpired?: boolean;
 }
 
 export type BatchStatus = "active" | "upcoming" | "archived";
@@ -688,4 +703,112 @@ export interface DeleteNotificationResponse {
   deleted: boolean;
   id?: string;
 }
+
+/* =========================================================================
+   Analytics Types
+   ========================================================================= */
+
+export type AnalyticsPeriod = "week" | "month" | "year" | "custom";
+
+export interface AnalyticsPeriodParams {
+  period: AnalyticsPeriod;
+  from?: string;
+  to?: string;
+  batch?: string;
+  moduleId?: string;
+  status?: string;
+}
+
+export interface AnalyticsPeriodRange {
+  period: AnalyticsPeriod;
+  from: string;
+  to: string;
+  span: number;
+}
+
+export interface AnalyticsKpis {
+  totalIncome: number;
+  totalExpense: number;
+  netBalance: number;
+  totalOutstanding: number;
+  activeStudents: number;
+  newEnrollments: number;
+  attendanceRate: number;
+}
+
+export interface AnalyticsFinanceSeriesItem {
+  key: string;
+  label: string;
+  income: number;
+  expense: number;
+  net: number;
+}
+
+export interface AnalyticsEnrollmentSeriesItem {
+  key: string;
+  label: string;
+  added: number;
+  total: number;
+}
+
+export interface AnalyticsAttendanceSeriesItem {
+  key: string;
+  label: string;
+  rate: number;
+  present: number;
+  late: number;
+  absent: number;
+  excused: number;
+}
+
+export interface AnalyticsExpenseCategoryItem {
+  name: string;
+  value: number;
+}
+
+export interface AnalyticsPaymentStatusItem {
+  name: "paid" | "partial" | "unpaid" | "unassigned";
+  value: number;
+}
+
+export interface AnalyticsOverviewResponse {
+  period: AnalyticsPeriodRange;
+  granularity: "daily" | "monthly";
+  kpis: AnalyticsKpis;
+  financeSeries: AnalyticsFinanceSeriesItem[];
+  enrollmentSeries: AnalyticsEnrollmentSeriesItem[];
+  attendanceSeries: AnalyticsAttendanceSeriesItem[];
+  expenseByCategory: AnalyticsExpenseCategoryItem[];
+  paymentStatusBreakdown: AnalyticsPaymentStatusItem[];
+}
+
+export interface ModulePerformanceItem {
+  id: string;
+  code: string;
+  name: string;
+  fee: number;
+  status: string;
+  teacherId: string | null;
+  teacher: { id: string; fullName: string } | null;
+  enrolledCount: number;
+  expectedRevenue: number;
+  collected: number;
+  owed: number;
+  collectionRate: number;
+  attendanceRate: number;
+}
+
+export interface ModulePerformanceResponse {
+  period: AnalyticsPeriodRange | null;
+  items: ModulePerformanceItem[];
+  summary: {
+    totalModules: number;
+    totalEnrolled: number;
+    totalExpectedRevenue: number;
+    totalCollected: number;
+    totalOwed: number;
+    averageAttendanceRate: number;
+  };
+}
+
 

@@ -37,11 +37,11 @@ import { listModules } from "@/api/modules";
 import { deleteOnlineClass, updateOnlineClass } from "@/api/onlineClasses";
 import { useOnlineClasses } from "@/hooks/useOnlineClasses";
 import { teachersApi, type TeacherListItem } from "@/lib/api";
-import { BATCHES } from "@/lib/constants";
+import { useBatches } from "@/hooks/useBatches";
 import { ClassDetailDrawer } from "@/components/calendar/ClassDetailDrawer";
 import { ClassFormModal, type ClassDraft } from "@/components/calendar/ClassFormModal";
 import { COLORS } from "@/components/analytics/chartParts";
-import { cn, fmtDate, fmtTime, pad, toISO, toLocalDT } from "@/lib/utils";
+import { cn, formatShortDate, formatTime, pad, toISO, toLocalDT } from "@/lib/utils";
 
 export default function OnlineClassesPage() {
   const toast = useToast();
@@ -56,6 +56,7 @@ export default function OnlineClassesPage() {
 
   const [modules, setModules] = useState<ModuleListItem[]>([]);
   const [teachers, setTeachers] = useState<TeacherListItem[]>([]);
+  const { batches: batchOptions } = useBatches(modules.flatMap((m) => m.batches));
 
   const [form, setForm] = useState<{ open: boolean; item: OnlineClassItem | null; draft: ClassDraft }>({
     open: false,
@@ -179,7 +180,7 @@ export default function OnlineClassesPage() {
       const updated = await updateOnlineClass(id, { start, end });
       setClasses((cur) => cur.map((c) => (c.id === id ? { ...c, ...updated } : c)));
       if (detailId === id) setDetailRefreshKey((k) => k + 1);
-      toast.success(`Class moved to ${start.slice(0, 10)} · ${fmtTime(start)}–${fmtTime(end)}`);
+      toast.success(`Class moved to ${start.slice(0, 10)} · ${formatTime(start)}–${formatTime(end)}`);
     } catch (err: unknown) {
       info.revert();
       setClasses(prevClasses);
@@ -236,9 +237,9 @@ export default function OnlineClassesPage() {
         accessorFn: (c) => c.start,
         cell: ({ row }) => (
           <div>
-            <p className="text-sm font-medium">{fmtDate(row.original.start)}</p>
+            <p className="text-sm font-medium">{formatShortDate(row.original.start)}</p>
             <p className="num text-[11px] text-muted">
-              {fmtTime(row.original.start)} – {fmtTime(row.original.end)}
+              {formatTime(row.original.start)} – {formatTime(row.original.end)}
             </p>
           </div>
         ),
@@ -358,7 +359,7 @@ export default function OnlineClassesPage() {
         <Field label="Batch">
           <Select value={batch} onChange={(e) => setBatch(e.target.value)}>
             <option value="all">All batches</option>
-            {BATCHES.map((b) => (
+            {batchOptions.map((b) => (
               <option key={b} value={b}>
                 {b}
               </option>
@@ -475,7 +476,7 @@ export default function OnlineClassesPage() {
                       <span className="min-w-0 flex-1">
                         <span className="line-clamp-1 block text-sm font-bold">{c.title}</span>
                         <span className="num mt-0.5 block text-[11px] text-muted">
-                          {c.start.slice(5, 10)} · {fmtTime(c.start)} – {fmtTime(c.end)}
+                          {c.start.slice(5, 10)} · {formatTime(c.start)} – {formatTime(c.end)}
                         </span>
                         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <Badge tone="primary">{resolveModuleCode(c)}</Badge>

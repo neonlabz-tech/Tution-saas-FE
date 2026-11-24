@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { rotateStudentQr } from "@/api/students";
 import { downloadCardPdf, downloadCardPng, printCard } from "@/lib/qrcard";
-import { fmtDateTime, qrPayload } from "@/lib/utils";
+import { formatDateTime, qrPayload } from "@/lib/utils";
 
 type QRStudent = Student | StudentListItem | StudentDetail;
 
@@ -82,7 +82,7 @@ export function StudentQRCard({
         </span>
         {rotatedAt && (
           <span>
-            Last rotated: <span className="font-medium text-ink">{fmtDateTime(rotatedAt)}</span>
+            Last rotated: <span className="font-medium text-ink">{formatDateTime(rotatedAt)}</span>
           </span>
         )}
       </div>

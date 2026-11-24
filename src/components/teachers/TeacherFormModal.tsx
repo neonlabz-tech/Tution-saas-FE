@@ -118,7 +118,24 @@ function Inner({
         <Controller control={control} name="moduleIds" render={({ field }) => <MultiSelect value={field.value} onChange={field.onChange} options={modules.map((m) => ({ value: m.id, label: `${m.name} (${m.code})` }))} />} />
       </Field>
       <Field label="Assigned batches (optional)" error={errors.batches?.message} className="sm:col-span-2">
-        <Controller control={control} name="batches" render={({ field }) => <MultiSelect value={field.value} onChange={field.onChange} options={batchOptions.map((b) => ({ value: b, label: b }))} />} />
+        <Controller
+          control={control}
+          name="batches"
+          render={({ field }) => (
+            <MultiSelect
+              value={field.value}
+              onChange={field.onChange}
+              options={batchOptions.map((b) => ({ value: b, label: b }))}
+              allowCustom
+              onAddCustom={(newBatch) => {
+                const trimmed = newBatch.trim();
+                if (trimmed) {
+                  setBatchOptions((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+                }
+              }}
+            />
+          )}
+        />
       </Field>
     </form>
   );
