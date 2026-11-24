@@ -20,10 +20,10 @@ export default function StudentOverviewPage() {
     if (!data) return null;
     const now = toLocalDT(new Date());
     const weekEnd = `${toISO(addDays(new Date(), 7))}T23:59`;
-    const upcomingOnline = data.onlineClasses.filter((c) => c.status === "scheduled" && c.end >= now).slice(0, 5);
-    const weekOnline = data.onlineClasses.filter((c) => c.status === "scheduled" && c.end >= now && c.start <= weekEnd).length;
-    const weekPhysical = data.physicalClasses.filter((c) => c.status === "scheduled" && c.end >= now && c.start <= weekEnd).length;
-    const openAssignments = data.assignments.filter((a) => a.status === "pending" || a.status === "overdue");
+    const upcomingOnline = (data.onlineClasses || []).filter((c) => c.status === "scheduled" && c.end >= now).slice(0, 5);
+    const weekOnline = (data.onlineClasses || []).filter((c) => c.status === "scheduled" && c.end >= now && c.start <= weekEnd).length;
+    const weekPhysical = (data.physicalClasses || []).filter((c) => c.status === "scheduled" && c.end >= now && c.start <= weekEnd).length;
+    const openAssignments = (data.assignments || []).filter((a) => a.status === "pending" || a.status === "overdue");
     return { upcomingOnline, weekOnline, weekPhysical, openAssignments, overdueAssignments: openAssignments.filter((a) => a.status === "overdue").length };
   }, [data]);
 

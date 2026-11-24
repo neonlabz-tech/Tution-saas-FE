@@ -23,11 +23,11 @@ export default function StudentModuleDetailPage() {
   const scoped = useMemo(() => {
     if (!data) return null;
     return {
-      online: data.onlineClasses.filter((c) => c.moduleId === moduleId),
-      physical: data.physicalClasses.filter((c) => c.moduleId === moduleId),
-      assignments: data.assignments.filter((a) => a.moduleId === moduleId),
-      materials: data.materials.filter((x) => x.moduleId === moduleId),
-      recordings: data.recordings.filter((r) => r.moduleId === moduleId),
+      online: (data.onlineClasses || []).filter((c) => c.moduleId === moduleId),
+      physical: (data.physicalClasses || []).filter((c) => c.moduleId === moduleId),
+      assignments: (data.assignments || []).filter((a) => a.moduleId === moduleId),
+      materials: (data.materials || []).filter((x) => x.moduleId === moduleId),
+      recordings: (data.recordings || []).filter((r) => r.moduleId === moduleId),
     };
   }, [data, moduleId]);
   const color = data ? COLORS[Math.max(0, data.modules.findIndex((m) => m.id === moduleId)) % COLORS.length] : COLORS[0];
