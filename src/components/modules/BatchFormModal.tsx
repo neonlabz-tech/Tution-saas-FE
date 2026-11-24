@@ -49,7 +49,7 @@ const ABBREVIATIONS: Record<string, string> = {
   "tamil": "TAM",
 };
 
-export function generateCodeFromName(name: string, category: BatchCategory, year?: string): string {
+export function generateCodeFromName(name: string, _category: BatchCategory, year?: string): string {
   const trimmed = name.trim();
   if (!trimmed) return "";
 

@@ -3,6 +3,7 @@
 import { buildMockData, type MockData } from "@/data/mock";
 import { buildAssignments, buildMaterials, buildPhysicalClasses, buildRecordings, describePattern, hashStr } from "@/data/mock/student";
 import type { DuePayment, StudentModule, StudentPayment, StudentPortalData } from "@/types/student";
+import type { Notice } from "@/types";
 import { addDays, toISO, toLocalDT, todayISO } from "@/lib/utils";
 
 export const INSTITUTE_NAME = "Bright Future Institute";
@@ -70,9 +71,11 @@ export function buildPortalData(studentId: string | null): StudentPortalData {
   const materials = buildMaterials(myModules);
   const recordings = buildRecordings(onlineClasses).sort((a, b) => b.date.localeCompare(a.date));
 
-  const notices = d.notices
+  const rawNotices: Notice[] = (d as unknown as { notices?: Notice[] }).notices ?? [];
+  const priorityRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  const notices = rawNotices
     .filter((n) => n.status === "published" && n.publishDate <= today && n.expiryDate >= today && (n.batches.length === 0 || n.batches.includes(student.batch)))
-    .sort((a, b) => ({ high: 0, medium: 1, low: 2 })[a.priority] - ({ high: 0, medium: 1, low: 2 })[b.priority] || b.publishDate.localeCompare(a.publishDate));
+    .sort((a, b) => (priorityRank[a.priority] ?? 1) - (priorityRank[b.priority] ?? 1) || b.publishDate.localeCompare(a.publishDate));
 
   const modules: StudentModule[] = myModules.map((m) => {
     const online = onlineClasses.filter((c) => c.moduleId === m.id);

@@ -21,12 +21,15 @@ const sizes = {
 export function Button({
   variant = "primary",
   size = "md",
+  loading,
   className,
+  disabled,
   ...props
-}: ComponentProps<"button"> & { variant?: keyof typeof variants; size?: keyof typeof sizes }) {
+}: ComponentProps<"button"> & { variant?: keyof typeof variants; size?: keyof typeof sizes; loading?: boolean }) {
   return (
     <button
       type="button"
+      disabled={disabled || loading}
       className={cn(
         "inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap font-semibold transition-all active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
         variants[variant],

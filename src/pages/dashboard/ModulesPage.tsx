@@ -233,8 +233,6 @@ export default function ModulesPage() {
     refresh: refreshDetail,
   } = useModuleDetail(detailId, detailRefreshKey);
 
-  const { batches: batchOptions, registerBatches } = useBatches(modules.flatMap((m) => m.batches));
-
   const teacherMap = useMemo(() => new Map(teachers.map((t) => [t.id, t])), [teachers]);
 
   const resolveTeacherName = (m: ModuleListItem): string | null => {
@@ -870,10 +868,8 @@ export default function ModulesPage() {
                 <div className={cn(patchingField === "batches" && "pointer-events-none opacity-60")}>
                   <MultiSelect
                     value={detail.batches}
-                    options={batchOptions.map((b) => ({ value: b, label: b }))}
+                    options={availableBatchNames.map((b) => ({ value: b, label: b }))}
                     onChange={(v) => void handleInlineBatchesChange(v)}
-                    allowCustom
-                    onAddCustom={(newBatch) => registerBatches([newBatch])}
                   />
                 </div>
               </Field>
