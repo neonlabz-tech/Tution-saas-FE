@@ -252,13 +252,13 @@ export function Tabs<T extends string>({
 }) {
   const gid = useId();
   return (
-    <div className={cn("inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-surface-2 p-1", className)}>
+    <div className={cn("inline-flex max-w-full gap-1 overflow-x-auto no-scrollbar overscroll-x-contain rounded-2xl bg-surface-2 p-1", className)}>
       {items.map((it) => (
         <button
           key={it.id}
           type="button"
           onClick={() => onChange(it.id)}
-          className={cn("relative flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors", value === it.id ? "text-ink" : "text-muted hover:text-ink")}
+          className={cn("relative flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors", value === it.id ? "text-ink" : "text-muted hover:text-ink")}
         >
           {value === it.id && <motion.span layoutId={`tab-${gid}`} className="absolute inset-0 rounded-xl bg-surface shadow-sm" transition={{ type: "spring", bounce: 0.2, duration: 0.4 }} />}
           <span className="relative flex items-center gap-2">

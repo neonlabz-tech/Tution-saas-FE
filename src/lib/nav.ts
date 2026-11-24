@@ -34,7 +34,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "Teachers", route: "/dashboard/teachers", icon: Users },
       { title: "Modules", route: "/dashboard/modules", icon: BookOpen },
       { title: "Attendance", route: "/dashboard/attendance", icon: ClipboardCheck },
-      { title: "Online Classes", route: "/dashboard/online-classes", icon: CalendarDays },
+      { title: "Classes", route: "/dashboard/online-classes", icon: CalendarDays },
     ],
   },
   {

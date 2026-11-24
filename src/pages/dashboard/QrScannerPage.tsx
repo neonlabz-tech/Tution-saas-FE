@@ -523,7 +523,7 @@ export default function QrScannerPage() {
                 setManual("");
               }}
             >
-              <div className="flex gap-2 relative">
+              <div className="flex flex-col sm:flex-row gap-2 relative">
                 <div className="relative flex-1">
                   <Input
                     value={manual}
@@ -612,7 +612,7 @@ export default function QrScannerPage() {
                   )}
                 </div>
 
-                <Button type="submit" disabled={!manual.trim()}>
+                <Button type="submit" disabled={!manual.trim()} className="w-full sm:w-auto">
                   Verify
                 </Button>
               </div>
