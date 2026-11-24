@@ -462,6 +462,38 @@ export const settingsApi = {
   },
 };
 
+export interface UploadResult {
+  url: string;
+  key: string;
+  bucket: string;
+  size?: number;
+  mimeType?: string;
+}
+
+export const storageApi = {
+  upload(file: File, folder?: string) {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (folder) formData.append("folder", folder);
+    return request<UploadResult>("/storage/upload", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  uploadBase64(base64: string, folder?: string, prefix?: string) {
+    return request<UploadResult>("/storage/upload-base64", {
+      method: "POST",
+      body: JSON.stringify({ base64, folder, prefix }),
+    });
+  },
+  delete(key: string) {
+    return request<{ success: boolean; message: string }>(
+      `/storage?key=${encodeURIComponent(key)}`,
+      { method: "DELETE" },
+    );
+  },
+};
+
 export const teachersApi = {
   list(params?: { q?: string; moduleId?: string; batch?: string; status?: string }) {
     const qs = new URLSearchParams();

@@ -51,19 +51,19 @@ export default function AnalyticsPage() {
   const paymentStatus = useMemo(() => {
     const act = students.filter((s) => s.status !== "graduated" && feeTotal(s.id) > 0);
     return [
-      { name: "Fully paid", value: act.filter((s) => outstanding(s.id) === 0).length, color: "#10B981" },
-      { name: "Partially paid", value: act.filter((s) => outstanding(s.id) > 0 && paidTotal(s.id) > 0).length, color: "#F59E0B" },
-      { name: "Unpaid", value: act.filter((s) => paidTotal(s.id) === 0).length, color: "#F43F5E" },
+      { name: "Fully paid", value: act.filter((s) => outstanding(s.id) === 0).length, color: "#7D41AB" },
+      { name: "Partially paid", value: act.filter((s) => outstanding(s.id) > 0 && paidTotal(s.id) > 0).length, color: "#A771CF" },
+      { name: "Unpaid", value: act.filter((s) => paidTotal(s.id) === 0).length, color: "#4D1882" },
     ];
   }, [students, feeTotal, outstanding, paidTotal]);
 
   const kpis = [
-    { l: "Revenue", v: formatLkrPrice(income), i: TrendingUp, c: "from-emerald-500 to-teal-500" },
-    { l: "Expenses", v: formatLkrPrice(expense), i: TrendingDown, c: "from-rose-500 to-pink-500" },
-    { l: "Profit margin", v: `${margin}%`, i: Percent, c: "from-indigo-500 to-violet-500" },
-    { l: "New students", v: String(newStudents), i: GraduationCap, c: "from-sky-500 to-indigo-500" },
-    { l: "Avg attendance", v: `${attendanceRate(attRecs)}%`, i: UserCheck, c: "from-teal-500 to-emerald-500" },
-    { l: "Outstanding", v: formatLkrPrice(totalOut), i: Banknote, c: "from-amber-500 to-orange-500" },
+    { l: "Revenue", v: formatLkrPrice(income), i: TrendingUp, c: "from-[#8B51BE] to-[#6D3599]" },
+    { l: "Expenses", v: formatLkrPrice(expense), i: TrendingDown, c: "from-[#4D1882] to-[#2B0A4D]" },
+    { l: "Profit margin", v: `${margin}%`, i: Percent, c: "from-[#A771CF] to-[#552780]" },
+    { l: "New students", v: String(newStudents), i: GraduationCap, c: "from-[#BC99D9] to-[#713E99]" },
+    { l: "Avg attendance", v: `${attendanceRate(attRecs)}%`, i: UserCheck, c: "from-[#CBADE3] to-[#A774D1]" },
+    { l: "Outstanding", v: formatLkrPrice(totalOut), i: Banknote, c: "from-[#693AA0] to-[#2F164E]" },
   ];
 
   return (
@@ -82,48 +82,48 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard title="Revenue trend" subtitle="Total income over time" legend={[{ label: "Income", color: "#4F46E5" }]}>
+        <ChartCard title="Revenue trend" subtitle="Total income over time" legend={[{ label: "Income", color: "#7D41AB" }]}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={series} margin={{ left: -8, right: 8, top: 8 }}>
               <CartesianGrid {...gridProps} /><XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" /><YAxis tick={axisTick} tickLine={false} axisLine={false} tickFormatter={moneyTick} />
               <Tooltip content={<ChartTooltip money />} />
-              <Line type="monotone" dataKey="income" name="Income" stroke="#4F46E5" strokeWidth={3} dot={{ r: 3, fill: "#4F46E5" }} activeDot={{ r: 6 }} />
+              <Line type="monotone" dataKey="income" name="Income" stroke="#7D41AB" strokeWidth={3} dot={{ r: 3, fill: "#7D41AB" }} activeDot={{ r: 6 }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Income vs expenses" subtitle="Side-by-side comparison" legend={[{ label: "Income", color: "#14B8A6" }, { label: "Expenses", color: "#F43F5E" }]}>
+        <ChartCard title="Income vs expenses" subtitle="Side-by-side comparison" legend={[{ label: "Income", color: "#7D41AB" }, { label: "Expenses", color: "#4D1882" }]}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={series} margin={{ left: -8, right: 8, top: 8 }}>
               <CartesianGrid {...gridProps} /><XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" /><YAxis tick={axisTick} tickLine={false} axisLine={false} tickFormatter={moneyTick} />
               <Tooltip content={<ChartTooltip money />} cursor={cursorStyle} />
-              <Bar dataKey="income" name="Income" fill="#14B8A6" radius={[6, 6, 0, 0]} maxBarSize={26} />
-              <Bar dataKey="expense" name="Expenses" fill="#F43F5E" radius={[6, 6, 0, 0]} maxBarSize={26} />
+              <Bar dataKey="income" name="Income" fill="#7D41AB" radius={[6, 6, 0, 0]} maxBarSize={26} />
+              <Bar dataKey="expense" name="Expenses" fill="#4D1882" radius={[6, 6, 0, 0]} maxBarSize={26} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Student enrollment" subtitle="Total students and new enrollments" legend={[{ label: "Total", color: "#8B5CF6" }, { label: "New", color: "#F59E0B" }]}>
+        <ChartCard title="Student enrollment" subtitle="Total students and new enrollments" legend={[{ label: "Total", color: "#7D41AB" }, { label: "New", color: "#BC99D9" }]}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={enroll} margin={{ left: -15, right: 8, top: 8 }}>
               <defs>
-                <linearGradient id="enrFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.4} /><stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} /></linearGradient>
+                <linearGradient id="enrFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7D41AB" stopOpacity={0.4} /><stop offset="100%" stopColor="#7D41AB" stopOpacity={0} /></linearGradient>
               </defs>
               <CartesianGrid {...gridProps} /><XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" /><YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip content={<ChartTooltip />} />
-              <Area type="monotone" dataKey="total" name="Total students" stroke="#8B5CF6" strokeWidth={2.5} fill="url(#enrFill)" />
-              <Area type="monotone" dataKey="added" name="New enrollments" stroke="#F59E0B" strokeWidth={2} fill="#F59E0B" fillOpacity={0.15} />
+              <Area type="monotone" dataKey="total" name="Total students" stroke="#7D41AB" strokeWidth={2.5} fill="url(#enrFill)" />
+              <Area type="monotone" dataKey="added" name="New enrollments" stroke="#BC99D9" strokeWidth={2} fill="#BC99D9" fillOpacity={0.2} />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Attendance trend" subtitle="Daily attendance rate (%)" legend={[{ label: "Rate", color: "#14B8A6" }]}>
+        <ChartCard title="Attendance trend" subtitle="Daily attendance rate (%)" legend={[{ label: "Rate", color: "#A771CF" }]}>
           {att.length === 0 ? <Empty /> : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={att} margin={{ left: -15, right: 8, top: 8 }}>
                 <CartesianGrid {...gridProps} /><XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" /><YAxis domain={[50, 100]} tick={axisTick} tickLine={false} axisLine={false} unit="%" />
                 <Tooltip content={<ChartTooltip suffix="%" />} />
-                <Line type="monotone" dataKey="rate" name="Attendance" stroke="#14B8A6" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="rate" name="Attendance" stroke="#A771CF" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           )}

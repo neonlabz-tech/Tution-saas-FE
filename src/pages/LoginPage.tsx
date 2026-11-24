@@ -129,7 +129,15 @@ export default function LoginPage() {
       const res = await authApi.forgotPassword({ email: forgotEmail.trim() });
       toast.success(res.message);
       setForgotSent(true);
-      setDevResetUrl(res.devResetUrl);
+      if (res.devResetUrl) {
+        const tokenMatch = res.devResetUrl.match(/token=([a-zA-Z0-9]+)/);
+        const normalizedUrl = tokenMatch
+          ? `${window.location.origin}/reset-password?token=${tokenMatch[1]}`
+          : res.devResetUrl;
+        setDevResetUrl(normalizedUrl);
+      } else {
+        setDevResetUrl(undefined);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send reset link");
     } finally {
@@ -180,7 +188,7 @@ export default function LoginPage() {
         {view === "forgot" ? (
           forgotSent ? (
             <div className="space-y-5 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#7D41AB]/15 text-[#7D41AB]">
                 <CheckCircle2 className="h-6 w-6" />
               </div>
               <div>
@@ -227,7 +235,7 @@ export default function LoginPage() {
                     aria-invalid={Boolean(forgotError)}
                     className={cn(
                       "pl-10",
-                      forgotError && "border-rose-500 focus:border-rose-500 focus:ring-rose-500/15",
+                      forgotError && "border-[#4D1882] focus:border-[#4D1882] focus:ring-[#4D1882]/15",
                     )}
                   />
                 </div>
@@ -267,7 +275,7 @@ export default function LoginPage() {
                   }}
                   placeholder="admin@gmail.com"
                   aria-invalid={Boolean(loginErrors.email)}
-                  className={cn("pl-10", loginErrors.email && "border-rose-500 focus:border-rose-500")}
+                  className={cn("pl-10", loginErrors.email && "border-[#4D1882] focus:border-[#4D1882]")}
                 />
               </div>
             </Field>
@@ -286,7 +294,7 @@ export default function LoginPage() {
                   }}
                   placeholder="Enter your password"
                   aria-invalid={Boolean(loginErrors.password)}
-                  className={cn("pl-10 pr-10", loginErrors.password && "border-rose-500 focus:border-rose-500")}
+                  className={cn("pl-10 pr-10", loginErrors.password && "border-[#4D1882] focus:border-[#4D1882]")}
                 />
                 <button
                   type="button"

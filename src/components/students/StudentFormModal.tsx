@@ -7,11 +7,12 @@ import { Modal } from "@/components/ui/overlays";
 import { Button, Field, Input, MultiSelect, Select, Skeleton, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { listModules } from "@/api/modules";
+import { listBatches } from "@/api/batches";
 import { createStudentWithMeta, getStudentById, updateStudent } from "@/api/students";
 import { createNotification } from "@/api/notifications";
 import { useAuth } from "@/hooks/useAuth";
 import { applyApiValidationErrors } from "@/lib/api";
-import { useBatches } from "@/hooks/useBatches";
+import { registerBatches } from "@/hooks/useBatches";
 import { toDateInput, todayISO } from "@/lib/utils";
 
 const ALLOWED_NAV_KEYS = new Set([
@@ -109,13 +110,29 @@ function Inner({
 }) {
   const toast = useToast();
   const { user } = useAuth();
-  const { batches: batchOptions, registerBatches } = useBatches(item?.batch ? [item.batch] : undefined);
   const [customBatch, setCustomBatch] = useState(false);
   const [modules, setModules] = useState<Module[]>(modulesProp ?? []);
   const [loadingModules, setLoadingModules] = useState(!modulesProp?.length);
+  const [batchOptions, setBatchOptions] = useState<string[]>(() => (item?.batch ? [item.batch] : []));
   const [loadingItem, setLoadingItem] = useState(
     Boolean(item?.id && (item.dob === undefined || item.address === undefined || item.guardianName === undefined)),
   );
+
+  useEffect(() => {
+    let active = true;
+    listBatches()
+      .then((data) => {
+        if (active) {
+          const names = data.map((b) => b.name);
+          const current = item?.batch ? [item.batch] : [];
+          setBatchOptions(Array.from(new Set([...current, ...names])));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [item?.batch]);
 
   const {
     register,
@@ -336,7 +353,7 @@ function Inner({
             />
           ) : (
             <Select {...register("batch")}>
-              <option value="">Select batch…</option>
+              <option value="">Select a batch</option>
               {batchOptions.map((b) => (
                 <option key={b} value={b}>
                   {b}

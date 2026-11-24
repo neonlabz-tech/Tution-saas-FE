@@ -5,12 +5,12 @@ import { cn, initials } from "@/lib/utils";
 
 /* ---------- Button ---------- */
 const variants = {
-  primary: "bg-gradient-to-br from-primary to-violet-600 text-white shadow-lg shadow-primary/25 hover:brightness-110",
+  primary: "bg-gradient-to-br from-primary to-[#6D3599] text-white shadow-lg shadow-primary/25 hover:brightness-110",
   secondary: "border border-line bg-surface text-ink hover:bg-surface-2",
   ghost: "text-muted hover:bg-surface-2 hover:text-ink",
   soft: "bg-primary/10 text-brand hover:bg-primary/15",
-  danger: "bg-rose-500 text-white shadow-lg shadow-rose-500/20 hover:bg-rose-600",
-  dangerSoft: "bg-rose-500/10 text-rose-600 hover:bg-rose-500/15 dark:text-rose-400",
+  danger: "bg-[#4D1882] text-white shadow-lg shadow-[#4D1882]/20 hover:bg-[#3D1168]",
+  dangerSoft: "bg-[#4D1882]/10 text-[#4D1882] hover:bg-[#4D1882]/15 dark:text-[#CBADE3]",
 };
 const sizes = {
   sm: "h-8 gap-1.5 rounded-lg px-3 text-xs",
@@ -57,11 +57,11 @@ export function CardHeader({ title, subtitle, action, className }: { title: Reac
 /* ---------- Badge ---------- */
 const tones = {
   neutral: "bg-surface-2 text-muted",
-  primary: "bg-primary/10 text-brand",
-  teal: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
-  amber: "bg-amber-500/12 text-amber-600 dark:text-amber-400",
-  rose: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-  green: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  primary: "bg-primary/15 text-brand",
+  teal: "bg-[#BC99D9]/20 text-[#6D3599] dark:text-[#E8DAF3]",
+  amber: "bg-[#A771CF]/20 text-[#552780] dark:text-[#DEC8ED]",
+  rose: "bg-[#4D1882]/15 text-[#3D1168] dark:text-[#CBADE3]",
+  green: "bg-[#7D41AB]/15 text-[#6D3599] dark:text-[#DEC8ED]",
 };
 export type Tone = keyof typeof tones;
 export function Badge({ tone = "neutral", className, children }: { tone?: Tone; className?: string; children: ReactNode }) {
@@ -85,7 +85,7 @@ export function StatusBadge({ status }: { status: string }) {
 
 /* ---------- Form controls ---------- */
 const control =
-  "w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-ink placeholder:text-muted/70 transition focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/15 disabled:opacity-60";
+  "w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-ink placeholder:text-muted/70 transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/15 disabled:opacity-60";
 export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cn(control, "h-10", className)} {...props} />;
 }
@@ -218,12 +218,13 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
 
 /* ---------- Misc ---------- */
 const GRADS = [
-  "from-indigo-500 to-violet-500",
-  "from-teal-500 to-emerald-500",
-  "from-amber-500 to-orange-500",
-  "from-rose-500 to-pink-500",
-  "from-sky-500 to-indigo-500",
-  "from-fuchsia-500 to-purple-500",
+  "from-[#8B51BE] to-[#6D3599]",
+  "from-[#BC99D9] to-[#713E99]",
+  "from-[#A771CF] to-[#552780]",
+  "from-[#CBADE3] to-[#A774D1]",
+  "from-[#A774D1] to-[#461A71]",
+  "from-[#4D1882] to-[#2B0A4D]",
+  "from-[#693AA0] to-[#2F164E]",
 ];
 export function Avatar({ name, size = "md", className }: { name: string; size?: "sm" | "md" | "lg" | "xl"; className?: string }) {
   const h = [...name].reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -268,7 +269,7 @@ export function Tabs<T extends string>({
 }
 
 export function ProgressBar({ value, tone = "primary", className }: { value: number; tone?: "primary" | "teal" | "amber" | "rose"; className?: string }) {
-  const c = { primary: "bg-primary", teal: "bg-secondary", amber: "bg-accent", rose: "bg-rose-500" }[tone];
+  const c = { primary: "bg-primary", teal: "bg-secondary", amber: "bg-accent", rose: "bg-[#4D1882]" }[tone];
   return (
     <div className={cn("h-2 w-full overflow-hidden rounded-full bg-surface-2", className)}>
       <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, Math.max(0, value))}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className={cn("h-full rounded-full", c)} />

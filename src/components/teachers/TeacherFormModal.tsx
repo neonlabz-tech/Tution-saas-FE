@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/overlays";
 import { Button, Field, Input, MultiSelect, Select } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
-import { useBatches } from "@/hooks/useBatches";
+import { listBatches } from "@/api/batches";
 import { todayISO } from "@/lib/utils";
 
 const schema = z.object({
@@ -33,8 +33,26 @@ function Inner({
   onSubmittingChange: (submitting: boolean) => void;
 }) {
   const { teachers, modules, saveTeacher, teacherModules } = useAppData();
-  const { batches: batchOptions, registerBatches } = useBatches(item?.batches);
   const toast = useToast();
+  const [batchOptions, setBatchOptions] = useState<string[]>(() => {
+    return Array.isArray(item?.batches) ? [...item.batches] : [];
+  });
+
+  useEffect(() => {
+    let active = true;
+    listBatches()
+      .then((data) => {
+        if (active) {
+          const names = data.map((b) => b.name);
+          const current = Array.isArray(item?.batches) ? item.batches : [];
+          setBatchOptions(Array.from(new Set([...names, ...current])));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [item?.batches]);
   const {
     register,
     control,
@@ -100,7 +118,24 @@ function Inner({
         <Controller control={control} name="moduleIds" render={({ field }) => <MultiSelect value={field.value} onChange={field.onChange} options={modules.map((m) => ({ value: m.id, label: `${m.name} (${m.code})` }))} />} />
       </Field>
       <Field label="Assigned batches (optional)" error={errors.batches?.message} className="sm:col-span-2">
-        <Controller control={control} name="batches" render={({ field }) => <MultiSelect value={field.value} onChange={field.onChange} options={batchOptions.map((b) => ({ value: b, label: b }))} allowCustom onAddCustom={(newBatch) => registerBatches([newBatch])} />} />
+        <Controller
+          control={control}
+          name="batches"
+          render={({ field }) => (
+            <MultiSelect
+              value={field.value}
+              onChange={field.onChange}
+              options={batchOptions.map((b) => ({ value: b, label: b }))}
+              allowCustom
+              onAddCustom={(newBatch) => {
+                const trimmed = newBatch.trim();
+                if (trimmed) {
+                  setBatchOptions((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+                }
+              }}
+            />
+          )}
+        />
       </Field>
     </form>
   );

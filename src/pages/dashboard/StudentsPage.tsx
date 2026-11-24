@@ -1,19 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { SortingState } from "@tanstack/react-table";
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
-import type { Module, StudentDetail as StudentDetailType, StudentListItem, StudentSortBy } from "@/types";
+import { ArrowRightLeft, Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import type { BatchItem, Module, StudentDetail as StudentDetailType, StudentListItem, StudentSortBy } from "@/types";
 import { Avatar, Badge, Button, Card, PageHeader, SearchInput, Select, StatusBadge } from "@/components/ui/primitives";
 import { DataTable, type Columns } from "@/components/ui/data-table";
 import { ConfirmDialog } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
 import { listModules } from "@/api/modules";
+import { listBatches } from "@/api/batches";
 import { deleteStudent } from "@/api/students";
 import { useStudents } from "@/hooks/useStudents";
-import { useBatches } from "@/hooks/useBatches";
+import { BATCHES } from "@/lib/constants";
 import { StudentFormModal } from "@/components/students/StudentFormModal";
 import { StudentDetail } from "@/components/students/StudentDetail";
+import { MoveBatchModal } from "@/components/students/MoveBatchModal";
 import { RecordPaymentModal, type PaymentStudentSummary } from "@/components/finance/RecordPaymentModal";
 import { formatLkrPrice, formatShortDate } from "@/lib/utils";
 
@@ -47,6 +49,9 @@ export default function StudentsPage() {
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const [modules, setModules] = useState<Module[]>([]);
+  const [batches, setBatches] = useState<BatchItem[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [form, setForm] = useState<{ open: boolean; item: StudentListItem | StudentDetailType | null }>({
     open: false,
     item: null,
@@ -64,6 +69,11 @@ export default function StudentsPage() {
     const controller = new AbortController();
     listModules({}, controller.signal)
       .then(setModules)
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      });
+    listBatches({}, controller.signal)
+      .then(setBatches)
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
       });
@@ -118,10 +128,68 @@ export default function StudentsPage() {
   const items = data?.items ?? [];
   const pagination = data?.pagination ?? { total: 0, page, limit: PAGE_LIMIT, totalPages: 1 };
   const summary = data?.summary ?? { total: 0, activeCount: 0, filteredTotal: 0 };
-  const { batches: batchOptions } = useBatches(items.map((s) => s.batch));
 
   const columns = useMemo<Columns<StudentListItem>>(
     () => [
+      {
+        id: "select",
+        enableSorting: false,
+        header: () => {
+          const pageIds = items.map((s) => s.id);
+          const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+          const someSelected = pageIds.some((id) => selectedIds.has(id)) && !allSelected;
+          return (
+            <div className="flex items-center pl-1">
+              <input
+                type="checkbox"
+                aria-label="Select all students on this page"
+                checked={allSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = someSelected;
+                }}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    if (checked) {
+                      pageIds.forEach((id) => next.add(id));
+                    } else {
+                      pageIds.forEach((id) => next.delete(id));
+                    }
+                    return next;
+                  });
+                }}
+                className="h-4 w-4 rounded border-line text-primary focus:ring-primary/30 accent-primary cursor-pointer"
+              />
+            </div>
+          );
+        },
+        cell: ({ row }) => {
+          const id = row.original.id;
+          const isChecked = selectedIds.has(id);
+          return (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center pl-1"
+            >
+              <input
+                type="checkbox"
+                aria-label={`Select student ${row.original.fullName}`}
+                checked={isChecked}
+                onChange={() => {
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(id)) next.delete(id);
+                    else next.add(id);
+                    return next;
+                  });
+                }}
+                className="h-4 w-4 rounded border-line text-primary focus:ring-primary/30 accent-primary cursor-pointer"
+              />
+            </div>
+          );
+        },
+      },
       {
         id: "fullName",
         header: "Student",
@@ -220,8 +288,15 @@ export default function StudentsPage() {
         ),
       },
     ],
-    [moduleMap],
+    [moduleMap, items, selectedIds],
   );
+
+  const allBatchOptions = useMemo(() => {
+    const names = new Set<string>();
+    batches.forEach((b) => names.add(b.name));
+    BATCHES.forEach((b) => names.add(b));
+    return Array.from(names);
+  }, [batches]);
 
   const hasFilters = Boolean(debouncedQ || batch !== "all" || moduleId !== "all" || status !== "all");
   const headerDescription =
@@ -277,7 +352,7 @@ export default function StudentsPage() {
             aria-label="Filter by batch"
           >
             <option value="all">All batches</option>
-            {batchOptions.map((b) => (
+            {allBatchOptions.map((b) => (
               <option key={b} value={b}>
                 {b}
               </option>
@@ -397,6 +472,48 @@ export default function StudentsPage() {
         confirmLabel="Delete"
         confirmLoadingLabel="Deleting…"
         onConfirm={handleDeleteConfirm}
+      />
+
+      {/* Bulk action floating bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 flex items-center gap-3 rounded-2xl border border-line bg-surface/95 px-5 py-3 shadow-pop backdrop-blur-md animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">
+              {selectedIds.size}
+            </span>
+            <span>{selectedIds.size === 1 ? "student selected" : "students selected"}</span>
+          </div>
+          <div className="h-4 w-px bg-line" />
+          <Button
+            size="sm"
+            onClick={() => setMoveModalOpen(true)}
+            className="gap-1.5 shadow-md shadow-primary/25"
+          >
+            <ArrowRightLeft className="h-3.5 w-3.5" />
+            Move to Batch
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-muted hover:text-ink"
+          >
+            Clear
+          </Button>
+        </div>
+      )}
+
+      {/* Move Batch Modal */}
+      <MoveBatchModal
+        open={moveModalOpen}
+        studentIds={Array.from(selectedIds)}
+        batches={batches}
+        onClose={() => setMoveModalOpen(false)}
+        onSuccess={() => {
+          setSelectedIds(new Set());
+          refetch();
+          void refreshStudents();
+        }}
       />
     </>
   );

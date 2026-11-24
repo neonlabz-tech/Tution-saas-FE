@@ -1,19 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Building2, Check, ImagePlus, Mail, Monitor, Moon, Palette, Sun, Trash2, UserCog } from "lucide-react";
+import { Building2, ImagePlus, Mail, Trash2, UserCog } from "lucide-react";
 import { Avatar, Button, Card, CardHeader, Field, Input, PageHeader, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/useAuth";
-import { ACCENTS, useTheme, type ThemeMode } from "@/hooks/useTheme";
-import { authApi, settingsApi } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { authApi, settingsApi, storageApi } from "@/lib/api";
 
 export default function SettingsPage() {
   const toast = useToast();
   const { user, refreshUser } = useAuth();
-  const { mode, setMode, accent, setAccent } = useTheme();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [logo, setLogo] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [inst, setInst] = useState({
     name: "Bright Future Institute",
     email: "hello@brightfuture.lk",
@@ -58,13 +56,24 @@ export default function SettingsPage() {
     };
   }, []);
 
-  const onLogo = (f?: File) => {
+  const onLogo = async (f?: File) => {
     if (!f) return;
     if (!f.type.startsWith("image/")) return toast.error("Please choose an image file (PNG, JPG, SVG).");
     if (f.size > 2 * 1024 * 1024) return toast.error("Logo must be under 2 MB.");
-    const r = new FileReader();
-    r.onload = () => setLogo(String(r.result));
-    r.readAsDataURL(f);
+
+    setUploadingLogo(true);
+    try {
+      const res = await storageApi.upload(f, "logos");
+      setLogo(res.url);
+      toast.success("Logo uploaded to Cloudflare R2");
+    } catch {
+      // Fallback to local Data URL
+      const r = new FileReader();
+      r.onload = () => setLogo(String(r.result));
+      r.readAsDataURL(f);
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   const saveInstitute = async () => {
@@ -77,20 +86,6 @@ export default function SettingsPage() {
     } finally {
       setSaving(null);
     }
-  };
-
-  const handleModeChange = (nextMode: ThemeMode) => {
-    setMode(nextMode);
-    void settingsApi.updateAppearance({ mode: nextMode }).catch(() => {
-      /* local theme still applies */
-    });
-  };
-
-  const handleAccentChange = (nextAccent: string) => {
-    setAccent(nextAccent);
-    void settingsApi.updateAppearance({ accent: nextAccent }).catch(() => {
-      /* local theme still applies */
-    });
   };
 
   const saveProfile = async () => {
@@ -125,17 +120,11 @@ export default function SettingsPage() {
     }
   };
 
-  const modes: { id: ThemeMode; label: string; icon: typeof Sun }[] = [
-    { id: "light", label: "Light", icon: Sun },
-    { id: "dark", label: "Dark", icon: Moon },
-    { id: "system", label: "System", icon: Monitor },
-  ];
-
   return (
     <>
-      <PageHeader title="Settings" description="Institute profile, appearance and your account." />
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="xl:col-span-2">
+      <PageHeader title="Settings" description="Institute profile and administrator account." />
+      <div className="grid gap-6">
+        <Card>
           <CardHeader title={<span className="flex items-center gap-2"><Building2 className="h-4 w-4 text-brand" /> Institute profile</span>} subtitle="Shown on student QR cards and reports" />
           <div className="grid gap-6 p-5 lg:grid-cols-[220px_1fr]">
             <div className="flex flex-col items-center gap-3">
@@ -144,7 +133,9 @@ export default function SettingsPage() {
               </div>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onLogo(e.target.files?.[0])} />
               <div className="flex gap-2">
-                <Button size="sm" variant="soft" onClick={() => fileRef.current?.click()}><ImagePlus className="h-3.5 w-3.5" /> Upload</Button>
+                <Button size="sm" variant="soft" onClick={() => fileRef.current?.click()} disabled={uploadingLogo}>
+                  <ImagePlus className="h-3.5 w-3.5" /> {uploadingLogo ? "Uploading..." : "Upload"}
+                </Button>
                 {logo && <Button size="sm" variant="dangerSoft" onClick={() => setLogo(null)} aria-label="Remove logo"><Trash2 className="h-3.5 w-3.5" /></Button>}
               </div>
               <p className="text-center text-[11px] text-muted">PNG, JPG or SVG up to 2 MB.</p>
@@ -159,32 +150,6 @@ export default function SettingsPage() {
                 <Button onClick={() => void saveInstitute()} disabled={saving === "institute"}>
                   {saving === "institute" ? "Saving..." : "Save profile"}
                 </Button>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <CardHeader title={<span className="flex items-center gap-2"><Palette className="h-4 w-4 text-brand" /> Theme</span>} subtitle="Applied instantly and saved to your account" />
-          <div className="space-y-6 p-5">
-            <div>
-              <p className="mb-2 text-xs font-semibold">Mode</p>
-              <div className="grid grid-cols-3 gap-3">
-                {modes.map((m) => (
-                  <button key={m.id} onClick={() => handleModeChange(m.id)} className={cn("flex cursor-pointer flex-col items-center gap-2 rounded-2xl border p-4 text-sm font-semibold transition", mode === m.id ? "border-primary bg-primary/10 text-brand" : "border-line text-muted hover:border-primary/40")}>
-                    <m.icon className="h-5 w-5" />{m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="mb-2 text-xs font-semibold">Accent colour</p>
-              <div className="flex flex-wrap gap-3">
-                {ACCENTS.map((a) => (
-                  <button key={a.id} onClick={() => handleAccentChange(a.id)} aria-label={a.label} className={cn("flex h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm font-semibold transition", accent === a.id ? "border-primary bg-primary/10" : "border-line hover:border-primary/40")}>
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full text-white" style={{ background: a.color }}>{accent === a.id && <Check className="h-3 w-3" />}</span>{a.label}
-                  </button>
-                ))}
               </div>
             </div>
           </div>
