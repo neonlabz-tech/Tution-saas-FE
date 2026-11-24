@@ -12,23 +12,24 @@ export function getSharedData(): MockData {
   return (cache ??= buildMockData());
 }
 
-const feeOf = (d: MockData, moduleIds: string[]) => moduleIds.reduce((s, id) => s + (d.modules.find((m) => m.id === id)?.fee ?? 0), 0);
+const feeOf = (d: MockData, moduleIds: string[] = []) =>
+  (moduleIds || []).reduce((s, id) => s + ((d.modules || []).find((m) => m.id === id)?.fee ?? 0), 0);
 const tuitionPaid = (d: MockData, studentId: string) =>
-  d.transactions.filter((t) => t.type === "income" && t.category === "Tuition fees" && t.studentId === studentId).reduce((s, t) => s + t.amount, 0);
+  (d.transactions || []).filter((t) => t.type === "income" && t.category === "Tuition fees" && t.studentId === studentId).reduce((s, t) => s + t.amount, 0);
 
 /** The admin-side student used for the seeded demo account (active, 3 modules, has a balance). */
 export function pickDemoStudentId(): string {
   const d = getSharedData();
-  const pool = d.students.filter((s) => s.status === "active" && s.moduleIds.length >= 3);
+  const pool = (d.students || []).filter((s) => s.status === "active" && (s.moduleIds || []).length >= 3);
   const withBalance = pool.find((s) => feeOf(d, s.moduleIds) - tuitionPaid(d, s.id) > 20000);
-  return (withBalance ?? pool[0] ?? d.students[0]).id;
+  return (withBalance ?? pool[0] ?? d.students[0])?.id ?? "STD-001";
 }
 
 export function findStudentByEmail(email: string) {
-  return getSharedData().students.find((s) => s.email.toLowerCase() === email.trim().toLowerCase());
+  return (getSharedData().students || []).find((s) => s.email.toLowerCase() === email.trim().toLowerCase());
 }
 export function findStudentById(id: string) {
-  return getSharedData().students.find((s) => s.id.toLowerCase() === id.trim().toLowerCase());
+  return (getSharedData().students || []).find((s) => s.id.toLowerCase() === id.trim().toLowerCase());
 }
 
 const receiptNo = (id: string, date: string) => {
@@ -61,18 +62,21 @@ export function buildPortalData(studentId: string | null): StudentPortalData {
 
   const today = todayISO();
   const nowDT = toLocalDT(new Date());
-  const myModules = student.moduleIds.map((id) => d.modules.find((m) => m.id === id)).filter((m): m is NonNullable<typeof m> => Boolean(m));
+  const myModules = (student.moduleIds || []).map((id) => (d.modules || []).find((m) => m.id === id)).filter((m): m is NonNullable<typeof m> => Boolean(m));
   const ids = new Set(myModules.map((m) => m.id));
 
-  const onlineClasses = d.classes.filter((c) => ids.has(c.moduleId)).sort((a, b) => a.start.localeCompare(b.start));
+  const onlineClasses = (d.classes || []).filter((c) => ids.has(c.moduleId)).sort((a, b) => a.start.localeCompare(b.start));
   const physicalClasses = buildPhysicalClasses(myModules);
   const assignments = buildAssignments(myModules, student.id);
   const materials = buildMaterials(myModules);
   const recordings = buildRecordings(onlineClasses).sort((a, b) => b.date.localeCompare(a.date));
 
-  const notices = d.notices
-    .filter((n) => n.status === "published" && n.publishDate <= today && n.expiryDate >= today && (n.batches.length === 0 || n.batches.includes(student.batch)))
-    .sort((a, b) => ({ high: 0, medium: 1, low: 2 })[a.priority] - ({ high: 0, medium: 1, low: 2 })[b.priority] || b.publishDate.localeCompare(a.publishDate));
+  const rawNotices = (d as any).notices ?? [];
+  const notices = Array.isArray(rawNotices)
+    ? rawNotices
+        .filter((n: any) => n && n.status === "published" && n.publishDate <= today && n.expiryDate >= today && (!n.batches || n.batches.length === 0 || n.batches.includes(student.batch)))
+        .sort((a: any, b: any) => ({ high: 0, medium: 1, low: 2 })[a.priority as "high" | "medium" | "low"] - ({ high: 0, medium: 1, low: 2 })[b.priority as "high" | "medium" | "low"] || b.publishDate.localeCompare(a.publishDate))
+    : [];
 
   const modules: StudentModule[] = myModules.map((m) => {
     const online = onlineClasses.filter((c) => c.moduleId === m.id);
@@ -96,7 +100,7 @@ export function buildPortalData(studentId: string | null): StudentPortalData {
   });
 
   // Payments
-  const payments: StudentPayment[] = d.transactions
+  const payments: StudentPayment[] = (d.transactions || [])
     .filter((t) => t.type === "income" && t.studentId === student.id)
     .map((t) => ({
       id: t.id,
