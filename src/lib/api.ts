@@ -68,7 +68,9 @@ export interface OverviewResponse {
       batch: string;
       start: string;
       end: string;
-      link: string;
+      classType?: "online" | "physical";
+      hall?: string;
+      link?: string;
       status: string;
     }[];
     recentRegistrations: {

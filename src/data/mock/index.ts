@@ -186,16 +186,21 @@ export function buildMockData(): MockData {
       const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, min);
       const end = new Date(start.getTime() + 90 * 60000);
       const past = end < today;
+      const isPhysical = (c + mi) % 3 === 0;
       classes.push({
         id: `cls_${c++}`,
         title: `${m.name}: ${topics[(c + mi) % topics.length]}`,
+        classType: isPhysical ? "physical" : "online",
+        hall: isPhysical ? (mi % 2 === 0 ? "Hall A" : "Lab 2") : undefined,
         moduleId: m.id,
         teacherId: m.teacherId!,
         batch: m.batches[c % m.batches.length],
         start: toLocalDT(start),
         end: toLocalDT(end),
-        link: `https://meet.example.com/eduflow-${m.code.toLowerCase()}`,
-        description: "Join with your student ID ready. Recording will be shared after the session.",
+        link: isPhysical ? undefined : `https://meet.example.com/eduflow-${m.code.toLowerCase()}`,
+        description: isPhysical
+          ? "Please arrive 10 minutes before the session starts. Bring your lecture notes."
+          : "Join with your student ID ready. Recording will be shared after the session.",
         status: past ? "completed" : rand() < 0.05 ? "cancelled" : "scheduled",
       });
     }

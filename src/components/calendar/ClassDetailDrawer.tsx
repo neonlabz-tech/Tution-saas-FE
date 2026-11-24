@@ -5,8 +5,10 @@ import {
   CalendarClock,
   Check,
   CheckCircle2,
+  Clock,
   Copy,
   ExternalLink,
+  MapPin,
   Pencil,
   RotateCw,
   Trash2,
@@ -19,7 +21,7 @@ import { Badge, Button, InfoRow, Skeleton, StatusBadge } from "@/components/ui/p
 import { useToast } from "@/components/ui/toast";
 import { updateOnlineClass } from "@/api/onlineClasses";
 import { useOnlineClassDetail } from "@/hooks/useOnlineClasses";
-import { formatDate, formatTime } from "@/lib/utils";
+import { formatDate, formatTime, toLocalDT } from "@/lib/utils";
 
 export function ClassDetailDrawer({
   classId,
@@ -87,6 +89,12 @@ export function ClassDetailDrawer({
     }
   };
 
+  const now = toLocalDT(new Date());
+  const isPast = item ? item.end < now : false;
+  const isCancelled = item?.status === "cancelled";
+  const isCompleted = item?.status === "completed";
+  const isEnded = isPast || isCompleted;
+
   return (
     <Drawer
       open={!!classId}
@@ -117,31 +125,78 @@ export function ClassDetailDrawer({
       ) : (
         item && (
           <div className="space-y-5">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={item.status} />
-              <Badge tone="primary">{item.batch}</Badge>
-              {moduleCode && <Badge tone="teal">{moduleCode}</Badge>}
-            </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {item.status === "scheduled" && isPast ? (
+                  <Badge tone="neutral">
+                    <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                    Ended
+                  </Badge>
+                ) : (
+                  <StatusBadge status={item.status} />
+                )}
+                {item.classType === "physical" ? (
+                  <Badge tone="teal">
+                    <MapPin className="mr-1 inline-block h-3 w-3" />
+                    Physical · {item.hall || "Hall"}
+                  </Badge>
+                ) : (
+                  <Badge tone="primary">
+                    <Video className="mr-1 inline-block h-3 w-3" />
+                    Online
+                  </Badge>
+                )}
+                <Badge tone="primary">{item.batch}</Badge>
+                {moduleCode && <Badge tone="teal">{moduleCode}</Badge>}
+              </div>
 
-            <div className="flex flex-wrap gap-2">
-              <a
-                href={item.link}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-primary to-violet-600 px-3.5 text-xs font-semibold text-white shadow-lg shadow-primary/25 transition hover:brightness-110"
-              >
-                <Video className="h-3.5 w-3.5" /> Join class
-              </a>
-              <Button size="sm" variant="soft" onClick={() => void handleCopyLink()}>
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? "Copied" : "Copy link"}
-              </Button>
-              <Button size="sm" variant="soft" onClick={() => onEdit(item)} disabled={updatingStatus}>
-                <Pencil className="h-3.5 w-3.5" /> Edit / Reschedule
-              </Button>
-            </div>
+              <div className="flex flex-wrap gap-2">
+                {item.link ? (
+                  isCancelled ? (
+                    <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-2 px-3.5 text-xs font-semibold text-muted opacity-70">
+                      <Ban className="h-3.5 w-3.5" /> Class cancelled
+                    </span>
+                  ) : isEnded ? (
+                    <>
+                      <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-2 px-3.5 text-xs font-semibold text-muted opacity-70">
+                        <Clock className="h-3.5 w-3.5" /> Class ended
+                      </span>
+                      <Button size="sm" variant="soft" onClick={() => void handleCopyLink()}>
+                        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copied ? "Copied" : "Copy link"}
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <a
+                        href={item.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-primary to-violet-600 px-3.5 text-xs font-semibold text-white shadow-lg shadow-primary/25 transition hover:brightness-110"
+                      >
+                        <Video className="h-3.5 w-3.5" /> Join class
+                      </a>
+                      <Button size="sm" variant="soft" onClick={() => void handleCopyLink()}>
+                        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copied ? "Copied" : "Copy link"}
+                      </Button>
+                    </>
+                  )
+                ) : item.classType === "physical" && item.hall ? (
+                  <div className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-teal-500/30 bg-teal-500/10 px-3.5 text-xs font-semibold text-teal-700 dark:text-teal-300">
+                    <MapPin className="h-3.5 w-3.5" /> Location: {item.hall}
+                  </div>
+                ) : null}
+                <Button size="sm" variant="soft" onClick={() => onEdit(item)} disabled={updatingStatus}>
+                  <Pencil className="h-3.5 w-3.5" /> Edit / Reschedule
+                </Button>
+              </div>
 
             <div className="rounded-2xl border border-line p-4">
+              <InfoRow label="Type">
+                <span className="capitalize font-medium">
+                  {item.classType === "physical" ? "Physical class" : "Online class"}
+                </span>
+              </InfoRow>
               <InfoRow label="Module">
                 <span>
                   {moduleCode ? <span className="num mr-1.5 text-xs text-muted">{moduleCode}</span> : null}
@@ -156,17 +211,27 @@ export function ClassDetailDrawer({
                   {formatTime(item.start)} – {formatTime(item.end)}
                 </span>
               </InfoRow>
-              <InfoRow label="Meeting link">
-                <a
-                  href={item.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex max-w-[240px] items-center gap-1 truncate text-brand hover:underline"
-                >
-                  <span className="truncate">{item.link}</span>
-                  <ExternalLink className="h-3 w-3 shrink-0" />
-                </a>
-              </InfoRow>
+              {item.classType === "physical" && item.hall ? (
+                <InfoRow label="Hall / Room">
+                  <span className="flex items-center gap-1.5 font-medium text-ink">
+                    <MapPin className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                    {item.hall}
+                  </span>
+                </InfoRow>
+              ) : null}
+              {item.link ? (
+                <InfoRow label="Meeting link">
+                  <a
+                    href={item.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex max-w-[240px] items-center gap-1 truncate text-brand hover:underline"
+                  >
+                    <span className="truncate">{item.link}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                  </a>
+                </InfoRow>
+              ) : null}
             </div>
 
             <div>

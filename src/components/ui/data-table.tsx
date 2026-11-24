@@ -126,7 +126,7 @@ export function DataTable<T>({
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overscroll-x-contain touch-scroll">
             <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead>
                 {table.getHeaderGroups().map((hg) => (

@@ -4,7 +4,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
 import type { EventClickArg } from "@fullcalendar/core";
-import { CalendarClock, ExternalLink, MapPin, Video } from "lucide-react";
+import { CalendarClock, Clock, ExternalLink, MapPin, Video } from "lucide-react";
 import { Badge, Button, Card, CardHeader } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/overlays";
 import type { OnlineClass } from "@/types";
@@ -23,23 +23,29 @@ export function ModuleCalendar({ online, physical }: { online: OnlineClass[]; ph
     () => [...online.map((item) => ({ kind: "online" as const, item })), ...physical.map((item) => ({ kind: "physical" as const, item }))],
     [online, physical],
   );
-  const events = useMemo(
-    () =>
-      sessions.map((s) => {
-        const color = s.kind === "online" ? ONLINE : PHYSICAL;
-        return {
-          id: `${s.kind}:${s.item.id}`,
-          title: s.kind === "online" ? "Online" : "On-site",
-          start: s.item.start,
-          end: s.item.end,
-          backgroundColor: color,
-          borderColor: color,
-          textColor: "#fff",
-          classNames: s.item.status === "cancelled" ? ["opacity-50", "line-through"] : s.item.status === "completed" ? ["opacity-70"] : [],
-        };
-      }),
-    [sessions],
-  );
+  const events = useMemo(() => {
+    const now = toLocalDT(new Date());
+    return sessions.map((s) => {
+      const isPast = s.item.end < now;
+      const isCancelled = s.item.status === "cancelled";
+      const isCompleted = s.item.status === "completed" || isPast;
+      const color = isCancelled || isCompleted ? "#94a3b8" : s.kind === "online" ? ONLINE : PHYSICAL;
+      return {
+        id: `${s.kind}:${s.item.id}`,
+        title: s.kind === "online" ? (isCompleted ? "Online (Ended)" : "Online") : (isCompleted ? "On-site (Ended)" : "On-site"),
+        start: s.item.start,
+        end: s.item.end,
+        backgroundColor: color,
+        borderColor: color,
+        textColor: "#fff",
+        classNames: isCancelled
+          ? ["opacity-50", "line-through"]
+          : isCompleted
+            ? ["opacity-50", "filter", "grayscale-[50%]"]
+            : [],
+      };
+    });
+  }, [sessions]);
   const upcoming = useMemo(() => {
     const now = toLocalDT(new Date());
     return sessions.filter((s) => s.item.status === "scheduled" && s.item.end >= now).sort((a, b) => a.item.start.localeCompare(b.item.start)).slice(0, 6);
@@ -108,8 +114,11 @@ export function ModuleCalendar({ online, physical }: { online: OnlineClass[]; ph
         footer={
           <>
             <Button variant="secondary" onClick={() => setOpen(null)}>Close</Button>
-            {open?.kind === "online" && open.item.status === "scheduled" && (
+            {open?.kind === "online" && open.item.status === "scheduled" && open.item.end >= toLocalDT(new Date()) && (
               <a href={open.item.link} target="_blank" rel="noreferrer"><Button><Video className="h-4 w-4" /> Join class <ExternalLink className="h-3.5 w-3.5" /></Button></a>
+            )}
+            {open?.kind === "online" && (open.item.status !== "scheduled" || open.item.end < toLocalDT(new Date())) && (
+              <Button variant="secondary" disabled><Clock className="h-4 w-4" /> Class ended</Button>
             )}
           </>
         }

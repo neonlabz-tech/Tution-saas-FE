@@ -116,7 +116,7 @@ function HistoryModal({ student, onClose }: { student: Student; onClose: () => v
       title={`${student.fullName} — Attendance History`}
       description={`${student.id} · Batch ${student.batch} · Overall Attendance ${rate}%`}
     >
-      <div className="mb-4 grid grid-cols-4 gap-2 text-center">
+      <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
         {STATUSES.map((s) => (
           <div key={s} className="rounded-xl bg-surface-2 p-2.5 border border-line">
             <p className="num text-xl font-bold" style={{ color: ST_COLOR[s] }}>
