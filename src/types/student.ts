@@ -1,5 +1,5 @@
 // Student-portal domain types. Shared admin types (Module, Notice, OnlineClass…) are reused from "@/types".
-import type { Module, Notice, OnlineClass, Student, Teacher } from "@/types";
+import type { Module, Notice, OnlineClass, Student, StudentAttendanceRecord, StudentAttendanceSummary, Teacher } from "@/types";
 
 /** A login account for the student portal. Optionally linked to an admin-managed Student record. */
 export interface StudentAccount {
@@ -111,4 +111,6 @@ export interface StudentPortalData {
   dues: DuePayment[];
   paymentSummary: PaymentSummary;
   instituteName: string;
+  attendanceSummary?: StudentAttendanceSummary;
+  attendanceRecords?: StudentAttendanceRecord[];
 }

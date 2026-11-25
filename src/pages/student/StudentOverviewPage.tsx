@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowRight, BookOpen, Building2, CalendarClock, CalendarDays, ClipboardList, Clock, CreditCard, Download, FileX, Megaphone, Receipt, Video, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowRight, BookOpen, Building2, CalendarClock, CalendarDays, CheckCircle2, ClipboardList, Clock, CreditCard, Download, FileX, Megaphone, Receipt, UserCheck, Video, Wallet } from "lucide-react";
 import { Badge, Button, Card, CardHeader, ProgressBar, StatusBadge } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/overlays";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -102,7 +102,7 @@ export default function StudentOverviewPage() {
                 <Badge className="bg-white/15 text-white">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</Badge>
                 <h1 className="mt-3 font-heading text-3xl font-extrabold tracking-tight sm:text-4xl">{greet}, {firstName} 👋</h1>
                 <p className="mt-2 text-sm text-white/80 sm:text-base">
-                  <b className="num">{view.weekOnline + view.weekPhysical}</b> classes in the next 7 days · <b className="num">{view.openAssignments.length}</b> open assignments · <b className="num">{fmtLKR(data.paymentSummary.outstanding)}</b> outstanding
+                  <b className="num">{view.weekOnline + view.weekPhysical}</b> classes in the next 7 days · <b className="num">{data.attendanceSummary && data.attendanceSummary.total ? `${data.attendanceSummary.rate}%` : "100%"}</b> attendance · <b className="num">{fmtLKR(data.paymentSummary.outstanding)}</b> outstanding
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -121,11 +121,12 @@ export default function StudentOverviewPage() {
           </section>
 
           {/* Summary cards */}
-          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <StatCard index={0} label="Registered modules" value={String(data.modules.length)} icon={BookOpen} gradient="from-indigo-500 to-violet-500" color="#6366F1" sub={`${data.modules.filter((m) => m.status === "active").length} currently active`} />
             <StatCard index={1} label="Classes this week" value={String(view.weekOnline + view.weekPhysical)} icon={CalendarDays} gradient="from-teal-500 to-emerald-500" color="#14B8A6" sub={`${view.weekOnline} online · ${view.weekPhysical} on-site`} />
-            <StatCard index={2} label="Open assignments" value={String(view.openAssignments.length)} icon={ClipboardList} gradient="from-fuchsia-500 to-purple-500" color="#A855F7" sub={view.overdueAssignments ? `${view.overdueAssignments} overdue` : "Nothing overdue"} />
-            <StatCard index={3} label="Outstanding balance" value={fmtLKR(data.paymentSummary.outstanding)} icon={Wallet} gradient="from-amber-500 to-orange-500" color="#F59E0B" sub={data.dues.length ? `${data.dues.length} payment${data.dues.length > 1 ? "s" : ""} due` : "All fees settled"} />
+            <StatCard index={2} label="Attendance rate" value={data.attendanceSummary && data.attendanceSummary.total ? `${data.attendanceSummary.rate}%` : "—"} icon={UserCheck} gradient="from-emerald-500 to-teal-600" color="#10B981" sub={data.attendanceSummary?.total ? `${data.attendanceSummary.present + (data.attendanceSummary.late || 0)}/${data.attendanceSummary.total} attended` : "No sessions marked yet"} />
+            <StatCard index={3} label="Open assignments" value={String(view.openAssignments.length)} icon={ClipboardList} gradient="from-fuchsia-500 to-purple-500" color="#A855F7" sub={view.overdueAssignments ? `${view.overdueAssignments} overdue` : "Nothing overdue"} />
+            <StatCard index={4} label="Outstanding balance" value={fmtLKR(data.paymentSummary.outstanding)} icon={Wallet} gradient="from-amber-500 to-orange-500" color="#F59E0B" sub={data.dues.length ? `${data.dues.length} payment${data.dues.length > 1 ? "s" : ""} due` : "All fees settled"} />
           </div>
 
           <div className="mb-6 grid gap-6 xl:grid-cols-3">
@@ -219,6 +220,67 @@ export default function StudentOverviewPage() {
               </div>
             </Card>
           </div>
+
+          {/* Attendance Overview */}
+          {data.attendanceSummary && (
+            <Card className="mb-6">
+              <CardHeader
+                title="Attendance overview & academic progress"
+                subtitle={
+                  data.attendanceSummary.total
+                    ? `Overall attendance rate: ${data.attendanceSummary.rate}% across ${data.attendanceSummary.total} recorded session${data.attendanceSummary.total === 1 ? "" : "s"}`
+                    : "Attendance statistics will update as class sessions are recorded"
+                }
+              />
+              <div className="p-5">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-2xl border border-line p-3 text-center">
+                    <p className="num text-2xl font-bold text-brand">
+                      {data.attendanceSummary.total ? `${data.attendanceSummary.rate}%` : "—"}
+                    </p>
+                    <p className="text-[11px] font-medium text-muted">Attendance Rate</p>
+                  </div>
+                  <div className="rounded-2xl border border-line p-3 text-center">
+                    <p className="num text-2xl font-bold text-emerald-500">{data.attendanceSummary.present}</p>
+                    <p className="text-[11px] font-medium text-muted">Present</p>
+                  </div>
+                  <div className="rounded-2xl border border-line p-3 text-center">
+                    <p className="num text-2xl font-bold text-amber-500">{data.attendanceSummary.late}</p>
+                    <p className="text-[11px] font-medium text-muted">Late</p>
+                  </div>
+                  <div className="rounded-2xl border border-line p-3 text-center">
+                    <p className="num text-2xl font-bold text-rose-500">{data.attendanceSummary.absent}</p>
+                    <p className="text-[11px] font-medium text-muted">Absent</p>
+                  </div>
+                </div>
+
+                {data.attendanceSummary.total > 0 && (
+                  <ProgressBar
+                    className="mt-4"
+                    tone={data.attendanceSummary.rate >= 80 ? "teal" : data.attendanceSummary.rate >= 60 ? "amber" : "rose"}
+                    value={data.attendanceSummary.rate}
+                  />
+                )}
+
+                {data.attendanceRecords && data.attendanceRecords.length > 0 && (
+                  <div className="mt-4">
+                    <p className="mb-2 text-xs font-semibold text-muted">Recent attendance records</p>
+                    <div className="divide-y divide-line/70 rounded-2xl border border-line">
+                      {data.attendanceRecords.slice(0, 5).map((r) => (
+                        <div key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">{r.moduleName ?? r.moduleId}</p>
+                            <p className="text-[11px] text-muted">{fmtDate(r.date)} · Marked via {r.method}</p>
+                          </div>
+                          <StatusBadge status={r.status} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
 
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Outstanding */}
