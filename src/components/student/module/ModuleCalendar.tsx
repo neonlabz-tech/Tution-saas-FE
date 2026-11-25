@@ -4,9 +4,10 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
 import type { EventClickArg } from "@fullcalendar/core";
-import { CalendarClock, Clock, ExternalLink, MapPin, Video } from "lucide-react";
+import { CalendarClock, Clock, Download, ExternalLink, MapPin, Video } from "lucide-react";
 import { Badge, Button, Card, CardHeader } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/overlays";
+import { exportCalendarIcs } from "@/lib/studentFiles";
 import type { OnlineClass } from "@/types";
 import type { PhysicalClass } from "@/types/student";
 import { fmtDate, fmtTime, toLocalDT } from "@/lib/utils";
@@ -62,9 +63,34 @@ export function ModuleCalendar({ online, physical }: { online: OnlineClass[]; ph
     <>
       <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
         <Card className="min-w-0 p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap gap-4 text-xs text-muted">
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: ONLINE }} />Online class</span>
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: PHYSICAL }} />Physical class</span>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+            <div className="flex flex-wrap gap-4">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: ONLINE }} />Online class</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: PHYSICAL }} />Physical class</span>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                exportCalendarIcs(
+                  sessions.map((s) => ({
+                    id: s.item.id,
+                    title: s.item.title,
+                    start: s.item.start,
+                    end: s.item.end,
+                    kind: s.kind,
+                    location: s.kind === "physical" ? s.item.location : undefined,
+                    link: s.kind === "online" ? s.item.link : undefined,
+                    description: s.kind === "online" ? s.item.description : undefined,
+                  })),
+                  "Class Schedule"
+                )
+              }
+              className="inline-flex items-center gap-1.5 text-xs font-semibold"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export (.ics)
+            </Button>
           </div>
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
