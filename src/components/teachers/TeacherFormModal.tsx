@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/overlays";
 import { Button, Field, Input, MultiSelect, Select } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
-import { BATCHES } from "@/data/mock";
+import { listBatches } from "@/api/batches";
 import { todayISO } from "@/lib/utils";
 
 const schema = z.object({
@@ -19,7 +19,7 @@ const schema = z.object({
   moduleIds: z.array(z.string()),
   batches: z.array(z.string()),
   joiningDate: z.string().min(1, "Required"),
-  status: z.enum(["active", "on-leave", "inactive"]),
+  status: z.enum(["active", "inactive"]),
 });
 type Values = z.infer<typeof schema>;
 
@@ -32,8 +32,29 @@ function Inner({
   onClose: () => void;
   onSubmittingChange: (submitting: boolean) => void;
 }) {
-  const { modules, saveTeacher, teacherModules } = useAppData();
+  const { teachers, modules, saveTeacher, teacherModules } = useAppData();
   const toast = useToast();
+  const [batchOptions, setBatchOptions] = useState<string[]>(() => {
+    return Array.isArray(item?.batches) ? [...item.batches] : [];
+  });
+
+  useEffect(() => {
+    let active = true;
+    listBatches()
+      .then((data) => {
+        if (active) {
+          const names = data
+            .filter((b) => b.status === "active" || !b.status)
+            .map((b) => b.name);
+          const current = Array.isArray(item?.batches) ? item.batches : [];
+          setBatchOptions(Array.from(new Set([...names, ...current])).sort((a, b) => a.localeCompare(b)));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [item?.batches]);
   const {
     register,
     control,
@@ -42,10 +63,34 @@ function Inner({
   } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: item
-      ? { ...item, moduleIds: teacherModules(item.id).map((m) => m.id) }
+      ? {
+          ...item,
+          moduleIds:
+            (item as { assignedModules?: { id: string }[]; moduleIds?: string[] }).assignedModules?.map((m) => m.id) ??
+            (item as { moduleIds?: string[] }).moduleIds ??
+            teacherModules(item.id).map((m) => m.id),
+        }
       : { fullName: "", email: "", phone: "", qualification: "", specialization: "", moduleIds: [], batches: [], joiningDate: todayISO(), status: "active" },
   });
   const onSubmit = async ({ moduleIds, ...data }: Values) => {
+    const normalizedPhone = data.phone.trim();
+    const phoneInUse = teachers.some(
+      (t) => t.phone?.trim() === normalizedPhone && t.id !== item?.id,
+    );
+    if (phoneInUse) {
+      toast.error(`Phone number "${normalizedPhone}" is already registered to another teacher`);
+      return;
+    }
+
+    const normalizedEmail = data.email.trim().toLowerCase();
+    const emailInUse = teachers.some(
+      (t) => t.email?.trim().toLowerCase() === normalizedEmail && t.id !== item?.id,
+    );
+    if (emailInUse) {
+      toast.error(`Email "${normalizedEmail}" is already registered to another teacher`);
+      return;
+    }
+
     onSubmittingChange(true);
     try {
       const t = await saveTeacher(data, moduleIds, item?.id);
@@ -68,15 +113,24 @@ function Inner({
       <Field label="Status">
         <Select {...register("status")}>
           <option value="active">Active</option>
-          <option value="on-leave">On leave</option>
           <option value="inactive">Inactive</option>
         </Select>
       </Field>
       <Field label="Assigned modules (optional)" hint="Assigning a module here replaces its current teacher." className="sm:col-span-2">
-        <Controller control={control} name="moduleIds" render={({ field }) => <MultiSelect value={field.value} onChange={field.onChange} options={modules.map((m) => ({ value: m.id, label: m.name }))} />} />
+        <Controller control={control} name="moduleIds" render={({ field }) => <MultiSelect value={field.value} onChange={field.onChange} options={modules.map((m) => ({ value: m.id, label: `${m.name} (${m.code})` }))} />} />
       </Field>
       <Field label="Assigned batches (optional)" error={errors.batches?.message} className="sm:col-span-2">
-        <Controller control={control} name="batches" render={({ field }) => <MultiSelect value={field.value} onChange={field.onChange} options={BATCHES.map((b) => ({ value: b, label: b }))} />} />
+        <Controller
+          control={control}
+          name="batches"
+          render={({ field }) => (
+            <MultiSelect
+              value={field.value}
+              onChange={field.onChange}
+              options={batchOptions.map((b) => ({ value: b, label: b }))}
+            />
+          )}
+        />
       </Field>
     </form>
   );

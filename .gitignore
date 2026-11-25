@@ -19,6 +19,8 @@
 
 # production
 /build
+/dist
+dist/
 
 # misc
 .DS_Store
@@ -38,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local task lists
+FRONTEND_TASK_LIST.md
+*Task*List*.md

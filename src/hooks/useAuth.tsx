@@ -1,23 +1,23 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { authApi, clearAuthToken, getAuthToken, setAuthToken, type AuthUser, type LoginConfigResponse } from "@/lib/api";
+import { authApi, getAuthToken, type AuthUser, type LoginConfigResponse, type UserRole } from "@/lib/api";
 
 interface AuthCtx {
   user: AuthUser | null;
-  token: string | null;
   config: LoginConfigResponse | null;
   loading: boolean;
+  isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (fullName: string, email: string, password: string) => Promise<void>;
+  register: (fullName: string, email: string, password: string, role?: UserRole) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => getAuthToken());
   const [user, setUser] = useState<AuthUser | null>(null);
   const [config, setConfig] = useState<LoginConfigResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(() => Boolean(getAuthToken()));
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     authApi
@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const token = getAuthToken();
     if (!token) {
       setUser(null);
       setLoading(false);
@@ -39,20 +40,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-
     let active = true;
-    setLoading(true);
     authApi
       .me()
       .then((profile) => {
         if (active) setUser(profile);
       })
       .catch(() => {
-        if (active) {
-          clearAuthToken();
-          setToken(null);
-          setUser(null);
-        }
+        if (active) setUser(null);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -61,12 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     const onUnauthorized = () => {
-      clearAuthToken();
-      setToken(null);
       setUser(null);
     };
     window.addEventListener("eduflow:unauthorized", onUnauthorized);
@@ -75,33 +68,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await authApi.login({ email, password });
-    setAuthToken(res.accessToken);
-    setToken(res.accessToken);
     setUser(res.user);
   }, []);
 
-  const register = useCallback(async (fullName: string, email: string, password: string) => {
-    const res = await authApi.register({ fullName, email, password });
-    setAuthToken(res.accessToken);
-    setToken(res.accessToken);
+  const register = useCallback(async (fullName: string, email: string, password: string, role?: UserRole) => {
+    const res = await authApi.register({ fullName, email, password, role });
     setUser(res.user);
   }, []);
 
   const logout = useCallback(async () => {
     try {
-      if (getAuthToken()) await authApi.logout();
+      await authApi.logout();
     } catch {
       /* ignore network errors on logout */
     } finally {
-      clearAuthToken();
-      setToken(null);
       setUser(null);
     }
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const profile = await authApi.me();
+    setUser(profile);
+  }, []);
+
   const value = useMemo<AuthCtx>(
-    () => ({ user, token, config, loading, login, register, logout }),
-    [user, token, config, loading, login, register, logout],
+    () => ({
+      user,
+      config,
+      loading,
+      isAuthenticated: Boolean(user),
+      login,
+      register,
+      logout,
+      refreshUser,
+    }),
+    [user, config, loading, login, register, logout, refreshUser],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

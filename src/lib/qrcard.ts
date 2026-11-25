@@ -20,9 +20,9 @@ export function renderCardCanvas(student: Student, qr: HTMLCanvasElement): HTMLC
     g.closePath();
   };
   const grad = g.createLinearGradient(0, 0, W, H);
-  grad.addColorStop(0, "#312E81");
-  grad.addColorStop(0.55, "#4F46E5");
-  grad.addColorStop(1, "#0F766E");
+  grad.addColorStop(0, "#2B0A4D");
+  grad.addColorStop(0.55, "#7D41AB");
+  grad.addColorStop(1, "#A771CF");
   rr(0, 0, W, H, 44);
   g.fillStyle = grad;
   g.fill();

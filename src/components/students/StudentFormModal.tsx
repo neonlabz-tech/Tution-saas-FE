@@ -7,10 +7,40 @@ import { Modal } from "@/components/ui/overlays";
 import { Button, Field, Input, MultiSelect, Select, Skeleton, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { listModules } from "@/api/modules";
+import { listBatches } from "@/api/batches";
 import { createStudentWithMeta, getStudentById, updateStudent } from "@/api/students";
+import { createNotification } from "@/api/notifications";
+import { useAuth } from "@/hooks/useAuth";
 import { applyApiValidationErrors } from "@/lib/api";
-import { BATCHES } from "@/lib/constants";
 import { toDateInput, todayISO } from "@/lib/utils";
+
+const ALLOWED_NAV_KEYS = new Set([
+  "Backspace",
+  "Delete",
+  "Tab",
+  "Escape",
+  "Enter",
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Home",
+  "End",
+]);
+
+function handlePhoneKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  if (e.ctrlKey || e.metaKey || e.altKey || ALLOWED_NAV_KEYS.has(e.key)) return;
+  if (!/^\d$/.test(e.key)) {
+    e.preventDefault();
+  }
+}
+
+function sanitizePhoneInput(e: React.ChangeEvent<HTMLInputElement>) {
+  const cleaned = e.target.value.replace(/\D/g, "").slice(0, 10);
+  if (e.target.value !== cleaned) {
+    e.target.value = cleaned;
+  }
+}
 
 const phone = z.string().regex(/^0\d{9}$/, "Use 10 digits, e.g. 0771234567");
 const schema = z.object({
@@ -40,10 +70,10 @@ function toFormValues(item: EditableStudent | null): Values {
       address: "",
       guardianName: "",
       guardianPhone: "",
-      batch: BATCHES[0],
+      batch: "",
       moduleIds: [],
       enrollmentDate: todayISO(),
-      status: "pending",
+      status: "active",
     };
   }
   const moduleIds = item.moduleIds?.length
@@ -57,7 +87,7 @@ function toFormValues(item: EditableStudent | null): Values {
     address: item.address ?? "",
     guardianName: item.guardianName ?? "",
     guardianPhone: item.guardianPhone ?? "",
-    batch: item.batch ?? BATCHES[0],
+    batch: item.batch ?? "",
     moduleIds,
     enrollmentDate: toDateInput(item.enrollmentDate),
     status: item.status ?? "pending",
@@ -78,11 +108,31 @@ function Inner({
   onSubmittingChange: (submitting: boolean) => void;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [modules, setModules] = useState<Module[]>(modulesProp ?? []);
   const [loadingModules, setLoadingModules] = useState(!modulesProp?.length);
+  const [batchOptions, setBatchOptions] = useState<string[]>(() => (item?.batch ? [item.batch] : []));
   const [loadingItem, setLoadingItem] = useState(
     Boolean(item?.id && (item.dob === undefined || item.address === undefined || item.guardianName === undefined)),
   );
+
+  useEffect(() => {
+    let active = true;
+    listBatches()
+      .then((data) => {
+        if (active) {
+          const names = data
+            .filter((b) => b.status === "active" || !b.status)
+            .map((b) => b.name);
+          const current = item?.batch ? [item.batch] : [];
+          setBatchOptions(Array.from(new Set([...current, ...names])).sort((a, b) => a.localeCompare(b)));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [item?.batch]);
 
   const {
     register,
@@ -146,6 +196,11 @@ function Inner({
   }, [item, reset, toast]);
 
   const onSubmit = async (v: Values) => {
+    const trimmedBatch = v.batch.trim();
+    if (!trimmedBatch) {
+      setError("batch", { message: "Select or enter a batch" });
+      return;
+    }
     const payload: CreateStudentDto = {
       fullName: v.fullName.trim(),
       email: v.email.trim(),
@@ -154,7 +209,7 @@ function Inner({
       address: v.address.trim(),
       guardianName: v.guardianName.trim(),
       guardianPhone: v.guardianPhone.trim(),
-      batch: v.batch,
+      batch: trimmedBatch,
       moduleIds: v.moduleIds,
       ...(v.enrollmentDate ? { enrollmentDate: v.enrollmentDate } : {}),
       status: v.status,
@@ -165,6 +220,21 @@ function Inner({
       if (item) {
         const saved = await updateStudent(item.id, payload);
         toast.success(`${saved.fullName} updated`);
+
+        try {
+          await createNotification({
+            type: "student",
+            title: "Student Profile Updated",
+            subtitle: `${saved.fullName} (${saved.id}) profile updated by ${user?.fullName || "Admin"}.`,
+            link: `/dashboard/students?q=${encodeURIComponent(saved.id)}`,
+            targetRoles: ["super_admin"],
+            actorId: user?.id,
+            metadata: { studentId: saved.id },
+          });
+        } catch {
+          // non-blocking
+        }
+
         onSaved?.(saved);
       } else {
         const { student: saved, message } = await createStudentWithMeta(payload);
@@ -173,6 +243,34 @@ function Inner({
             ? message
             : `Registration email sent to ${saved.email}`;
         toast.success(`${saved.fullName} added as ${saved.id} (${saved.status}) — QR generated. ${emailFeedback}`);
+
+        try {
+          // 1. Super Admin alert
+          await createNotification({
+            type: "student",
+            title: "New Student Enrolled",
+            subtitle: `${saved.fullName} (${saved.id}) enrolled into Batch ${saved.batch} by ${user?.fullName || "Admin"}.`,
+            link: `/dashboard/students?q=${encodeURIComponent(saved.id)}`,
+            targetRoles: ["super_admin"],
+            actorId: user?.id,
+            metadata: { studentId: saved.id, batch: saved.batch },
+          });
+
+          // 2. Student welcome alert (targeted to new student)
+          await createNotification({
+            type: "student",
+            title: "Welcome to Bright Future Institute! 🎉",
+            subtitle: "Your enrollment is complete. Welcome to your student portal! You can now view your classes, timetable, and study materials.",
+            link: "/dashboard/modules",
+            targetRoles: ["student"],
+            targetUserIds: [saved.id],
+            actorId: user?.id,
+            metadata: { studentId: saved.id },
+          });
+        } catch {
+          // non-blocking
+        }
+
         onSaved?.(saved);
       }
       onClose();
@@ -207,7 +305,16 @@ function Inner({
         <Input type="email" {...register("email")} placeholder="name@mail.lk" />
       </Field>
       <Field label="Phone" error={errors.phone?.message}>
-        <Input {...register("phone")} placeholder="0771234567" className="num" />
+        <Input
+          type="tel"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={10}
+          onKeyDown={handlePhoneKeyDown}
+          {...register("phone", { onChange: sanitizePhoneInput })}
+          placeholder="0771234567"
+          className="num"
+        />
       </Field>
       <Field label="Date of birth" error={errors.dob?.message}>
         <Input type="date" {...register("dob")} />
@@ -222,11 +329,21 @@ function Inner({
         <Input {...register("guardianName")} />
       </Field>
       <Field label="Guardian phone" error={errors.guardianPhone?.message}>
-        <Input {...register("guardianPhone")} className="num" />
+        <Input
+          type="tel"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={10}
+          onKeyDown={handlePhoneKeyDown}
+          {...register("guardianPhone", { onChange: sanitizePhoneInput })}
+          placeholder="0771234567"
+          className="num"
+        />
       </Field>
       <Field label="Batch" error={errors.batch?.message}>
         <Select {...register("batch")}>
-          {BATCHES.map((b) => (
+          <option value="">Select a batch</option>
+          {batchOptions.map((b) => (
             <option key={b} value={b}>
               {b}
             </option>

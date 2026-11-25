@@ -1,8 +1,10 @@
 import {
+  Bell,
   BookOpen,
   CalendarDays,
   ChartNoAxesCombined,
   ClipboardCheck,
+  CreditCard,
   GraduationCap,
   LayoutDashboard,
   Megaphone,
@@ -32,14 +34,16 @@ export const NAV_GROUPS: NavGroup[] = [
       { title: "Teachers", route: "/dashboard/teachers", icon: Users },
       { title: "Modules", route: "/dashboard/modules", icon: BookOpen },
       { title: "Attendance", route: "/dashboard/attendance", icon: ClipboardCheck },
-      { title: "Online Classes", route: "/dashboard/online-classes", icon: CalendarDays },
+      { title: "Classes", route: "/dashboard/online-classes", icon: CalendarDays },
     ],
   },
   {
     label: "Operations",
     items: [
       { title: "Income & Expenses", route: "/dashboard/finance", icon: Wallet },
+      { title: "Payments", route: "/dashboard/payments", icon: CreditCard },
       { title: "Notices", route: "/dashboard/notices", icon: Megaphone },
+      { title: "Notifications", route: "/dashboard/notifications", icon: Bell },
       { title: "QR Scanner", route: "/dashboard/qr-scanner", icon: ScanLine },
     ],
   },

@@ -85,3 +85,16 @@ export async function rotateStudentQr(id: string): Promise<RotateQrResponse> {
     method: "POST",
   });
 }
+
+export async function moveStudentsToBatch(
+  studentIds: string[],
+  targetBatch: string,
+): Promise<{ success: boolean; updatedCount: number; targetBatch: string }> {
+  return request<{ success: boolean; updatedCount: number; targetBatch: string }>(
+    "/students/bulk-batch",
+    {
+      method: "POST",
+      body: JSON.stringify({ studentIds, targetBatch }),
+    },
+  );
+}

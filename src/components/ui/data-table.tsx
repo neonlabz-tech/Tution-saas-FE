@@ -126,7 +126,7 @@ export function DataTable<T>({
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overscroll-x-contain touch-scroll">
             <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead>
                 {table.getHeaderGroups().map((hg) => (
@@ -136,16 +136,26 @@ export function DataTable<T>({
                       const can = h.column.getCanSort();
                       return (
                         <th key={h.id} className="whitespace-nowrap px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-muted">
-                          {h.isPlaceholder ? null : (
+                          {h.isPlaceholder ? null : can ? (
                             <button
                               type="button"
-                              disabled={!can || loading}
+                              disabled={loading}
                               onClick={h.column.getToggleSortingHandler()}
-                              className={cn("inline-flex items-center gap-1.5 uppercase", can ? "cursor-pointer hover:text-ink" : "cursor-default")}
+                              className="inline-flex items-center gap-1.5 uppercase cursor-pointer hover:text-ink"
                             >
                               {flexRender(h.column.columnDef.header, h.getContext())}
-                              {can && (sorted === "asc" ? <ArrowUp className="h-3 w-3" /> : sorted === "desc" ? <ArrowDown className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3 opacity-40" />)}
+                              {sorted === "asc" ? (
+                                <ArrowUp className="h-3 w-3" />
+                              ) : sorted === "desc" ? (
+                                <ArrowDown className="h-3 w-3" />
+                              ) : (
+                                <ChevronsUpDown className="h-3 w-3 opacity-40" />
+                              )}
                             </button>
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5 uppercase">
+                              {flexRender(h.column.columnDef.header, h.getContext())}
+                            </div>
                           )}
                         </th>
                       );

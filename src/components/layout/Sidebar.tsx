@@ -5,12 +5,13 @@ import { NAV_GROUPS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useLock } from "@/components/ui/overlays";
 import { useAuth } from "@/hooks/useAuth";
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-violet-500 to-secondary shadow-lg shadow-primary/40">
+      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-secondary via-primary to-accent shadow-lg shadow-primary/40">
         <svg viewBox="0 0 24 24" className="h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
           <path d="M4 8c3-3 5-3 8 0s5 3 8 0" />
           <path d="M4 15c3-3 5-3 8 0s5 3 8 0" opacity="0.65" />
@@ -33,7 +34,7 @@ function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: bool
   const displayName = user?.fullName ?? "Amara Perera";
   const displayRole = user?.role ? user.role.replace("_", " ") : "Administrator";
   return (
-    <div className="sidebar-glow flex h-full flex-col bg-sidebar text-slate-300">
+    <div className="sidebar-glow flex h-full flex-col bg-sidebar text-slate-300 overscroll-contain">
       <div className={cn("flex h-[72px] shrink-0 items-center", collapsed ? "justify-center gap-1 px-2" : "justify-between px-5")}>
         <Logo compact={collapsed} />
         {onCollapse && (
@@ -48,7 +49,7 @@ function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: bool
         )}
       </div>
 
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-3">
+      <nav className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 py-3">
         {NAV_GROUPS.map((g) => (
           <div key={g.label}>
             {collapsed ? <div className="mx-3 mb-2 h-px bg-white/10" /> : <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{g.label}</p>}
@@ -71,7 +72,7 @@ function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: bool
                     {({ isActive }) => (
                       <>
                         {isActive && (
-                          <motion.span layoutId={collapsed ? "nav-active-c" : "nav-active"} className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/90 to-violet-600/70 shadow-lg shadow-primary/30" transition={{ type: "spring", bounce: 0.18, duration: 0.45 }} />
+                          <motion.span layoutId={collapsed ? "nav-active-c" : "nav-active"} className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary to-[#6D3599] shadow-lg shadow-primary/30" transition={{ type: "spring", bounce: 0.18, duration: 0.45 }} />
                         )}
                         <item.icon className={cn("relative h-[19px] w-[19px] shrink-0", !isActive && "text-slate-400 group-hover:text-white")} />
                         {!collapsed && <span className="relative truncate">{item.title}</span>}
@@ -116,7 +117,7 @@ function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: bool
                   toast.success("Logged out");
                 });
               }}
-              className="rounded-lg p-2 text-slate-400 hover:bg-rose-500/20 hover:text-rose-300"
+              className="rounded-lg p-2 text-slate-400 hover:bg-[#4D1882]/40 hover:text-[#DEC8ED]"
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -128,6 +129,7 @@ function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: bool
 }
 
 export function Sidebar({ collapsed, onToggle, mobileOpen, onClose }: { collapsed: boolean; onToggle: () => void; mobileOpen: boolean; onClose: () => void }) {
+  useLock(mobileOpen, onClose);
   return (
     <>
       <motion.aside
@@ -143,7 +145,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onClose }: { collapse
         {mobileOpen && (
           <div className="fixed inset-0 z-[60] lg:hidden">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" />
-            <motion.aside initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ type: "spring", damping: 32, stiffness: 320 }} className="absolute inset-y-0 left-0 w-[280px] max-w-[85vw] shadow-pop">
+            <motion.aside initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ type: "spring", damping: 32, stiffness: 320 }} className="absolute inset-y-0 left-0 h-dvh w-[280px] max-w-[85vw] shadow-pop overscroll-contain">
               <button onClick={onClose} aria-label="Close menu" className="absolute right-3 top-5 z-10 rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white">
                 <X className="h-5 w-5" />
               </button>

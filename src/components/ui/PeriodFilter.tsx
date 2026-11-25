@@ -16,10 +16,26 @@ export function PeriodFilter({ state }: { state: ReturnType<typeof usePeriod> })
     <div className="flex flex-wrap items-center gap-2">
       <Tabs items={PERIOD_OPTIONS.map((p) => ({ id: p.id, label: p.label }))} value={period} onChange={setPeriod} />
       {period === "custom" && (
-        <div className="flex items-center gap-2">
-          <Input type="date" value={custom.from} max={custom.to} onChange={(e) => setCustom({ ...custom, from: e.target.value })} className="w-40" aria-label="From date" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="date"
+            value={custom.from}
+            onChange={(e) => {
+              if (e.target.value) setCustom((prev) => ({ ...prev, from: e.target.value }));
+            }}
+            className="w-full sm:w-40"
+            aria-label="From date"
+          />
           <span className="text-xs text-muted">to</span>
-          <Input type="date" value={custom.to} min={custom.from} onChange={(e) => setCustom({ ...custom, to: e.target.value })} className="w-40" aria-label="To date" />
+          <Input
+            type="date"
+            value={custom.to}
+            onChange={(e) => {
+              if (e.target.value) setCustom((prev) => ({ ...prev, to: e.target.value }));
+            }}
+            className="w-full sm:w-40"
+            aria-label="To date"
+          />
         </div>
       )}
     </div>

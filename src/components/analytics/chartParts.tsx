@@ -1,7 +1,15 @@
 import type { ReactNode } from "react";
-import { fmtCompact, fmtLKR } from "@/lib/utils";
+import { fmtCompact, formatLkrPrice } from "@/lib/utils";
 
-export const COLORS = ["#4F46E5", "#14B8A6", "#F59E0B", "#F43F5E", "#8B5CF6", "#0EA5E9", "#84CC16", "#EC4899"];
+export const COLORS = [
+  "#7D41AB",
+  "#A771CF",
+  "#BC99D9",
+  "#4D1882",
+  "#693AA0",
+  "#A774D1",
+  "#CBADE3",
+];
 
 export const axisTick = { fill: "var(--muted)", fontSize: 11 };
 export const gridProps = { stroke: "var(--line)", strokeDasharray: "4 4", vertical: false } as const;
@@ -36,7 +44,7 @@ export function ChartTooltip({
             <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
             {p.name}
           </span>
-          <span className="num font-semibold text-ink">{money && typeof p.value === "number" ? fmtLKR(p.value) : `${p.value}${suffix}`}</span>
+          <span className="num font-semibold text-ink">{money && typeof p.value === "number" ? formatLkrPrice(p.value) : `${p.value}${suffix}`}</span>
         </div>
       ))}
     </div>

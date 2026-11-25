@@ -5,10 +5,12 @@ import { ALL_NAV } from "@/lib/nav";
 import { useAppData } from "@/hooks/useAppData";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { useNotifications } from "@/hooks/useNotifications";
 import { Avatar, Badge } from "@/components/ui/primitives";
 import { Dropdown } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
-import { fmtTime, todayISO } from "@/lib/utils";
+import type { AppNotification } from "@/types";
+import { fmtNotificationDateTime } from "@/lib/utils";
 
 function GlobalSearch({ className = "" }: { className?: string }) {
   const { students, teachers, modules } = useAppData();
@@ -33,7 +35,7 @@ function GlobalSearch({ className = "" }: { className?: string }) {
         onFocus={() => setFocus(true)}
         onBlur={() => setTimeout(() => setFocus(false), 150)}
         placeholder="Search students, teachers, modules…"
-        className="h-10 w-full rounded-xl border border-line bg-surface-2/60 pl-10 pr-3 text-sm placeholder:text-muted/80 transition focus:border-blue-500 focus:bg-surface focus:outline-none focus:ring-4 focus:ring-blue-500/15"
+        className="h-10 w-full rounded-xl border border-line bg-surface-2/60 pl-10 pr-3 text-sm placeholder:text-muted/80 transition focus:border-primary focus:bg-surface focus:outline-none focus:ring-4 focus:ring-primary/15"
       />
       {focus && q.trim().length >= 2 && (
         <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-line bg-surface shadow-pop">
@@ -66,51 +68,139 @@ function GlobalSearch({ className = "" }: { className?: string }) {
 }
 
 function Notifications() {
-  const { notices, classes, students, outstanding } = useAppData();
-  const items = useMemo(() => {
-    const today = todayISO();
-    const list: { id: string; icon: typeof Bell; tone: string; title: string; sub: string }[] = [];
-    notices
-      .filter((n) => n.status === "published" && n.expiryDate >= today && n.priority === "high")
-      .slice(0, 2)
-      .forEach((n) => list.push({ id: n.id, icon: AlertTriangle, tone: "bg-rose-500/10 text-rose-500", title: n.title, sub: "High priority notice" }));
-    classes
-      .filter((c) => c.status === "scheduled" && c.start.slice(0, 10) >= today)
-      .sort((a, b) => a.start.localeCompare(b.start))
-      .slice(0, 2)
-      .forEach((c) => list.push({ id: c.id, icon: CalendarClock, tone: "bg-primary/10 text-brand", title: c.title, sub: `${c.start.slice(0, 10) === today ? "Today" : c.start.slice(5, 10)} · ${fmtTime(c.start)}` }));
-    const owing = students.filter((s) => s.status === "active" && outstanding(s.id) > 100000).length;
-    list.push({ id: "pay", icon: Wallet, tone: "bg-amber-500/10 text-amber-500", title: `${owing} students have large outstanding balances`, sub: "Finance reminder" });
-    return list;
-  }, [notices, classes, students, outstanding]);
+  const toast = useToast();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+
+  const handleNotificationClick = async (item: AppNotification, close: () => void) => {
+    close();
+    if (!item.read) {
+      await markAsRead(item.id);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (unreadCount === 0) return;
+    try {
+      await markAllAsRead();
+      toast.success("All notifications marked as read");
+    } catch {
+      toast.error("Failed to mark all as read");
+    }
+  };
+
+  const metaFor = (type: AppNotification["type"]) => {
+    if (type === "student") return { icon: GraduationCap, tone: "bg-teal-500/10 text-teal-600 dark:text-teal-400" };
+    if (type === "notice") return { icon: AlertTriangle, tone: "bg-rose-500/10 text-rose-600 dark:text-rose-400" };
+    if (type === "class") return { icon: CalendarClock, tone: "bg-blue-500/10 text-blue-600 dark:text-blue-400" };
+    if (type === "payment") return { icon: Wallet, tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" };
+    if (type === "attendance") return { icon: GraduationCap, tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400" };
+    return { icon: Bell, tone: "bg-purple-500/10 text-purple-600 dark:text-purple-400" };
+  };
+
+  const recentItems = notifications.slice(0, 8);
+
   return (
     <Dropdown
-      width="w-80"
+      width="w-84 sm:w-96"
       trigger={({ toggle }) => (
-        <button onClick={toggle} aria-label="Notifications" className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-surface text-muted transition hover:text-ink">
+        <button
+          onClick={toggle}
+          aria-label="Notifications"
+          className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-surface text-muted transition hover:text-ink hover:border-line-hover"
+        >
           <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-surface" />
+          {unreadCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-surface">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </button>
       )}
     >
       {(close) => (
         <div>
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <p className="font-heading text-sm font-bold">Notifications</p>
-            <Badge tone="primary">{items.length} new</Badge>
+            <div className="flex items-center gap-2">
+              <p className="font-heading text-sm font-bold">Notifications</p>
+              <Badge tone={unreadCount > 0 ? "rose" : "neutral"}>
+                {unreadCount > 0 ? `${unreadCount} new` : "All read"}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleMarkAllAsRead}
+                  className="text-xs font-semibold text-brand transition hover:underline"
+                >
+                  Mark all as read
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={close}
+                aria-label="Close notifications"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-          <div className="max-h-80 overflow-y-auto">
-            {items.map((i) => (
-              <Link key={i.id} to="/dashboard/notices" onClick={close} className="flex gap-3 px-4 py-3 hover:bg-surface-2">
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${i.tone}`}>
-                  <i.icon className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <span className="line-clamp-2 block text-sm font-semibold leading-snug">{i.title}</span>
-                  <span className="mt-0.5 block text-[11px] text-muted">{i.sub}</span>
-                </span>
-              </Link>
-            ))}
+
+          <div className="max-h-84 overflow-y-auto divide-y divide-line/40">
+            {recentItems.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-muted">
+                <Bell className="mx-auto mb-2 h-6 w-6 opacity-30" />
+                <p className="font-medium text-ink">No notifications</p>
+                <p className="text-xs text-muted">You're completely caught up!</p>
+              </div>
+            ) : (
+              recentItems.map((i) => {
+                const m = metaFor(i.type);
+                const targetLink = i.link || "/dashboard/notifications";
+                return (
+                  <Link
+                    key={i.id}
+                    to={targetLink}
+                    onClick={() => void handleNotificationClick(i, close)}
+                    className={`flex items-start gap-3 px-4 py-3 transition hover:bg-surface-2 ${
+                      i.read ? "opacity-75 bg-transparent" : "bg-primary/[0.04]"
+                    }`}
+                  >
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${m.tone}`}>
+                      <m.icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className={`line-clamp-2 block text-sm leading-snug ${i.read ? "font-normal text-muted" : "font-semibold text-ink"}`}>
+                        {i.title}
+                      </span>
+                      {i.subtitle && (
+                        <span className="mt-0.5 line-clamp-1 block text-[11px] text-muted">
+                          {i.subtitle}
+                        </span>
+                      )}
+                      <span className="mt-1 block text-[10px] text-muted/70">
+                        {fmtNotificationDateTime(i.createdAt)}
+                      </span>
+                    </span>
+                    {!i.read && (
+                      <span aria-label="Unread notification" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
+                    )}
+                  </Link>
+                );
+              })
+            )}
+          </div>
+
+          <div className="border-t border-line/70 bg-surface-2/40 px-4 py-2.5 text-center">
+            <Link
+              to="/dashboard/notifications"
+              onClick={close}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand transition hover:underline"
+            >
+              <span>Open Notification Center</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </div>
       )}

@@ -1,3 +1,31 @@
+import { formatLkrPrice } from "@/lib/formatPrice";
+import {
+  formatDate,
+  formatTime,
+  formatDateTime,
+  formatRelativeTime,
+  formatShortDate,
+  DateDisplay,
+  ShortDateDisplay,
+  TimeDisplay,
+  DateTimeDisplay,
+  RelativeTimeDisplay,
+} from "@/lib/dateTime";
+
+export {
+  formatLkrPrice,
+  formatDate,
+  formatTime,
+  formatDateTime,
+  formatRelativeTime,
+  formatShortDate,
+  DateDisplay,
+  ShortDateDisplay,
+  TimeDisplay,
+  DateTimeDisplay,
+  RelativeTimeDisplay,
+};
+
 export { cn } from "@/utils/cn";
 
 export const pad = (n: number) => String(n).padStart(2, "0");
@@ -35,24 +63,33 @@ export function toDateInput(iso?: string | null): string {
 
 export function fmtDate(iso: string, withYear = true): string {
   if (!iso) return "—";
-  return parseISO(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    ...(withYear ? { year: "numeric" } : {}),
-  });
+  return withYear ? formatShortDate(iso) : formatShortDate(iso).replace(/, \d{4}$/, "");
 }
 
 export function fmtDateTime(iso?: string | null): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return fmtDate(iso);
-  return d.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatDateTime(iso);
+}
+
+/** Formats date & time strictly as DD/Jan/YYYY, hh:mm A (e.g. 23/Nov/2026, 01:36 PM) */
+export function fmtNotificationDateTime(iso?: string | null): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return String(iso);
+
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const formattedHours = String(hours).padStart(2, "0");
+
+  return `${day}/${month}/${year}, ${formattedHours}:${minutes} ${ampm}`;
 }
 
 export function buildQuery(
@@ -67,12 +104,10 @@ export function buildQuery(
   return str ? `?${str}` : "";
 }
 export function fmtTime(dt: string): string {
-  const [h, m] = dt.slice(11, 16).split(":").map(Number);
-  const ap = h >= 12 ? "PM" : "AM";
-  return `${h % 12 || 12}:${pad(m)} ${ap}`;
+  return formatTime(dt);
 }
 export function fmtLKR(n: number): string {
-  return `LKR ${Math.round(n).toLocaleString("en-US")}`;
+  return formatLkrPrice(n);
 }
 export function fmtCompact(n: number): string {
   const a = Math.abs(n);
@@ -105,6 +140,36 @@ export const qrPayload = (ref: string) => `${QR_PREFIX}${ref}`;
 export const parseQrPayload = (text: string) =>
   text.trim().startsWith(QR_PREFIX) ? text.trim().slice(QR_PREFIX.length) : text.trim();
 
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+export function getNoticeExpiryDate(notice: {
+  expiryDate: string;
+  expiryTime?: string;
+  expiresAt?: string;
+}): Date {
+  if (notice.expiresAt) {
+    const parsed = new Date(notice.expiresAt);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  const datePart = (notice.expiryDate || "").slice(0, 10);
+  const [y, m, d] = datePart.split("-").map(Number);
+  const timePart = notice.expiryTime && /^\d{2}:\d{2}$/.test(notice.expiryTime) ? notice.expiryTime : "23:59";
+  const [hh, mm] = timePart.split(":").map(Number);
+  return new Date(y || 1970, (m || 1) - 1, d || 1, hh ?? 23, mm ?? 59, 59, 999);
+}
+
+export function isNoticeExpired(
+  notice: { expiryDate: string; expiryTime?: string; expiresAt?: string },
+  now = new Date(),
+): boolean {
+  return now.getTime() >= getNoticeExpiryDate(notice).getTime();
+}
+
 export function downloadDataUrl(url: string, filename: string) {
   const a = document.createElement("a");
   a.href = url;
@@ -112,4 +177,57 @@ export function downloadDataUrl(url: string, filename: string) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+/** Audio & haptic feedback for QR scanning events */
+export function playScanFeedback(type: "success" | "warning" | "error"): void {
+  if (typeof window !== "undefined") {
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === "success") {
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.13);
+        } else if (type === "warning") {
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(520, ctx.currentTime);
+          osc.frequency.setValueAtTime(440, ctx.currentTime + 0.08);
+          gain.gain.setValueAtTime(0.2, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.22);
+        } else {
+          osc.type = "sawtooth";
+          osc.frequency.setValueAtTime(220, ctx.currentTime);
+          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.27);
+        }
+      }
+    } catch {
+      /* ignore audio error */
+    }
+
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try {
+        if (type === "success") navigator.vibrate(80);
+        else if (type === "warning") navigator.vibrate([100, 50, 100]);
+        else navigator.vibrate([200, 100, 200]);
+      } catch {
+        /* ignore vibrate error */
+      }
+    }
+  }
 }

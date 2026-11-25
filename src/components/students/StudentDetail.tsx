@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/primitives";
 import { StudentQRCard } from "@/components/qr/StudentQRCard";
 import { useStudentDetail } from "@/hooks/useStudents";
-import { fmtDate, fmtLKR } from "@/lib/utils";
+import { formatDate, formatLkrPrice, formatShortDate } from "@/lib/utils";
 
 type Tab = "overview" | "attendance" | "payments" | "qr";
 
@@ -153,12 +153,12 @@ export function StudentDetail({
                   <InfoRow label="Phone">
                     <span className="num">{s.phone}</span>
                   </InfoRow>
-                  <InfoRow label="Date of birth">{fmtDate(s.dob)}</InfoRow>
+                  <InfoRow label="Date of birth">{formatDate(s.dob)}</InfoRow>
                   <InfoRow label="Address">{s.address}</InfoRow>
                   <InfoRow label="Guardian">
                     {s.guardianName} · <span className="num">{s.guardianPhone}</span>
                   </InfoRow>
-                  <InfoRow label="Enrolled">{fmtDate(s.enrollmentDate)}</InfoRow>
+                  <InfoRow label="Enrolled">{formatDate(s.enrollmentDate)}</InfoRow>
                 </div>
 
                 <div>
@@ -173,7 +173,7 @@ export function StudentDetail({
                             <p className="text-sm font-semibold">{m.name}</p>
                             <p className="num text-[11px] text-muted">{m.code}</p>
                           </div>
-                          <span className="num text-sm font-semibold">{fmtLKR(m.fee)}</span>
+                          <span className="num text-sm font-semibold">{formatLkrPrice(m.fee)}</span>
                         </div>
                       ))}
                     </div>
@@ -184,15 +184,15 @@ export function StudentDetail({
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
                       <p className="text-[11px] text-muted">Total fees</p>
-                      <p className="num text-sm font-bold">{fmtLKR(s.feeTotal)}</p>
+                      <p className="num text-sm font-bold">{formatLkrPrice(s.feeTotal)}</p>
                     </div>
                     <div>
                       <p className="text-[11px] text-muted">Paid</p>
-                      <p className="num text-sm font-bold text-emerald-500">{fmtLKR(s.paidTotal)}</p>
+                      <p className="num text-sm font-bold text-emerald-500">{formatLkrPrice(s.paidTotal)}</p>
                     </div>
                     <div>
                       <p className="text-[11px] text-muted">Outstanding</p>
-                      <p className="num text-sm font-bold text-rose-500">{fmtLKR(s.outstanding)}</p>
+                      <p className="num text-sm font-bold text-rose-500">{formatLkrPrice(s.outstanding)}</p>
                     </div>
                   </div>
                   <ProgressBar
@@ -230,7 +230,7 @@ export function StudentDetail({
                             {r.moduleName ?? moduleMap.get(r.moduleId)?.name ?? r.moduleId}
                           </p>
                           <p className="text-[11px] text-muted">
-                            {fmtDate(r.date)} · {r.method}
+                            {formatShortDate(r.date)} · {r.method}
                           </p>
                         </div>
                         <StatusBadge status={r.status} />
@@ -245,7 +245,7 @@ export function StudentDetail({
               <div className="space-y-3">
                 <div className="flex items-center justify-between rounded-2xl bg-rose-500/10 px-4 py-3">
                   <span className="text-sm font-semibold text-rose-600 dark:text-rose-400">Outstanding balance</span>
-                  <span className="num text-lg font-bold text-rose-500">{fmtLKR(s.outstanding)}</span>
+                  <span className="num text-lg font-bold text-rose-500">{formatLkrPrice(s.outstanding)}</span>
                 </div>
                 {!s.payments?.length ? (
                   <EmptyState title="No payments yet" />
@@ -256,12 +256,12 @@ export function StudentDetail({
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold">{p.category}</p>
                           <p className="truncate text-[11px] text-muted">
-                            {fmtDate(p.date)}
+                            {formatShortDate(p.date)}
                             {p.method ? ` · ${p.method}` : ""}
                             {p.description ? ` · ${p.description}` : ""}
                           </p>
                         </div>
-                        <span className="num text-sm font-bold text-emerald-500">+{fmtLKR(p.amount)}</span>
+                        <span className="num text-sm font-bold text-emerald-500">+{formatLkrPrice(p.amount)}</span>
                       </div>
                     ))}
                   </div>

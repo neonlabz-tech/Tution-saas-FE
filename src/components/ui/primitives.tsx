@@ -1,16 +1,16 @@
-import { useId, type ComponentProps, type ReactNode } from "react";
+import { useId, useState, type ComponentProps, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown, Search, X } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 
 /* ---------- Button ---------- */
 const variants = {
-  primary: "bg-gradient-to-br from-primary to-violet-600 text-white shadow-lg shadow-primary/25 hover:brightness-110",
+  primary: "bg-gradient-to-br from-primary to-[#6D3599] text-white shadow-lg shadow-primary/25 hover:brightness-110",
   secondary: "border border-line bg-surface text-ink hover:bg-surface-2",
   ghost: "text-muted hover:bg-surface-2 hover:text-ink",
   soft: "bg-primary/10 text-brand hover:bg-primary/15",
-  danger: "bg-rose-500 text-white shadow-lg shadow-rose-500/20 hover:bg-rose-600",
-  dangerSoft: "bg-rose-500/10 text-rose-600 hover:bg-rose-500/15 dark:text-rose-400",
+  danger: "bg-[#4D1882] text-white shadow-lg shadow-[#4D1882]/20 hover:bg-[#3D1168]",
+  dangerSoft: "bg-[#4D1882]/10 text-[#4D1882] hover:bg-[#4D1882]/15 dark:text-[#CBADE3]",
 };
 const sizes = {
   sm: "h-8 gap-1.5 rounded-lg px-3 text-xs",
@@ -21,12 +21,15 @@ const sizes = {
 export function Button({
   variant = "primary",
   size = "md",
+  loading,
   className,
+  disabled,
   ...props
-}: ComponentProps<"button"> & { variant?: keyof typeof variants; size?: keyof typeof sizes }) {
+}: ComponentProps<"button"> & { variant?: keyof typeof variants; size?: keyof typeof sizes; loading?: boolean }) {
   return (
     <button
       type="button"
+      disabled={disabled || loading}
       className={cn(
         "inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap font-semibold transition-all active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
         variants[variant],
@@ -57,11 +60,11 @@ export function CardHeader({ title, subtitle, action, className }: { title: Reac
 /* ---------- Badge ---------- */
 const tones = {
   neutral: "bg-surface-2 text-muted",
-  primary: "bg-primary/10 text-brand",
-  teal: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
-  amber: "bg-amber-500/12 text-amber-600 dark:text-amber-400",
-  rose: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-  green: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  primary: "bg-primary/15 text-brand",
+  teal: "bg-[#BC99D9]/20 text-[#6D3599] dark:text-[#E8DAF3]",
+  amber: "bg-[#A771CF]/20 text-[#552780] dark:text-[#DEC8ED]",
+  rose: "bg-[#4D1882]/15 text-[#3D1168] dark:text-[#CBADE3]",
+  green: "bg-[#7D41AB]/15 text-[#6D3599] dark:text-[#DEC8ED]",
 };
 export type Tone = keyof typeof tones;
 export function Badge({ tone = "neutral", className, children }: { tone?: Tone; className?: string; children: ReactNode }) {
@@ -69,8 +72,8 @@ export function Badge({ tone = "neutral", className, children }: { tone?: Tone; 
 }
 const STATUS_TONE: Record<string, Tone> = {
   active: "green", present: "green", completed: "green", published: "green", paid: "green", income: "green",
-  inactive: "neutral", archived: "neutral", expired: "neutral", draft: "neutral", low: "teal",
-  pending: "amber", late: "amber", upcoming: "amber", "on-leave": "amber", scheduled: "primary", medium: "amber", partial: "amber",
+  inactive: "rose", archived: "neutral", expired: "neutral", draft: "neutral", low: "teal",
+  pending: "amber", late: "amber", upcoming: "amber", scheduled: "primary", medium: "amber", partial: "amber",
   absent: "rose", cancelled: "rose", suspended: "rose", high: "rose", unpaid: "rose", expense: "rose",
   excused: "primary", graduated: "primary",
 };
@@ -85,7 +88,7 @@ export function StatusBadge({ status }: { status: string }) {
 
 /* ---------- Form controls ---------- */
 const control =
-  "w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-ink placeholder:text-muted/70 transition focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/15 disabled:opacity-60";
+  "w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-ink placeholder:text-muted/70 transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/15 disabled:opacity-60";
 export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cn(control, "h-10", className)} {...props} />;
 }
@@ -126,32 +129,77 @@ export function MultiSelect({
   value,
   onChange,
   className,
+  allowCustom = false,
+  customPlaceholder = "Add new batch…",
+  onAddCustom,
 }: {
   options: { value: string; label: string; hint?: string }[];
   value: string[];
   onChange: (v: string[]) => void;
   className?: string;
+  allowCustom?: boolean;
+  customPlaceholder?: string;
+  onAddCustom?: (newValue: string) => void;
 }) {
+  const [draft, setDraft] = useState("");
   const toggle = (v: string) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
+
+  const mergedOptions = [...options];
+  for (const selected of value) {
+    if (selected && !mergedOptions.some((o) => o.value === selected)) {
+      mergedOptions.push({ value: selected, label: selected });
+    }
+  }
+
+  const addCustom = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    if (!value.includes(trimmed)) onChange([...value, trimmed]);
+    onAddCustom?.(trimmed);
+    setDraft("");
+  };
+
   return (
-    <div className={cn("flex flex-wrap gap-2", className)}>
-      {options.map((o) => {
-        const on = value.includes(o.value);
-        return (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => toggle(o.value)}
-            className={cn(
-              "cursor-pointer rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
-              on ? "border-primary bg-primary/10 text-brand" : "border-line bg-surface text-muted hover:border-primary/40 hover:text-ink",
-            )}
-          >
-            {on ? "✓ " : ""}
-            {o.label}
-          </button>
-        );
-      })}
+    <div className={cn("space-y-2.5", className)}>
+      <div className="flex flex-wrap gap-2">
+        {mergedOptions.map((o) => {
+          const on = value.includes(o.value);
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => toggle(o.value)}
+              className={cn(
+                "cursor-pointer rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+                on ? "border-primary bg-primary/10 text-brand" : "border-line bg-surface text-muted hover:border-primary/40 hover:text-ink",
+              )}
+            >
+              {on ? "✓ " : ""}
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+      {allowCustom && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.stopPropagation();
+                addCustom();
+              }
+            }}
+            placeholder={customPlaceholder}
+            className="h-9 max-w-[230px] text-xs"
+          />
+          <Button type="button" size="sm" variant="soft" onClick={addCustom} disabled={!draft.trim()}>
+            + Add
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -173,12 +221,13 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
 
 /* ---------- Misc ---------- */
 const GRADS = [
-  "from-indigo-500 to-violet-500",
-  "from-teal-500 to-emerald-500",
-  "from-amber-500 to-orange-500",
-  "from-rose-500 to-pink-500",
-  "from-sky-500 to-indigo-500",
-  "from-fuchsia-500 to-purple-500",
+  "from-[#8B51BE] to-[#6D3599]",
+  "from-[#BC99D9] to-[#713E99]",
+  "from-[#A771CF] to-[#552780]",
+  "from-[#CBADE3] to-[#A774D1]",
+  "from-[#A774D1] to-[#461A71]",
+  "from-[#4D1882] to-[#2B0A4D]",
+  "from-[#693AA0] to-[#2F164E]",
 ];
 export function Avatar({ name, size = "md", className }: { name: string; size?: "sm" | "md" | "lg" | "xl"; className?: string }) {
   const h = [...name].reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -203,13 +252,13 @@ export function Tabs<T extends string>({
 }) {
   const gid = useId();
   return (
-    <div className={cn("inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-surface-2 p-1", className)}>
+    <div className={cn("inline-flex max-w-full gap-1 overflow-x-auto no-scrollbar overscroll-x-contain rounded-2xl bg-surface-2 p-1", className)}>
       {items.map((it) => (
         <button
           key={it.id}
           type="button"
           onClick={() => onChange(it.id)}
-          className={cn("relative flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors", value === it.id ? "text-ink" : "text-muted hover:text-ink")}
+          className={cn("relative flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors", value === it.id ? "text-ink" : "text-muted hover:text-ink")}
         >
           {value === it.id && <motion.span layoutId={`tab-${gid}`} className="absolute inset-0 rounded-xl bg-surface shadow-sm" transition={{ type: "spring", bounce: 0.2, duration: 0.4 }} />}
           <span className="relative flex items-center gap-2">
@@ -223,7 +272,7 @@ export function Tabs<T extends string>({
 }
 
 export function ProgressBar({ value, tone = "primary", className }: { value: number; tone?: "primary" | "teal" | "amber" | "rose"; className?: string }) {
-  const c = { primary: "bg-primary", teal: "bg-secondary", amber: "bg-accent", rose: "bg-rose-500" }[tone];
+  const c = { primary: "bg-primary", teal: "bg-secondary", amber: "bg-accent", rose: "bg-[#4D1882]" }[tone];
   return (
     <div className={cn("h-2 w-full overflow-hidden rounded-full bg-surface-2", className)}>
       <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, Math.max(0, value))}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className={cn("h-full rounded-full", c)} />

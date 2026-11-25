@@ -2,7 +2,6 @@ import type {
   AttendanceRecord,
   AttendanceStatus,
   Module,
-  Notice,
   OnlineClass,
   Student,
   Teacher,
@@ -52,7 +51,7 @@ const TEACHER_SEED: Omit<Teacher, "batches">[] = [
   { id: "TCH-005", fullName: "Ms. Hasini de Mel", email: "hasini.d@eduflow.lk", phone: "0771234505", qualification: "MA in English Literature", specialization: "Communication Skills", joiningDate: "2022-03-14", status: "active" },
   { id: "TCH-006", fullName: "Mr. Rohan Peiris", email: "rohan.p@eduflow.lk", phone: "0771234506", qualification: "BSc in Software Engineering", specialization: "Web & Databases", joiningDate: "2022-08-22", status: "active" },
   { id: "TCH-007", fullName: "Mrs. Chathuri Amarasinghe", email: "chathuri.a@eduflow.lk", phone: "0771234507", qualification: "ACA, MBA", specialization: "Financial Accounting", joiningDate: "2020-11-09", status: "active" },
-  { id: "TCH-008", fullName: "Mr. Kalum Ranasinghe", email: "kalum.r@eduflow.lk", phone: "0771234508", qualification: "MSc in Economics", specialization: "Macroeconomics", joiningDate: "2023-01-30", status: "on-leave" },
+  { id: "TCH-008", fullName: "Mr. Kalum Ranasinghe", email: "kalum.r@eduflow.lk", phone: "0771234508", qualification: "MSc in Economics", specialization: "Macroeconomics", joiningDate: "2023-01-30", status: "inactive" },
 ];
 
 const FIRST = ["Nimal", "Kasun", "Dilani", "Sachini", "Tharindu", "Ishara", "Ruwan", "Amaya", "Chamath", "Nethmi", "Lahiru", "Sanduni", "Pasindu", "Hiruni", "Dineth", "Oshadi", "Vihanga", "Thisaru", "Kavindi", "Ravindu", "Malsha", "Yasiru", "Senuri", "Dasun"];
@@ -67,7 +66,6 @@ export interface MockData {
   attendance: AttendanceRecord[];
   transactions: Transaction[];
   classes: OnlineClass[];
-  notices: Notice[];
 }
 
 export function buildMockData(): MockData {
@@ -188,34 +186,27 @@ export function buildMockData(): MockData {
       const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, min);
       const end = new Date(start.getTime() + 90 * 60000);
       const past = end < today;
+      const isPhysical = (c + mi) % 3 === 0;
       classes.push({
         id: `cls_${c++}`,
         title: `${m.name}: ${topics[(c + mi) % topics.length]}`,
+        classType: isPhysical ? "physical" : "online",
+        hall: isPhysical ? (mi % 2 === 0 ? "Hall A" : "Lab 2") : undefined,
         moduleId: m.id,
         teacherId: m.teacherId!,
         batch: m.batches[c % m.batches.length],
         start: toLocalDT(start),
         end: toLocalDT(end),
-        link: `https://meet.example.com/eduflow-${m.code.toLowerCase()}`,
-        description: "Join with your student ID ready. Recording will be shared after the session.",
+        link: isPhysical ? undefined : `https://meet.example.com/eduflow-${m.code.toLowerCase()}`,
+        description: isPhysical
+          ? "Please arrive 10 minutes before the session starts. Bring your lecture notes."
+          : "Join with your student ID ready. Recording will be shared after the session.",
         status: past ? "completed" : rand() < 0.05 ? "cancelled" : "scheduled",
       });
     }
   });
 
-  const D = (n2: number) => toISO(addDays(today, n2));
-  const notices: Notice[] = [
-    { id: "ntc_1", title: "Today's class has been cancelled", description: "Due to unforeseen circumstances, the evening Physics class scheduled for today is cancelled. A make-up session will be announced shortly.", batches: [BATCHES[0], BATCHES[1]], publishDate: D(0), expiryDate: D(1), priority: "high", status: "published" },
-    { id: "ntc_2", title: "The exam has been postponed until next week", description: "The Term 2 mock examination is now scheduled for next Saturday. Please collect the revised timetable from the front desk.", batches: [], publishDate: D(-1), expiryDate: D(9), priority: "high", status: "published" },
-    { id: "ntc_3", title: "A new online class schedule is available", description: "The updated weekly online class timetable is live on the Online Classes page. Check your batch and module for changes.", batches: [], publishDate: D(-2), expiryDate: D(14), priority: "medium", status: "published" },
-    { id: "ntc_4", title: "Fee payment reminder", description: "Students with outstanding balances are kindly requested to settle instalments before the end of this month.", batches: [BATCHES[1], BATCHES[3]], publishDate: D(-4), expiryDate: D(12), priority: "medium", status: "published" },
-    { id: "ntc_5", title: "Weekend ICT lab orientation", description: "New weekend batch students are invited to a lab orientation on Saturday at 9:00 AM.", batches: [BATCHES[2]], publishDate: D(-3), expiryDate: D(5), priority: "low", status: "published" },
-    { id: "ntc_6", title: "Institute holiday — Poya day", description: "The institute will remain closed for the Poya holiday. All classes will resume next day.", batches: [], publishDate: D(-20), expiryDate: D(-12), priority: "low", status: "published" },
-    { id: "ntc_7", title: "Parent–teacher meeting", description: "Parent–teacher meetings for the 2025-A Morning batch. Slot bookings open at the front desk.", batches: [BATCHES[0]], publishDate: D(-25), expiryDate: D(-6), priority: "medium", status: "published" },
-    { id: "ntc_8", title: "Scholarship programme announcement (draft)", description: "Details of the merit scholarship programme are being finalised and will be published soon.", batches: [], publishDate: D(3), expiryDate: D(30), priority: "low", status: "draft" },
-  ];
-
-  return { students, teachers, modules, attendance, transactions, classes, notices };
+  return { students, teachers, modules, attendance, transactions, classes };
 }
 
 function makeRefSeeded(rand: () => number): string {

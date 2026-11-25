@@ -1,0 +1,108 @@
+/* ==========================================================================
+   Global Color Theme & Design Tokens — Vector Gradient Purple/Violet Palette
+   Palette extracted from official 7-gradient set:
+     - Bar 1 (Medium Purple): #8B51BE / #7D41AB / #6D3599
+     - Bar 2 (Soft Lilac): #BC99D9 / #9A6DBC / #713E99
+     - Bar 3 (Vibrant Violet): #A771CF / #7A49A3 / #552780
+     - Bar 4 (Pastel Lavender): #E8DAF3 / #CBADE3 / #A774D1
+     - Bar 5 (Deep Violet): #A774D1 / #7948A2 / #461A71
+     - Bar 6 (Imperial Dark Purple): #4D1882 / #3D1168 / #2B0A4D
+     - Bar 7 (Midnight Plum): #693AA0 / #4C2A77 / #2F164E
+   ========================================================================== */
+
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Plus Jakarta Sans", "DM Sans", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Brand Primary Colors */
+  --color-primary: #7d41ab;
+  --color-primary-hover: #6d3599;
+  --color-secondary: #a771cf;
+  --color-accent: #bc99d9;
+
+  /* Palette Gradient Tokens */
+  --color-neon-blue: #a771cf;
+  --color-neon-cyan: #bc99d9;
+  --color-neon-purple: #7d41ab;
+  --color-neon-violet: #8b51be;
+  --color-neon-magenta: #a774d1;
+
+  /* Layout & Navigation */
+  --color-sidebar: #2b0a4d;
+  --shadow-card: 0 1px 3px rgb(43 10 77 / 0.05), 0 8px 24px -6px rgb(125 65 171 / 0.08);
+  --shadow-pop: 0 20px 50px -10px rgb(125 65 171 / 0.28);
+  --shadow-neon: 0 0 25px -4px rgb(167 113 207 / 0.45);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+}
+
+:root {
+  /* Light Theme */
+  --canvas: #f8f6fc;
+  --surface: #ffffff;
+  --surface-2: #ede4f7;
+  --ink: #2b0a4d;
+  --muted: #7e6299;
+  --line: #dec8ed;
+  --brand: #7d41ab;
+
+  --neon-blue: #a771cf;
+  --neon-purple: #7d41ab;
+  --neon-magenta: #bc99d9;
+
+  --gradient-neon: linear-gradient(135deg, #bc99d9 0%, #7d41ab 50%, #4d1882 100%);
+  --gradient-primary: linear-gradient(135deg, #8b51be 0%, #6d3599 100%);
+  --gradient-glow: linear-gradient(135deg, #a771cf 0%, #7d41ab 50%, #3d1168 100%);
+
+  color-scheme: light;
+}
+
+.dark {
+  /* Dark Theme — Deep royal purple & midnight plum */
+  --canvas: #19052e;
+  --surface: #2b0a4d;
+  --surface-2: #3d1168;
+  --ink: #f8f6fc;
+  --muted: #cbade3;
+  --line: #4d1882;
+  --brand: #a771cf;
+
+  --neon-blue: #bc99d9;
+  --neon-purple: #a771cf;
+  --neon-magenta: #8b51be;
+
+  --gradient-neon: linear-gradient(135deg, #bc99d9 0%, #8b51be 50%, #4d1882 100%);
+  --gradient-primary: linear-gradient(135deg, #a771cf 0%, #7d41ab 100%);
+  --gradient-glow: linear-gradient(135deg, #a771cf 0%, #7d41ab 50%, #3d1168 100%);
+
+  color-scheme: dark;
+}
+
+/* Common Brand Utility Classes */
+.bg-neon-gradient {
+  background: var(--gradient-neon);
+}
+
+.text-neon-gradient {
+  background: var(--gradient-neon);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.border-neon {
+  border-color: #7d41ab;
+  box-shadow: 0 0 15px -3px rgb(125 65 171 / 0.4);
+}
+
+.neon-glow {
+  box-shadow: 0 0 30px -4px rgb(167 113 207 / 0.45);
+}

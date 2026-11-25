@@ -5,7 +5,7 @@
 // client in `./api.ts` shows the request helper pattern); hooks and pages do not need to change.
 // Student session and accounts use their own storage keys and never touch the admin `eduflow-token`.
 import type { StudentAccount, StudentPortalData } from "@/types/student";
-import { buildPortalData, findStudentByEmail, findStudentById, pickDemoStudentId } from "@/lib/studentPortal";
+import { buildPortalData, findStudentByEmail, findStudentById, getLivePortalData, pickDemoStudentId } from "@/lib/studentPortal";
 
 const ACCOUNTS_KEY = "eduflow-student-accounts";
 const SESSION_KEY = "eduflow-student-session";
@@ -178,7 +178,11 @@ export const studentAuthApi = {
 };
 
 export const studentPortalApi = {
-  getPortal(account: StudentAccount): Promise<StudentPortalData> {
-    return wait(buildPortalData(account.studentId), 450);
+  async getPortal(account: StudentAccount): Promise<StudentPortalData> {
+    try {
+      return await getLivePortalData(account);
+    } catch {
+      return wait(buildPortalData(account.studentId), 300);
+    }
   },
 };

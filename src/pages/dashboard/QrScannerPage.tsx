@@ -1,31 +1,121 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { QRCodeSVG } from "qrcode.react";
-import { AlertCircle, Camera, CameraOff, Keyboard, ScanLine, Sparkles } from "lucide-react";
-import type { Student } from "@/types";
-import { Avatar, Button, Card, CardHeader, Field, Input, MockNote, PageHeader, Select } from "@/components/ui/primitives";
+import {
+  AlertCircle,
+  Camera,
+  CameraOff,
+  History,
+  Keyboard,
+  RefreshCw,
+  ScanLine,
+} from "lucide-react";
+import type { AttendanceRecord, Student, StudentPaymentStatus } from "@/types";
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  Input,
+  PageHeader,
+  Select,
+  StatusBadge,
+} from "@/components/ui/primitives";
 import { ScanResult } from "@/components/qr/ScanResult";
 import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
-import { parseQrPayload, qrPayload } from "@/lib/utils";
+import { attendanceApi, type VerifyQrResponse } from "@/lib/api";
+import { parseQrPayload, playScanFeedback, todayISO } from "@/lib/utils";
 
 const READER_ID = "eduflow-qr-reader";
 
+interface RecentScan {
+  id: string;
+  name: string;
+  status: "Present" | "Duplicate" | "Verified" | "Not Enrolled" | "Failed";
+  ok: boolean;
+  at: string;
+}
+
 export default function QrScannerPage() {
-  const { students } = useAppData();
+  const { students, modules, markAttendance, refreshStudents } = useAppData();
   const toast = useToast();
+
+  useEffect(() => {
+    void refreshStudents();
+  }, [refreshStudents]);
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const runningRef = useRef(false);
+
   const [scanning, setScanning] = useState(false);
   const [starting, setStarting] = useState(false);
   const [cameraError, setCameraError] = useState("");
-  const [result, setResult] = useState<Student | null>(null);
+  const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
+
+  const [selectedModuleId] = useState<string>("all");
+  const [autoMark] = useState(true);
+
+  type ScannedStudent = Student & {
+    feeTotal?: number;
+    paidTotal?: number;
+    outstanding?: number;
+    paymentStatus?: StudentPaymentStatus;
+  };
+
+  const [result, setResult] = useState<ScannedStudent | null>(null);
+  const [verifyData, setVerifyData] = useState<VerifyQrResponse | null>(null);
   const [error, setError] = useState("");
   const [manual, setManual] = useState("");
-  const [recent, setRecent] = useState<{ id: string; name: string; ok: boolean; at: string }[]>([]);
-  const demoStudents = students.filter((s) => s.status === "active").slice(0, 12);
-  const [demoId, setDemoId] = useState(demoStudents[0]?.id ?? "");
-  const demo = students.find((s) => s.id === demoId);
+  const [recent, setRecent] = useState<RecentScan[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Suggestions matching the typed query (min 2 characters)
+  const suggestions = useMemo(() => {
+    const q = manual.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return students
+      .filter((s) => {
+        return (
+          s.fullName.toLowerCase().includes(q) ||
+          s.id.toLowerCase().includes(q) ||
+          (s.phone && s.phone.includes(q)) ||
+          (s.email && s.email.toLowerCase().includes(q)) ||
+          (s.batch && s.batch.toLowerCase().includes(q))
+        );
+      })
+      .slice(0, 6);
+  }, [students, manual]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  // Discover available cameras
+  useEffect(() => {
+    Html5Qrcode.getCameras()
+      .then((devs) => {
+        if (devs && devs.length > 0) {
+          setCameras(devs.map((d) => ({ id: d.id, label: d.label || `Camera ${d.id.slice(0, 4)}` })));
+          // Prefer back/environment camera if available
+          const back = devs.find((d) => /back|rear|environment/i.test(d.label));
+          setSelectedCameraId(back ? back.id : devs[0].id);
+        }
+      })
+      .catch(() => {
+        // Will prompt on user start action
+      });
+  }, []);
 
   const stop = useCallback(async () => {
     const sc = scannerRef.current;
@@ -42,49 +132,249 @@ export default function QrScannerPage() {
   }, []);
 
   const resolve = useCallback(
-    (raw: string) => {
+    async (raw: string) => {
       const code = parseQrPayload(raw);
-      const s = students.find((x) => x.ref === code || x.id.toLowerCase() === code.toLowerCase());
       const at = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      if (!s) {
+      const targetModule = selectedModuleId !== "all" ? selectedModuleId : undefined;
+
+      try {
+        const verifyRes = await attendanceApi.verifyQr({
+          code,
+          moduleId: targetModule,
+          date: todayISO(),
+        });
+
+        setVerifyData(verifyRes);
+
+        // Find or build student object
+        const local = students.find(
+          (s) => s.id.toLowerCase() === verifyRes.student.id.toLowerCase() || s.ref === verifyRes.student.ref,
+        );
+
+        const baseStudent: Student = local ?? {
+          id: verifyRes.student.id,
+          ref: verifyRes.student.ref,
+          fullName: verifyRes.student.fullName,
+          email: verifyRes.student.email ?? "",
+          phone: verifyRes.student.phone ?? "",
+          dob: "2006-01-01",
+          address: "Colombo, Sri Lanka",
+          guardianName: "Guardian",
+          guardianPhone: verifyRes.student.phone ?? "",
+          batch: verifyRes.student.batch ?? "2026",
+          status: (verifyRes.student.status as Student["status"]) ?? "active",
+          moduleIds: verifyRes.student.moduleIds ?? [],
+          enrollmentDate: todayISO(),
+        };
+
+        const currentStudent: ScannedStudent = {
+          ...baseStudent,
+          feeTotal: verifyRes.student.feeTotal,
+          paidTotal: verifyRes.student.paidTotal,
+          outstanding: verifyRes.student.outstanding,
+          paymentStatus: verifyRes.student.paymentStatus,
+        };
+
+        setResult(currentStudent);
+        setError("");
+
+        // Check if student was already marked today in this module
+        if (verifyRes.alreadyMarked) {
+          playScanFeedback("warning");
+          toast.info(
+            `${currentStudent.fullName} is already marked for today in ${
+              modules.find((m) => m.id === targetModule)?.code ?? "this module"
+            }`,
+          );
+          const entry: RecentScan = {
+            id: currentStudent.id,
+            name: currentStudent.fullName,
+            status: "Duplicate",
+            ok: true,
+            at,
+          };
+          setRecent((r) => [entry, ...r].slice(0, 10));
+          return true;
+        }
+
+        // Check enrollment if module selected
+        if (targetModule && verifyRes.enrolledInModule === false) {
+          playScanFeedback("warning");
+          toast.error(
+            `${currentStudent.fullName} is not enrolled in ${
+              modules.find((m) => m.id === targetModule)?.name ?? "this module"
+            }`,
+          );
+          const entry: RecentScan = {
+            id: currentStudent.id,
+            name: currentStudent.fullName,
+            status: "Not Enrolled",
+            ok: false,
+            at,
+          };
+          setRecent((r) => [entry, ...r].slice(0, 10));
+          return false;
+        }
+
+        // Auto-mark present if enabled
+        const moduleToMark = targetModule ?? currentStudent.moduleIds[0];
+        if (autoMark && moduleToMark) {
+          try {
+            await attendanceApi.markQr({
+              code: currentStudent.id,
+              moduleId: moduleToMark,
+              date: todayISO(),
+              status: "present",
+            });
+            markAttendance(currentStudent.id, moduleToMark, todayISO(), "present", "qr");
+            playScanFeedback("success");
+            toast.success(
+              `Marked ${currentStudent.fullName} present (${modules.find((m) => m.id === moduleToMark)?.code ?? ""})`,
+            );
+            const entry: RecentScan = {
+              id: currentStudent.id,
+              name: currentStudent.fullName,
+              status: "Present",
+              ok: true,
+              at,
+            };
+            setRecent((r) => [entry, ...r].slice(0, 10));
+          } catch {
+            markAttendance(currentStudent.id, moduleToMark, todayISO(), "present", "qr");
+            playScanFeedback("success");
+            toast.success(`Marked ${currentStudent.fullName} present`);
+            const entry: RecentScan = {
+              id: currentStudent.id,
+              name: currentStudent.fullName,
+              status: "Present",
+              ok: true,
+              at,
+            };
+            setRecent((r) => [entry, ...r].slice(0, 10));
+          }
+        } else {
+          playScanFeedback("success");
+          toast.success(`Verified ${currentStudent.fullName}`);
+          const entry: RecentScan = {
+            id: currentStudent.id,
+            name: currentStudent.fullName,
+            status: "Verified",
+            ok: true,
+            at,
+          };
+          setRecent((r) => [entry, ...r].slice(0, 10));
+        }
+
+        return true;
+      } catch (err) {
+        // Fallback to local students search if offline
+        const local = students.find(
+          (s) => s.ref === code || s.id.toLowerCase() === code.toLowerCase(),
+        );
+
+        if (local) {
+          setResult(local);
+          setVerifyData(null);
+          setError("");
+
+          const moduleToMark = targetModule ?? local.moduleIds[0];
+          if (autoMark && moduleToMark) {
+            markAttendance(local.id, moduleToMark, todayISO(), "present", "qr");
+            playScanFeedback("success");
+            toast.success(`Marked ${local.fullName} present`);
+            const entry: RecentScan = {
+              id: local.id,
+              name: local.fullName,
+              status: "Present",
+              ok: true,
+              at,
+            };
+            setRecent((r) => [entry, ...r].slice(0, 10));
+          } else {
+            playScanFeedback("success");
+            toast.success(`Scanned ${local.fullName}`);
+            const entry: RecentScan = {
+              id: local.id,
+              name: local.fullName,
+              status: "Verified",
+              ok: true,
+              at,
+            };
+            setRecent((r) => [entry, ...r].slice(0, 10));
+          }
+          return true;
+        }
+
+        const msg = err instanceof Error ? err.message : "Unrecognised QR code";
+        playScanFeedback("error");
         setResult(null);
-        setError("This code does not match any student record. Ask the student to show their EduFlow QR card.");
-        setRecent((r) => [{ id: code.slice(0, 10), name: "Unknown code", ok: false, at }, ...r].slice(0, 6));
-        toast.error("Unrecognised QR code");
+        setVerifyData(null);
+        setError(msg || "This QR code or query does not match any student record.");
+        const failedEntry: RecentScan = {
+          id: code.slice(0, 12),
+          name: "Unknown code",
+          status: "Failed",
+          ok: false,
+          at,
+        };
+        setRecent((r) => [failedEntry, ...r].slice(0, 10));
+        toast.error(msg);
         return false;
       }
-      setError("");
-      setResult(s);
-      setRecent((r) => [{ id: s.id, name: s.fullName, ok: true, at }, ...r].slice(0, 6));
-      toast.success(`Scanned ${s.fullName}`);
-      return true;
     },
-    [students, toast],
+    [selectedModuleId, students, modules, autoMark, markAttendance, toast],
+  );
+
+  const handleSelectStudent = useCallback(
+    (student: Student) => {
+      setManual("");
+      setDropdownOpen(false);
+      setSelectedIndex(-1);
+      void resolve(student.id);
+    },
+    [resolve],
   );
 
   const start = async () => {
     setCameraError("");
     setError("");
     setResult(null);
+    setVerifyData(null);
     setStarting(true);
+
     try {
       const sc = scannerRef.current ?? new Html5Qrcode(READER_ID);
       scannerRef.current = sc;
+
+      const cameraConfig = selectedCameraId
+        ? { deviceId: { exact: selectedCameraId } }
+        : { facingMode: "environment" };
+
       await sc.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 240, height: 240 } },
+        cameraConfig,
+        { fps: 15, qrbox: { width: 250, height: 250 } },
         (text) => {
-          resolve(text);
+          void resolve(text);
           void stop();
         },
         () => undefined,
       );
+
       runningRef.current = true;
       setScanning(true);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setCameraError(/permission|denied|notallowed/i.test(msg) ? "Camera permission was denied. Allow camera access in your browser, or use manual entry." : "No camera could be started on this device. Use manual entry below instead.");
-      toast.error("Could not open the camera");
+      if (/permission|denied|notallowed/i.test(msg)) {
+        setCameraError(
+          "Camera permission was denied. Please allow camera permissions in your browser's site settings or address bar, then click Retry.",
+        );
+      } else if (/notfound|device/i.test(msg)) {
+        setCameraError("No camera device was detected on your system. Use manual ID entry below to look up students.");
+      } else {
+        setCameraError("Could not access the camera. Ensure no other application is using it and click Retry.");
+      }
+      playScanFeedback("error");
+      toast.error("Could not start camera scanner");
     } finally {
       setStarting(false);
     }
@@ -102,80 +392,328 @@ export default function QrScannerPage() {
 
   return (
     <>
-      <PageHeader title="QR Scanner" description="Scan a student's QR card to verify identity, mark attendance, or record a payment." />
+      <PageHeader
+        title="QR Scanner"
+        description="Fast contactless attendance marking & student verification using high-speed QR camera scanning."
+      />
+
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Left Column: Camera Viewfinder & Manual Entry */}
         <div className="space-y-6">
-          <Card className="overflow-hidden">
-            <CardHeader title="Camera scanner" subtitle="Point the camera at a student QR code" action={scanning && <Button size="sm" variant="dangerSoft" onClick={stop}><CameraOff className="h-3.5 w-3.5" /> Close scanner</Button>} />
-            <div className="p-5">
-              <div className="relative mx-auto aspect-square w-full max-w-md overflow-hidden rounded-3xl bg-slate-950">
-                <div id={READER_ID} className="h-full w-full [&_video]:h-full [&_video]:w-full [&_video]:object-cover" />
-                {!scanning && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-900 to-indigo-950 p-6 text-center text-white">
-                    <div className="relative flex h-24 w-24 items-center justify-center rounded-3xl border border-white/20 bg-white/5">
-                      <ScanLine className="h-10 w-10 text-teal-300" />
-                      {["left-0 top-0 border-l-2 border-t-2 rounded-tl-2xl", "right-0 top-0 border-r-2 border-t-2 rounded-tr-2xl", "left-0 bottom-0 border-l-2 border-b-2 rounded-bl-2xl", "right-0 bottom-0 border-r-2 border-b-2 rounded-br-2xl"].map((c) => <span key={c} className={`absolute h-5 w-5 border-teal-300 ${c}`} />)}
+          <Card className="overflow-hidden border border-line">
+            <CardHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <Camera className="h-4 w-4 text-brand" />
+                  Camera scanner
+                  {scanning && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#7D41AB]/15 px-2 py-0.5 text-[11px] font-bold text-[#7D41AB] animate-pulse">
+                      ● Live
+                    </span>
+                  )}
+                </span>
+              }
+              subtitle="Align student QR code within the target frame"
+              action={
+                <div className="flex items-center gap-2">
+                  {cameras.length > 1 && (
+                    <div className="w-40">
+                      <Select
+                        value={selectedCameraId}
+                        onChange={(e) => setSelectedCameraId(e.target.value)}
+                        aria-label="Select camera"
+                      >
+                        {cameras.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </Select>
                     </div>
-                    <p className="max-w-[240px] text-sm text-white/70">{cameraError || "Camera is off. Start the scanner to read a QR code."}</p>
-                    <Button onClick={start} disabled={starting}><Camera className="h-4 w-4" /> {starting ? "Starting…" : "Open camera scanner"}</Button>
+                  )}
+                  {scanning && (
+                    <Button size="sm" variant="dangerSoft" onClick={stop}>
+                      <CameraOff className="h-3.5 w-3.5" /> Stop scanner
+                    </Button>
+                  )}
+                </div>
+              }
+            />
+
+            <div className="p-5">
+              <div className="relative mx-auto aspect-square w-full max-w-md overflow-hidden rounded-3xl bg-slate-950 shadow-inner">
+                <div id={READER_ID} className="h-full w-full [&_video]:h-full [&_video]:w-full [&_video]:object-cover" />
+
+                {!scanning && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-center text-white">
+                    <div className="relative flex h-24 w-24 items-center justify-center rounded-3xl border border-white/20 bg-white/5 shadow-2xl">
+                      <ScanLine className="h-10 w-10 text-[#A771CF]" />
+                      {[
+                        "left-0 top-0 border-l-2 border-t-2 rounded-tl-2xl",
+                        "right-0 top-0 border-r-2 border-t-2 rounded-tr-2xl",
+                        "left-0 bottom-0 border-l-2 border-b-2 rounded-bl-2xl",
+                        "right-0 bottom-0 border-r-2 border-b-2 rounded-br-2xl",
+                      ].map((c) => (
+                        <span key={c} className={`absolute h-5 w-5 border-[#7D41AB] ${c}`} />
+                      ))}
+                    </div>
+
+                    <p className="max-w-[260px] text-xs text-white/70 leading-relaxed">
+                      {cameraError || "Camera is idle. Start the scanner to read student QR cards."}
+                    </p>
+
+                    <div className="flex gap-2">
+                      <Button onClick={start} disabled={starting}>
+                        <Camera className="h-4 w-4" /> {starting ? "Starting…" : "Start camera scanner"}
+                      </Button>
+                      {cameraError && (
+                        <Button variant="secondary" onClick={start} disabled={starting}>
+                          <RefreshCw className="h-3.5 w-3.5" /> Retry
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
-                {scanning && <div className="pointer-events-none absolute inset-x-8 top-1/2 h-0.5 animate-pulse bg-gradient-to-r from-transparent via-teal-300 to-transparent" />}
+
+                {/* Laser scan animation when camera is live */}
+                {scanning && (
+                  <>
+                    <div className="pointer-events-none absolute inset-x-12 top-1/2 h-0.5 animate-pulse bg-gradient-to-r from-transparent via-[#A771CF] to-transparent shadow-[0_0_12px_#A771CF]" />
+                    <div className="pointer-events-none absolute inset-10 rounded-2xl border-2 border-[#7D41AB]/40" />
+                  </>
+                )}
               </div>
             </div>
           </Card>
-
-          <Card>
-            <CardHeader title={<span className="flex items-center gap-2"><Keyboard className="h-4 w-4 text-brand" /> Manual entry</span>} subtitle="Fallback if the camera is unavailable" />
-            <form className="flex gap-2 p-5" onSubmit={(e) => { e.preventDefault(); if (manual.trim()) { resolve(manual); setManual(""); } }}>
-              <Input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="Student ID (STU-…) or QR reference" className="num" />
-              <Button type="submit" disabled={!manual.trim()}>Look up</Button>
-            </form>
-          </Card>
         </div>
 
+        {/* Right Column: Manual Entry, Verification Results & Feed */}
         <div className="space-y-6">
+          {/* Manual Entry Fallback */}
+          <Card className="overflow-visible relative">
+            <CardHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <Keyboard className="h-4 w-4 text-brand" /> Manual Entry & Handheld Reader
+                </span>
+              }
+              subtitle="Type student name, Student ID, or phone number to see live suggestions"
+            />
+            <form
+              ref={dropdownRef as any}
+              className="p-5 pt-1"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+                  handleSelectStudent(suggestions[selectedIndex]);
+                  return;
+                }
+                const trimmed = manual.trim();
+                if (!trimmed) return;
+                if (suggestions.length === 1) {
+                  handleSelectStudent(suggestions[0]);
+                  return;
+                }
+                if (trimmed.length < 3 && !trimmed.toUpperCase().startsWith("STU-")) {
+                  toast.error("Please enter at least 3 characters to search by student name.");
+                  return;
+                }
+                setDropdownOpen(false);
+                void resolve(trimmed);
+                setManual("");
+              }}
+            >
+              <div className="flex flex-col sm:flex-row gap-2 relative">
+                <div className="relative flex-1">
+                  <Input
+                    value={manual}
+                    onChange={(e) => {
+                      setManual(e.target.value);
+                      setDropdownOpen(true);
+                      setSelectedIndex(-1);
+                    }}
+                    onFocus={() => {
+                      if (manual.trim().length >= 2) setDropdownOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!dropdownOpen || suggestions.length === 0) return;
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setSelectedIndex((prev) => (prev + 1) % suggestions.length);
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+                      } else if (e.key === "Enter") {
+                        if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+                          e.preventDefault();
+                          handleSelectStudent(suggestions[selectedIndex]);
+                        }
+                      } else if (e.key === "Escape") {
+                        setDropdownOpen(false);
+                      }
+                    }}
+                    placeholder="Type student name, STU-2026-001, or phone…"
+                    className="font-medium"
+                    autoComplete="off"
+                  />
+
+                  {/* Floating Dropdown suggestions */}
+                  {dropdownOpen && manual.trim().length >= 2 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-1.5 max-h-72 overflow-y-auto rounded-2xl border border-line bg-surface/95 backdrop-blur-md shadow-2xl divide-y divide-line/30">
+                      {suggestions.length > 0 ? (
+                        suggestions.map((s, idx) => {
+                          const isSelected = idx === selectedIndex;
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => handleSelectStudent(s)}
+                              onMouseEnter={() => setSelectedIndex(idx)}
+                              className={`flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left transition-colors cursor-pointer ${
+                                isSelected
+                                  ? "bg-[#7D41AB]/15 text-foreground"
+                                  : "hover:bg-surface-elevated text-foreground"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <Avatar name={s.fullName} size="sm" />
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="truncate font-heading text-sm font-bold text-foreground">
+                                      {s.fullName}
+                                    </p>
+                                    <span className="shrink-0 rounded-md bg-muted/15 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-muted">
+                                      {s.id}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-muted">
+                                    {s.batch && <span>{s.batch}</span>}
+                                    {s.batch && s.phone && <span>•</span>}
+                                    {s.phone && <span>{s.phone}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="shrink-0 flex items-center gap-2">
+                                <StatusBadge status={s.status} />
+                                <span className="text-[11px] font-bold text-[#7D41AB] opacity-0 group-hover:opacity-100 sm:inline-block hidden">
+                                  Select ↵
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="px-4 py-3 text-center text-xs text-muted">
+                          No student matching &ldquo;{manual.trim()}&rdquo;. Press{" "}
+                          <span className="font-semibold text-foreground">Verify</span> to search via backend.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <Button type="submit" disabled={!manual.trim()} className="w-full sm:w-auto">
+                  Verify
+                </Button>
+              </div>
+            </form>
+          </Card>
+
           {error && (
-            <div className="flex gap-3 rounded-3xl border border-rose-500/30 bg-rose-500/10 p-5">
+            <div className="flex gap-3 rounded-3xl border border-rose-500/30 bg-rose-500/10 p-5 shadow-sm">
               <AlertCircle className="h-5 w-5 shrink-0 text-rose-500" />
-              <div><p className="font-heading text-sm font-bold text-rose-600 dark:text-rose-400">Scan failed</p><p className="mt-1 text-sm text-muted">{error}</p></div>
+              <div>
+                <p className="font-heading text-sm font-bold text-rose-600 dark:text-rose-400">Scan Failed</p>
+                <p className="mt-1 text-xs text-muted">{error}</p>
+              </div>
             </div>
           )}
+
           {result ? (
-            <ScanResult student={result} onDismiss={() => setResult(null)} />
+            <ScanResult
+              student={result}
+              initialModuleId={selectedModuleId !== "all" ? selectedModuleId : undefined}
+              alreadyMarked={verifyData?.alreadyMarked}
+              existingRecord={verifyData?.existingAttendance}
+              verificationMessage={verifyData?.message}
+              onDismiss={() => {
+                setResult(null);
+                setVerifyData(null);
+                if (!scanning) void start();
+              }}
+              onMarkSuccess={(rec: AttendanceRecord) => {
+                const markEntry: RecentScan = {
+                  id: rec.studentId,
+                  name: result.fullName,
+                  status: "Present",
+                  ok: true,
+                  at: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+                };
+                setRecent((r) => [
+                  markEntry,
+                  ...r.filter((x) => x.id !== rec.studentId),
+                ].slice(0, 10));
+              }}
+            />
           ) : (
             !error && (
-              <Card className="flex min-h-[220px] flex-col items-center justify-center p-8 text-center">
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-brand"><ScanLine className="h-7 w-7" /></div>
-                <h3 className="font-heading text-base font-bold">Waiting for a scan</h3>
-                <p className="mt-1 max-w-xs text-sm text-muted">Student details, modules and outstanding payments appear here after a successful scan.</p>
+              <Card className="flex min-h-[220px] flex-col items-center justify-center p-8 text-center border-dashed">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-brand">
+                  <ScanLine className="h-7 w-7" />
+                </div>
+                <h3 className="font-heading text-base font-bold">Waiting for student scan</h3>
+                <p className="mt-1 max-w-xs text-xs text-muted">
+                  Point the camera at an EduFlow student QR code or type an ID. Verification, duplicate check, and attendance marking happen instantly.
+                </p>
               </Card>
             )
           )}
 
-          <Card>
-            <CardHeader title={<span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-amber-500" /> Try it with demo codes</span>} subtitle="Scan this QR from another device, or simulate a scan" />
-            <div className="grid gap-5 p-5 sm:grid-cols-[auto_1fr]">
-              <div className="mx-auto rounded-2xl border border-line bg-white p-3">{demo && <QRCodeSVG value={qrPayload(demo.ref)} size={132} level="M" />}</div>
-              <div className="space-y-3">
-                <Field label="Demo student">
-                  <Select value={demoId} onChange={(e) => setDemoId(e.target.value)}>{demoStudents.map((s) => <option key={s.id} value={s.id}>{s.fullName} — {s.id}</option>)}</Select>
-                </Field>
-                {demo && <div className="flex items-center gap-2"><Avatar name={demo.fullName} size="sm" /><span className="text-xs text-muted">Payload: <span className="num">{qrPayload(demo.ref).slice(0, 16)}…</span></span></div>}
-                <Button variant="soft" onClick={() => demo && resolve(qrPayload(demo.ref))}>Simulate scan</Button>
-              </div>
-            </div>
-            <div className="px-5 pb-5"><MockNote>QR codes contain only an opaque reference. Matching runs against local mock records; real validation and permissions will be handled by the backend later.</MockNote></div>
-          </Card>
-
+          {/* Session Scan History */}
           {recent.length > 0 && (
             <Card>
-              <CardHeader title="Recent scans" subtitle="This session" />
+              <CardHeader
+                title={
+                  <span className="flex items-center gap-2">
+                    <History className="h-4 w-4 text-brand" /> Recent scans
+                  </span>
+                }
+                subtitle="This scanning session"
+              />
               <ul className="divide-y divide-line/70 p-3">
                 {recent.map((r, i) => (
-                  <li key={i} className="flex items-center justify-between px-2 py-2.5 text-sm">
-                    <span className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${r.ok ? "bg-emerald-500" : "bg-rose-500"}`} /><b className="font-semibold">{r.name}</b><span className="num text-xs text-muted">{r.id}</span></span>
-                    <span className="text-xs text-muted">{r.at}</span>
+                  <li key={i} className="flex items-center justify-between px-3 py-2.5 text-xs">
+                    <span className="flex items-center gap-2.5">
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          r.status === "Present"
+                            ? "bg-[#7D41AB]"
+                            : r.status === "Duplicate"
+                            ? "bg-[#A771CF]"
+                            : r.status === "Verified"
+                            ? "bg-[#BC99D9]"
+                            : "bg-[#4D1882]"
+                        }`}
+                      />
+                      <b className="font-semibold">{r.name}</b>
+                      <span className="num font-mono text-muted">{r.id}</span>
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        tone={
+                          r.status === "Present"
+                            ? "teal"
+                            : r.status === "Duplicate"
+                            ? "amber"
+                            : r.status === "Verified"
+                            ? "primary"
+                            : "rose"
+                        }
+                      >
+                        {r.status}
+                      </Badge>
+                      <span className="num text-muted">{r.at}</span>
+                    </div>
                   </li>
                 ))}
               </ul>
