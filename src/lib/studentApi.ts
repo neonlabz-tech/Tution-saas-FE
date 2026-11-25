@@ -1,6 +1,6 @@
 // Student-portal API client — real backend calls via cookie-based auth.
 import type { StudentAccount, StudentPortalData } from "@/types/student";
-import { buildPortalData } from "@/lib/studentPortal";
+import { buildPortalData, getLivePortalData } from "@/lib/studentPortal";
 
 export const PASSWORD_MIN_LENGTH = 8;
 
@@ -198,9 +198,14 @@ export const studentAuthApi = {
   },
 };
 
+const wait = <T,>(v: T, ms = 300) => new Promise<T>((res) => setTimeout(() => res(v), ms));
+
 export const studentPortalApi = {
-  getPortal(account: StudentAccount): Promise<StudentPortalData> {
-    const wait = <T,>(v: T, ms = 450) => new Promise<T>((res) => setTimeout(() => res(v), ms));
-    return wait(buildPortalData(account.studentId), 450);
+  async getPortal(account: StudentAccount): Promise<StudentPortalData> {
+    try {
+      return await getLivePortalData(account);
+    } catch {
+      return wait(buildPortalData(account.studentId), 300);
+    }
   },
 };

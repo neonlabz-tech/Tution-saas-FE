@@ -26,6 +26,7 @@ export async function listOnlineClasses(
     moduleId: params.moduleId,
     batch: params.batch,
     status: params.status,
+    classType: params.classType,
     from: params.from,
     to: params.to,
     q: params.q?.trim() || undefined,
