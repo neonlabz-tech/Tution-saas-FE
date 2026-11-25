@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, CalendarClock, CalendarDays, ClipboardList, CreditCard, Megaphone, Receipt, Video, Wallet } from "lucide-react";
+import { ArrowRight, BookOpen, Building2, CalendarClock, CalendarDays, ClipboardList, Clock, CreditCard, Download, Megaphone, Receipt, Video, Wallet } from "lucide-react";
 import { Badge, Button, Card, CardHeader, ProgressBar, StatusBadge } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/overlays";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -9,7 +9,7 @@ import { DueBadge, PaymentBadge } from "@/components/student/badges";
 import { useStudentAuth } from "@/hooks/useStudentAuth";
 import { useStudentData } from "@/hooks/useStudentData";
 import type { Notice } from "@/types";
-import { addDays, fmtDate, fmtLKR, fmtTime, toISO, toLocalDT } from "@/lib/utils";
+import { addDays, cn, fmtDate, fmtLKR, fmtTime, toISO, toLocalDT } from "@/lib/utils";
 
 export default function StudentOverviewPage() {
   const { account } = useStudentAuth();
@@ -20,11 +20,48 @@ export default function StudentOverviewPage() {
     if (!data) return null;
     const now = toLocalDT(new Date());
     const weekEnd = `${toISO(addDays(new Date(), 7))}T23:59`;
-    const upcomingOnline = (data.onlineClasses || []).filter((c) => c.status === "scheduled" && c.end >= now).slice(0, 5);
     const weekOnline = (data.onlineClasses || []).filter((c) => c.status === "scheduled" && c.end >= now && c.start <= weekEnd).length;
     const weekPhysical = (data.physicalClasses || []).filter((c) => c.status === "scheduled" && c.end >= now && c.start <= weekEnd).length;
     const openAssignments = (data.assignments || []).filter((a) => a.status === "pending" || a.status === "overdue");
-    return { upcomingOnline, weekOnline, weekPhysical, openAssignments, overdueAssignments: openAssignments.filter((a) => a.status === "overdue").length };
+
+    const allUpcoming = [
+      ...(data.onlineClasses || [])
+        .filter((c) => c.status === "scheduled" && c.end >= now)
+        .map((c) => ({
+          id: c.id,
+          moduleId: c.moduleId,
+          title: c.title,
+          start: c.start,
+          end: c.end,
+          type: "online" as const,
+          link: c.link,
+          hall: c.hall,
+          location: undefined,
+          status: c.status,
+        })),
+      ...(data.physicalClasses || [])
+        .filter((c) => c.status === "scheduled" && c.end >= now)
+        .map((c) => ({
+          id: c.id,
+          moduleId: c.moduleId,
+          title: c.title,
+          start: c.start,
+          end: c.end,
+          type: "physical" as const,
+          link: undefined,
+          hall: undefined,
+          location: c.location,
+          status: c.status,
+        })),
+    ].sort((a, b) => a.start.localeCompare(b.start));
+
+    return {
+      upcomingClasses: allUpcoming.slice(0, 5),
+      weekOnline,
+      weekPhysical,
+      openAssignments,
+      overdueAssignments: openAssignments.filter((a) => a.status === "overdue").length,
+    };
   }, [data]);
 
   const firstName = (account?.fullName ?? "there").split(" ")[0];
@@ -49,7 +86,7 @@ export default function StudentOverviewPage() {
                 {[
                   { label: "My Modules", icon: BookOpen, to: "/student/modules" },
                   { label: "Payments", icon: CreditCard, to: "/student/payments" },
-                  ...(view.upcomingOnline[0] ? [{ label: "Next class", icon: CalendarClock, to: `/student/modules/${view.upcomingOnline[0].moduleId}?tab=calendar` }] : []),
+                  ...(view.upcomingClasses[0] ? [{ label: "Next class", icon: CalendarClock, to: `/student/modules/${view.upcomingClasses[0].moduleId}?tab=calendar` }] : []),
                 ].map((q) => (
                   <Link key={q.label} to={q.to} className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl bg-white/15 px-3.5 text-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur transition hover:bg-white/25 active:scale-95 sm:text-sm">
                     <q.icon className="h-4 w-4" />
@@ -92,32 +129,69 @@ export default function StudentOverviewPage() {
               </div>
             </Card>
 
-            {/* Upcoming online classes */}
+            {/* Upcoming classes (Online & Physical) */}
             <Card>
-              <CardHeader title="Upcoming online classes" subtitle="Your next live sessions" />
+              <CardHeader title="Upcoming classes" subtitle="Next live & on-site sessions" />
               <div className="space-y-2 p-4">
-                {view.upcomingOnline.map((c) => {
+                {view.upcomingClasses.map((c) => {
                   const mod = data.modules.find((m) => m.id === c.moduleId);
+                  const isPhysical = c.type === "physical";
+                  const isPast = c.end < toLocalDT(new Date());
                   return (
-                    <div key={c.id} className="flex items-center gap-3 rounded-2xl bg-surface-2/70 p-3">
+                    <div key={`${c.type}_${c.id}`} className="flex items-center gap-3 rounded-2xl bg-surface-2/70 p-3 transition hover:bg-surface-2">
                       <Link to={`/student/modules/${c.moduleId}?tab=calendar`} className="flex min-w-0 flex-1 items-center gap-3">
                         <div className="w-12 shrink-0 rounded-xl bg-primary/10 py-1.5 text-center text-brand">
                           <p className="text-[10px] font-bold uppercase">{new Date(c.start).toLocaleDateString("en-US", { month: "short" })}</p>
                           <p className="num text-base font-bold leading-none">{c.start.slice(8, 10)}</p>
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-bold">{c.title}</p>
-                          <p className="num truncate text-[11px] text-muted">{new Date(c.start).toLocaleDateString("en-US", { weekday: "short" })} · {fmtTime(c.start)} – {fmtTime(c.end)}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate text-sm font-bold">{c.title.replace(/\s\(on-site\)$/, "")}</p>
+                            <span
+                              className={cn(
+                                "rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                                isPhysical
+                                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                                  : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                              )}
+                            >
+                              {isPhysical ? (c.location ? `Hall: ${c.location}` : "On-site") : "Online"}
+                            </span>
+                          </div>
+                          <p className="num truncate text-[11px] text-muted">
+                            {new Date(c.start).toLocaleDateString("en-US", { weekday: "short" })} · {fmtTime(c.start)} – {fmtTime(c.end)}
+                          </p>
                           <p className="truncate text-[11px] text-muted">{mod?.teacher?.fullName ?? mod?.name}</p>
                         </div>
                       </Link>
-                      <a href={c.link} target="_blank" rel="noreferrer" aria-label={`Join ${c.title}`} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-brand hover:bg-primary/10">
-                        <Video className="h-4 w-4" />
-                      </a>
+                      {isPhysical ? (
+                        <div title={c.location ? `On-site in ${c.location}` : "Physical class"} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-amber-600 shadow-sm">
+                          <Building2 className="h-4 w-4" />
+                        </div>
+                      ) : isPast ? (
+                        <div title="Class ended" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-muted">
+                          <Clock className="h-4 w-4" />
+                        </div>
+                      ) : c.link ? (
+                        <a
+                          href={c.link}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Join ${c.title}`}
+                          title="Join online class"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-brand shadow-sm hover:bg-primary/10 transition"
+                        >
+                          <Video className="h-4 w-4" />
+                        </a>
+                      ) : (
+                        <div title="Online session" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-muted">
+                          <Video className="h-4 w-4" />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
-                {view.upcomingOnline.length === 0 && <p className="py-10 text-center text-sm text-muted"><CalendarClock className="mx-auto mb-2 h-6 w-6" />No upcoming online classes.</p>}
+                {view.upcomingClasses.length === 0 && <p className="py-10 text-center text-sm text-muted"><CalendarClock className="mx-auto mb-2 h-6 w-6" />No upcoming classes scheduled.</p>}
                 <Link to="/student/modules"><Button variant="soft" size="sm" className="mt-1 w-full">View module calendars <ArrowRight className="h-3.5 w-3.5" /></Button></Link>
               </div>
             </Card>
@@ -182,6 +256,19 @@ export default function StudentOverviewPage() {
                 <StatusBadge status={notice.priority} />
                 <p className="text-sm leading-relaxed">{notice.description}</p>
                 <p className="text-xs text-muted">Valid until {fmtDate(notice.expiryDate)}</p>
+                {notice.attachment && (
+                  <div className="pt-2">
+                    <a
+                      href={`/api/notices/${notice.id}/attachment`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-xs font-semibold text-brand transition hover:border-primary/40"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download {notice.attachment.fileName || "Attachment"}
+                    </a>
+                  </div>
+                )}
               </div>
             )}
           </Modal>
