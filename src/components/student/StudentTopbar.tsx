@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AlertTriangle, Bell, CalendarClock, ChevronRight, KeyRound, LogOut, Menu, Moon, PanelLeft, Sun, Wallet } from "lucide-react";
+import { AlertTriangle, Bell, CalendarClock, ChevronRight, LogOut, Menu, Moon, PanelLeft, Sun, Wallet } from "lucide-react";
 import { Avatar, Badge, Button } from "@/components/ui/primitives";
 import { Dropdown } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
@@ -65,12 +65,10 @@ export function StudentTopbar({
   onMenu,
   collapsed,
   onToggleCollapse,
-  onOpenResetPassword,
 }: {
   onMenu: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
-  onOpenResetPassword?: () => void;
 }) {
   const { pathname } = useLocation();
   const nav = useNavigate();
@@ -129,18 +127,6 @@ export function StudentTopbar({
                   <p className="truncate text-[11px] text-muted">{account?.email}</p>
                 </div>
               </div>
-              {onOpenResetPassword && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    close();
-                    onOpenResetPassword();
-                  }}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink hover:bg-surface-2"
-                >
-                  <KeyRound className="h-4 w-4 text-brand" /> Reset Password
-                </button>
-              )}
               <button
                 onClick={() => {
                   close();
