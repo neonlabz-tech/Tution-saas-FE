@@ -35,14 +35,17 @@ function Notifications() {
 
   useEffect(() => {
     let active = true;
-    notificationsApi
-      .get()
-      .then((res) => {
-        if (active && res && Array.isArray(res.items)) {
-          setLiveNotifs(res.items);
-        }
-      })
-      .catch(() => {});
+    const fetchNotifs = notificationsApi.list ?? notificationsApi.get;
+    if (typeof fetchNotifs === "function") {
+      fetchNotifs
+        .call(notificationsApi)
+        .then((res) => {
+          if (active && res && Array.isArray(res.items)) {
+            setLiveNotifs(res.items);
+          }
+        })
+        .catch(() => {});
+    }
     return () => {
       active = false;
     };
