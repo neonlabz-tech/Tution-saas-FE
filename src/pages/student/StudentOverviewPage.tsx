@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, Building2, CalendarClock, CalendarDays, ClipboardList, Clock, CreditCard, Download, Megaphone, Receipt, Video, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowRight, BookOpen, Building2, CalendarClock, CalendarDays, ClipboardList, Clock, CreditCard, Download, FileX, Megaphone, Receipt, Video, Wallet } from "lucide-react";
 import { Badge, Button, Card, CardHeader, ProgressBar, StatusBadge } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/overlays";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -8,6 +8,8 @@ import { DataGate } from "@/components/student/states";
 import { DueBadge, PaymentBadge } from "@/components/student/badges";
 import { useStudentAuth } from "@/hooks/useStudentAuth";
 import { useStudentData } from "@/hooks/useStudentData";
+import { useToast } from "@/components/ui/toast";
+import { ApiError, noticesApi } from "@/lib/api";
 import type { Notice } from "@/types";
 import { addDays, cn, fmtDate, fmtLKR, fmtTime, toISO, toLocalDT } from "@/lib/utils";
 
@@ -15,6 +17,27 @@ export default function StudentOverviewPage() {
   const { account } = useStudentAuth();
   const { data, loading, error, reload } = useStudentData();
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [downloadingNoticeId, setDownloadingNoticeId] = useState<string | null>(null);
+  const [expiredNoticeIds, setExpiredNoticeIds] = useState<Set<string>>(new Set());
+  const toast = useToast();
+
+  const handleDownloadAttachment = async (n: Notice) => {
+    if (!n.attachment) return;
+    setDownloadingNoticeId(n.id);
+    try {
+      await noticesApi.downloadAttachment(n.id, n.attachment.fileName);
+      toast.success(`Downloading ${n.attachment.fileName || "attachment"}…`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 410) {
+        setExpiredNoticeIds((prev) => new Set(prev).add(n.id));
+        toast.error("This document has expired and is no longer available.");
+      } else {
+        toast.error(err instanceof Error ? err.message : "Failed to download attachment");
+      }
+    } finally {
+      setDownloadingNoticeId(null);
+    }
+  };
 
   const view = useMemo(() => {
     if (!data) return null;
@@ -250,27 +273,83 @@ export default function StudentOverviewPage() {
             </Card>
           </div>
 
-          <Modal open={!!notice} onClose={() => setNotice(null)} title={notice?.title} description={notice ? `Posted ${fmtDate(notice.publishDate)} · ${notice.batches.length ? notice.batches.join(", ") : "All batches"}` : undefined} footer={<Button variant="secondary" onClick={() => setNotice(null)}>Close</Button>}>
-            {notice && (
-              <div className="space-y-3">
-                <StatusBadge status={notice.priority} />
-                <p className="text-sm leading-relaxed">{notice.description}</p>
-                <p className="text-xs text-muted">Valid until {fmtDate(notice.expiryDate)}</p>
-                {notice.attachment && (
-                  <div className="pt-2">
-                    <a
-                      href={`/api/notices/${notice.id}/attachment`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-3.5 py-2 text-xs font-semibold text-brand transition hover:border-primary/40"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download {notice.attachment.fileName || "Attachment"}
-                    </a>
+          <Modal
+            open={!!notice}
+            onClose={() => setNotice(null)}
+            title={notice?.title}
+            description={
+              notice
+                ? `Posted ${fmtDate(notice.publishDate)} · ${notice.batches.length ? notice.batches.join(", ") : "All batches"}`
+                : undefined
+            }
+            footer={
+              <Button variant="secondary" onClick={() => setNotice(null)}>
+                Close
+              </Button>
+            }
+          >
+            {notice && (() => {
+              const now = new Date();
+              const isNoticeExpired =
+                notice.attachmentExpired ||
+                expiredNoticeIds.has(notice.id) ||
+                (notice.expiresAt ? new Date(notice.expiresAt) <= now : false);
+
+              return (
+                <div className="space-y-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <StatusBadge status={notice.priority} />
+                    {isNoticeExpired && (
+                      <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400">
+                        Attachment Expired
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
+                  <p className="text-sm leading-relaxed">{notice.description}</p>
+                  <p className="text-xs text-muted">Valid until {fmtDate(notice.expiryDate)}</p>
+
+                  {/* Attachment Section */}
+                  {notice.attachment && (
+                    <div className="pt-2">
+                      {isNoticeExpired ? (
+                        <div className="flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3.5 text-xs text-amber-800 dark:text-amber-300">
+                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                          <div className="min-w-0 flex-1 leading-snug">
+                            <p className="font-semibold">Attachment Expired</p>
+                            <p className="mt-0.5 text-[11px] opacity-90">
+                              The document <span className="font-medium">“{notice.attachment.fileName || "Attachment"}”</span> has reached its expiry date and is no longer available for download.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            disabled={downloadingNoticeId === notice.id}
+                            onClick={() => handleDownloadAttachment(notice)}
+                            className="inline-flex items-center gap-2 text-xs font-semibold text-brand transition hover:border-primary/40"
+                          >
+                            {downloadingNoticeId === notice.id ? (
+                              <>
+                                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+                                Downloading…
+                              </>
+                            ) : (
+                              <>
+                                <Download className="h-4 w-4" />
+                                Download {notice.attachment.fileName || "Attachment"}
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </Modal>
         </>
       )}
