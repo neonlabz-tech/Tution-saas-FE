@@ -8,6 +8,7 @@ export interface StudentAccount {
   fullName: string;
   email: string;
   phone: string;
+  mustChangePassword?: boolean;
 }
 
 export interface PhysicalClass {

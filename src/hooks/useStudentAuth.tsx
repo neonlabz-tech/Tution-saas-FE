@@ -5,9 +5,10 @@ import type { StudentAccount } from "@/types/student";
 interface StudentAuthCtx {
   account: StudentAccount | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  login: (email: string, password: string, newPassword?: string) => Promise<StudentAccount>;
+  register: (payload: RegisterPayload) => Promise<{ message: string }>;
   logout: () => Promise<void>;
+  updatePassword: (newPassword: string, currentPassword?: string) => Promise<void>;
 }
 
 const Ctx = createContext<StudentAuthCtx | null>(null);
@@ -29,20 +30,32 @@ export function StudentAuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await studentAuthApi.login(email, password);
+  const login = useCallback(async (email: string, password: string, newPassword?: string) => {
+    const res = await studentAuthApi.login(email, password, newPassword);
     setAccount(res.account);
+    return res.account;
   }, []);
-  const register = useCallback(async (payload: RegisterPayload) => {
+
+  const register = useCallback(async (payload: RegisterPayload): Promise<{ message: string }> => {
     const res = await studentAuthApi.register(payload);
-    setAccount(res.account);
+    // Don't set account — registration requires admin approval first
+    return { message: res.message };
   }, []);
+
   const logout = useCallback(async () => {
     await studentAuthApi.logout();
     setAccount(null);
   }, []);
 
-  const value = useMemo(() => ({ account, loading, login, register, logout }), [account, loading, login, register, logout]);
+  const updatePassword = useCallback(async (newPassword: string, currentPassword?: string) => {
+    await studentAuthApi.changePassword(newPassword, currentPassword);
+    setAccount((prev) => (prev ? { ...prev, mustChangePassword: false } : null));
+  }, []);
+
+  const value = useMemo(
+    () => ({ account, loading, login, register, logout, updatePassword }),
+    [account, loading, login, register, logout, updatePassword],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

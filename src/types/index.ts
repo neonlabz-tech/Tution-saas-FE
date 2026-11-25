@@ -119,6 +119,7 @@ export interface StudentPaymentRecord {
 export interface StudentDetail extends Student {
   qrPayload?: string;
   qrRotatedAt?: string | null;
+  generatedPassword?: string;
   modules: StudentModuleRef[];
   feeTotal: number;
   paidTotal: number;
@@ -142,6 +143,7 @@ export interface CreateStudentDto {
   moduleIds: string[];
   enrollmentDate?: string;
   status?: StudentStatus;
+  password?: string;
 }
 
 export type UpdateStudentDto = Partial<CreateStudentDto>;

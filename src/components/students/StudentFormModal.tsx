@@ -55,8 +55,13 @@ const schema = z.object({
   moduleIds: z.array(z.string()).min(1, "Select at least one module"),
   enrollmentDate: z.string().optional(),
   status: z.enum(["pending", "active", "inactive", "graduated"]),
+  password: z.string().min(6, "Password must be at least 6 characters").optional(),
 });
 type Values = z.infer<typeof schema>;
+
+export function generateAutoPassword(): string {
+  return `Stu@${Math.floor(100000 + Math.random() * 900000)}`;
+}
 
 type EditableStudent = StudentListItem | StudentDetail;
 
@@ -74,6 +79,7 @@ function toFormValues(item: EditableStudent | null): Values {
       moduleIds: [],
       enrollmentDate: todayISO(),
       status: "active",
+      password: generateAutoPassword(),
     };
   }
   const moduleIds = item.moduleIds?.length
@@ -91,6 +97,7 @@ function toFormValues(item: EditableStudent | null): Values {
     moduleIds,
     enrollmentDate: toDateInput(item.enrollmentDate),
     status: item.status ?? "pending",
+    password: "",
   };
 }
 
@@ -140,6 +147,7 @@ function Inner({
     handleSubmit,
     reset,
     setError,
+    setValue,
     formState: { errors },
   } = useForm<Values>({
     resolver: zodResolver(schema),
@@ -213,6 +221,7 @@ function Inner({
       moduleIds: v.moduleIds,
       ...(v.enrollmentDate ? { enrollmentDate: v.enrollmentDate } : {}),
       status: v.status,
+      ...(v.password?.trim() ? { password: v.password.trim() } : {}),
     };
 
     onSubmittingChange(true);
@@ -358,6 +367,29 @@ function Inner({
           <option value="graduated">Graduated</option>
         </Select>
       </Field>
+      {!item && (
+        <Field
+          label="Student portal password"
+          error={errors.password?.message}
+          className="sm:col-span-2"
+          hint="Automatically generated. The student will receive this password by email to log in and can change it anytime."
+        >
+          <div className="flex gap-2">
+            <Input
+              {...register("password")}
+              placeholder="e.g. Stu@123456"
+              className="font-mono text-sm font-semibold"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setValue("password", generateAutoPassword())}
+            >
+              Regenerate
+            </Button>
+          </div>
+        </Field>
+      )}
       <Field label="Registered modules" error={errors.moduleIds?.message} className="sm:col-span-2">
         {loadingModules ? (
           <div className="flex gap-2">
