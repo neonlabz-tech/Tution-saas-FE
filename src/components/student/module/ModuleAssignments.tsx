@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
   CalendarClock,
   CheckCircle2,
   ClipboardList,
@@ -63,9 +64,12 @@ function dueText(a: Assignment) {
       86400000
   );
   if (a.status === "graded" || a.status === "submitted") return `Due ${fmtDate(a.dueDate)}`;
-  if (diff === 0) return "Due today";
+  if (diff === 0) {
+    const isPast = a.dueDate < toLocalDT(new Date());
+    return isPast ? "Deadline passed today" : "Due today";
+  }
   if (diff > 0) return `Due in ${diff} day${diff > 1 ? "s" : ""}`;
-  return `Overdue by ${-diff} day${diff < -1 ? "s" : ""}`;
+  return `Deadline passed (${Math.abs(diff)} day${Math.abs(diff) > 1 ? "s" : ""} ago)`;
 }
 
 export function ModuleAssignments({
@@ -93,6 +97,7 @@ export function ModuleAssignments({
 
   // Merge server assignments with local stored submissions
   const mergedAssignments = useMemo(() => {
+    const now = toLocalDT(new Date());
     return assignments.map((a) => {
       const stored = localSubmissions[a.id];
       if (stored) {
@@ -103,6 +108,13 @@ export function ModuleAssignments({
           submissionType: stored.submissionType,
           submissionUrl: stored.submissionUrl,
           submissionFileName: stored.submissionFileName,
+        };
+      }
+      // If not submitted and the deadline has passed, mark as overdue
+      if (a.status !== "submitted" && a.status !== "graded" && a.dueDate < now) {
+        return {
+          ...a,
+          status: "overdue" as const,
         };
       }
       return a;
@@ -126,6 +138,12 @@ export function ModuleAssignments({
   };
 
   const openSubmitModal = (a: Assignment) => {
+    const isPastDeadline = a.dueDate < toLocalDT(new Date()) || a.status === "overdue";
+    if (isPastDeadline) {
+      toast.error("Submissions are closed. The deadline for this assignment has passed.");
+      return;
+    }
+
     setActiveModalAssignment(a);
     if (a.submissionType === "drive" && a.submissionUrl) {
       setDriveLink(a.submissionUrl);
@@ -146,6 +164,15 @@ export function ModuleAssignments({
 
   const handleSubmit = async () => {
     if (!activeModalAssignment) return;
+
+    const isPastDeadline =
+      activeModalAssignment.dueDate < toLocalDT(new Date()) ||
+      activeModalAssignment.status === "overdue";
+    if (isPastDeadline) {
+      toast.error("Submissions are closed. The deadline for this assignment has passed.");
+      closeSubmitModal();
+      return;
+    }
 
     if (submissionType === "drive") {
       const cleanLink = driveLink.trim();
@@ -259,6 +286,7 @@ export function ModuleAssignments({
       <div className="space-y-4">
         {shown.map((a) => {
           const isSubmitted = a.status === "submitted" || a.status === "graded";
+          const isPastDeadline = a.dueDate < toLocalDT(new Date()) || a.status === "overdue";
 
           return (
             <Card key={a.id} className="p-5 sm:p-6 transition hover:border-line">
@@ -318,7 +346,7 @@ export function ModuleAssignments({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* If submitted: show Drive link / file and Resubmit option */}
+                  {/* If submitted: show Drive link / file and Resubmit option (only if deadline not passed) */}
                   {isSubmitted && a.submissionUrl ? (
                     <div className="flex flex-wrap items-center gap-2.5">
                       <a
@@ -341,17 +369,29 @@ export function ModuleAssignments({
                         )}
                       </a>
 
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openSubmitModal(a)}
-                        className="text-xs text-muted hover:text-ink"
-                      >
-                        Resubmit
-                      </Button>
+                      {!isPastDeadline ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openSubmitModal(a)}
+                          className="text-xs text-muted hover:text-ink"
+                        >
+                          Resubmit
+                        </Button>
+                      ) : (
+                        <span className="text-[11px] font-medium text-muted">
+                          (Deadline passed)
+                        </span>
+                      )}
                     </div>
+                  ) : isPastDeadline ? (
+                    /* If not submitted and deadline passed: submissions closed */
+                    <span className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-600 dark:text-red-400" />
+                      Submissions closed
+                    </span>
                   ) : (
-                    /* If not submitted: show Submit Assignment button */
+                    /* If not submitted and deadline not passed: show Submit Assignment button */
                     <Button
                       size="sm"
                       variant="primary"
