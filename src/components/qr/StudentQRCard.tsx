@@ -5,6 +5,7 @@ import type { RotateQrResponse, Student, StudentDetail, StudentListItem } from "
 import { ConfirmDialog } from "@/components/ui/overlays";
 import { Button } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/hooks/useAuth";
 import { rotateStudentQr } from "@/api/students";
 import { downloadCardPdf, downloadCardPng, printCard } from "@/lib/qrcard";
 import { formatDateTime, qrPayload } from "@/lib/utils";
@@ -13,21 +14,33 @@ type QRStudent = Student | StudentListItem | StudentDetail;
 
 export function StudentQRCard({
   student,
+  instituteName,
   onRotated,
 }: {
   student: QRStudent;
+  instituteName?: string;
   onRotated?: (rotated: RotateQrResponse) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const toast = useToast();
+  const { config } = useAuth();
   const [confirmRotate, setConfirmRotate] = useState(false);
+
+  const effectiveInstituteName =
+    instituteName || config?.instituteName || import.meta.env.VITE_INSTITUTE_NAME || "";
+  const subtitle = effectiveInstituteName
+    ? `${effectiveInstituteName} · Student Card`
+    : "Student Card";
 
   const payload = ("qrPayload" in student && student.qrPayload) ? student.qrPayload : qrPayload(student.ref);
   const rotatedAt = "qrRotatedAt" in student ? student.qrRotatedAt : null;
 
-  const run = (fn: (s: Student, c: HTMLCanvasElement) => void, msg: string) => {
+  const run = (
+    fn: (s: Student, c: HTMLCanvasElement, inst?: string) => void,
+    msg: string,
+  ) => {
     if (!ref.current) return;
-    fn(student, ref.current);
+    fn(student, ref.current, effectiveInstituteName);
     toast.success(msg);
   };
 
@@ -50,7 +63,7 @@ export function StudentQRCard({
         <div className="relative flex flex-wrap items-center justify-between gap-5">
           <div className="min-w-0">
             <p className="font-heading text-xl font-extrabold">EduFlow</p>
-            <p className="text-[11px] text-white/70">Bright Future Institute · Student Card</p>
+            <p className="text-[11px] text-white/70">{subtitle}</p>
             <p className="mt-6 font-heading text-xl font-extrabold leading-tight">{student.fullName}</p>
             <p className="num mt-1 text-sm font-semibold">{student.id}</p>
             <p className="mt-1 text-xs text-white/80">Batch · {student.batch}</p>

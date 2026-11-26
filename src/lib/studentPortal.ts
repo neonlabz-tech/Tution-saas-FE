@@ -6,7 +6,8 @@ import type { DuePayment, PhysicalClass, StudentAccount, StudentModule, StudentP
 import type { Module, Notice, OnlineClass, Student, StudentAttendanceRecord, StudentAttendanceSummary, StudentDetail } from "@/types";
 import { addDays, toISO, toLocalDT, todayISO } from "@/lib/utils";
 
-export const INSTITUTE_NAME = "Bright Future Institute";
+export const INSTITUTE_NAME =
+  import.meta.env.VITE_INSTITUTE_NAME || "Tuition Institute";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "")
@@ -214,6 +215,11 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
   const d = getSharedData();
   const today = todayISO();
   const nowDT = toLocalDT(new Date());
+
+  // Fetch dynamic institute settings from backend public settings endpoint
+  const publicSettings = await safeFetch<{ name?: string }>("/settings/public");
+  const liveInstituteName =
+    publicSettings?.name?.trim() || INSTITUTE_NAME;
 
   // 1. Fetch real student profile from MongoDB by studentId or email
   let studentDetail: StudentDetail | null = null;
@@ -501,7 +507,7 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
       pendingVerification,
       overdue,
     },
-    instituteName: INSTITUTE_NAME,
+    instituteName: liveInstituteName,
     attendanceSummary,
     attendanceRecords,
   };
