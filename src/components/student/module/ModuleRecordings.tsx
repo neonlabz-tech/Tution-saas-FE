@@ -7,6 +7,28 @@ import { fmtDate } from "@/lib/utils";
 
 const GRADS = ["from-indigo-500 to-violet-500", "from-teal-500 to-emerald-500", "from-sky-500 to-indigo-500", "from-fuchsia-500 to-purple-500"];
 
+function getVideoEmbed(url: string): { type: "youtube" | "vimeo" | "video"; embedUrl: string } {
+  if (!url) return { type: "video", embedUrl: "" };
+  const ytMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|live)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+  if (ytMatch && ytMatch[1]) {
+    return {
+      type: "youtube",
+      embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&rel=0`,
+    };
+  }
+  const vimeoMatch = url.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/i);
+  if (vimeoMatch && vimeoMatch[1]) {
+    return {
+      type: "vimeo",
+      embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`,
+    };
+  }
+  return {
+    type: "video",
+    embedUrl: url,
+  };
+}
+
 export function ModuleRecordings({ recordings }: { recordings: ClassRecording[] }) {
   const [active, setActive] = useState<ClassRecording | null>(null);
   const [failed, setFailed] = useState(false);
@@ -43,19 +65,52 @@ export function ModuleRecordings({ recordings }: { recordings: ClassRecording[] 
       </div>
 
       <Modal open={!!active} onClose={close} size="lg" title={active?.title} description={active ? `Recorded ${fmtDate(active.date)} · ${active.durationMin} min` : undefined}>
-        {active && (
-          <div className="overflow-hidden rounded-2xl bg-black">
-            {failed ? (
-              <div className="flex aspect-video flex-col items-center justify-center gap-3 p-6 text-center text-white">
-                <MonitorPlay className="h-8 w-8 opacity-70" />
-                <p className="text-sm">This recording couldn't be played in the browser.</p>
-                <a href={active.videoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold underline">Open in a new tab <ExternalLink className="h-3.5 w-3.5" /></a>
+        {active && (() => {
+          const embed = getVideoEmbed(active.videoUrl);
+          return (
+            <div className="space-y-3">
+              <div className="overflow-hidden rounded-2xl bg-black shadow-inner">
+                {failed ? (
+                  <div className="flex aspect-video flex-col items-center justify-center gap-3 p-6 text-center text-white">
+                    <MonitorPlay className="h-8 w-8 opacity-70" />
+                    <p className="text-sm">This recording couldn't be played directly in the browser.</p>
+                    <a href={active.videoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold underline text-primary">Open recording in a new tab <ExternalLink className="h-3.5 w-3.5" /></a>
+                  </div>
+                ) : embed.type === "youtube" || embed.type === "vimeo" ? (
+                  <iframe
+                    key={active.id}
+                    src={embed.embedUrl}
+                    title={active.title}
+                    className="aspect-video w-full border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video
+                    key={active.id}
+                    src={embed.embedUrl}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="aspect-video w-full"
+                    onError={() => setFailed(true)}
+                  />
+                )}
               </div>
-            ) : (
-              <video key={active.id} src={active.videoUrl} controls autoPlay playsInline className="aspect-video w-full" onError={() => setFailed(true)} />
-            )}
-          </div>
-        )}
+              <div className="flex items-center justify-between px-1 text-xs text-muted">
+                <span>Format: {embed.type === "youtube" ? "YouTube Stream" : embed.type === "vimeo" ? "Vimeo Stream" : "Cloud Video Stream"}</span>
+                <a
+                  href={active.videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
+                >
+                  Open external player <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
     </>
   );

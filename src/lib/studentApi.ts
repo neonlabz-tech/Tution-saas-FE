@@ -14,6 +14,21 @@ const SESSION_TTL = 7 * 24 * 3600 * 1000;
 const RESET_TTL = 30 * 60 * 1000;
 const LATENCY = 350;
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "")
+  : `${(import.meta.env.VITE_SERVER_URL ?? "").replace(/\/+$/, "")}/api`;
+
+async function lookupBackendStudent(code: string): Promise<any | null> {
+  try {
+    const res = await fetch(`${API_BASE}/students/lookup?code=${encodeURIComponent(code)}`, { credentials: "include" });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.data ?? json;
+  } catch {
+    return null;
+  }
+}
+
 export const PASSWORD_MIN_LENGTH = 8;
 export const DEMO_EMAIL = "student@eduflow.lk";
 export const DEMO_PASSWORD = "Student@123";
@@ -106,12 +121,18 @@ export const studentAuthApi = {
     let studentId: string | null = null;
     const wanted = p.studentId?.trim();
     if (wanted) {
-      const s = findStudentById(wanted);
+      let s: any = findStudentById(wanted);
+      if (!s) {
+        s = await lookupBackendStudent(wanted);
+      }
       if (!s) throw new Error(`We couldn't find student ID “${wanted}”. Check the ID on your enrolment card, or leave it blank.`);
       if (accounts.some((a) => a.studentId === s.id)) throw new Error("That student ID already has a portal account. Try signing in or resetting your password.");
       studentId = s.id;
     } else {
-      const byEmail = findStudentByEmail(email);
+      let byEmail: any = findStudentByEmail(email);
+      if (!byEmail) {
+        byEmail = await lookupBackendStudent(email);
+      }
       if (byEmail && !accounts.some((a) => a.studentId === byEmail.id)) studentId = byEmail.id;
     }
 
@@ -128,6 +149,13 @@ export const studentAuthApi = {
     const ok = acct && (await hashPassword(password, acct.salt)) === acct.hash;
     await wait(null);
     if (!acct || !ok) throw new Error("Incorrect email or password.");
+    if (!acct.studentId) {
+      const live = await lookupBackendStudent(acct.email);
+      if (live?.id) {
+        acct.studentId = live.id;
+        write(ACCOUNTS_KEY, accounts);
+      }
+    }
     startSession(acct.id);
     return { account: toPublic(acct) };
   },

@@ -185,6 +185,10 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
   if (account.studentId) {
     student = await safeFetch<Student>(`/students/${encodeURIComponent(account.studentId)}`);
   }
+  if (!student && (account.studentId || account.email)) {
+    const lookupCode = account.studentId || account.email;
+    student = await safeFetch<Student>(`/students/lookup?code=${encodeURIComponent(lookupCode)}`);
+  }
   if (!student && account.email) {
     const list = await safeFetch<Student[] | { data: Student[] }>(`/students?q=${encodeURIComponent(account.email)}`);
     const items = Array.isArray(list) ? list : (list as { data?: Student[] })?.data ?? [];
@@ -241,10 +245,28 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
     .filter((n) => n && n.status === "published" && n.publishDate <= today && n.expiryDate >= today && (!n.batches || n.batches.length === 0 || !student?.batch || n.batches.includes(student.batch)))
     .sort((a, b) => (priorityRank[a.priority] ?? 1) - (priorityRank[b.priority] ?? 1) || b.publishDate.localeCompare(a.publishDate));
 
-  // 5. Build enriched student modules
+  // 5. Build enriched student modules & recordings
   const assignments = buildAssignments(myModules, student.id);
   const materials = buildMaterials(myModules);
-  const recordings = buildRecordings(onlineClasses).sort((a, b) => b.date.localeCompare(a.date));
+
+  // Live class recordings: extract any classes with recordingUrl, fallback to completed classes
+  const liveRecordings: ClassRecording[] = [];
+  onlineClasses.forEach((c) => {
+    const recUrl = (c as { recordingUrl?: string }).recordingUrl;
+    if (recUrl) {
+      liveRecordings.push({
+        id: `rec_${c.id}`,
+        moduleId: c.moduleId,
+        title: c.title,
+        date: c.start.slice(0, 10),
+        durationMin: (c as { recordingDuration?: number }).recordingDuration || (c.duration ? Math.round(c.duration) : 60),
+        videoUrl: recUrl,
+      });
+    }
+  });
+  const recordings = liveRecordings.length > 0
+    ? liveRecordings.sort((a, b) => b.date.localeCompare(a.date))
+    : buildRecordings(onlineClasses).sort((a, b) => b.date.localeCompare(a.date));
 
   const modules: StudentModule[] = myModules.map((m) => {
     const online = onlineClasses.filter((c) => c.moduleId === m.id);
@@ -270,45 +292,81 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
     };
   });
 
-  // 6. Payments
-  const payments: StudentPayment[] = (d.transactions || [])
-    .filter((t) => t.type === "income" && t.studentId === student.id)
-    .map((t) => ({
-      id: t.id,
-      receiptNo: receiptNo(t.id, t.date),
-      date: t.date,
-      description: t.description.replace(/\s—\s.*$/, ""),
-      category: t.category,
-      amount: t.amount,
-      method: t.method ?? "Cash",
-      status: "paid" as const,
-    }));
+  // 6. Payments - Query live from MongoDB
+  const livePayments = await safeFetch<any[]>(`/payments?studentId=${encodeURIComponent(student.id)}`);
+  const hasLivePayments = Array.isArray(livePayments) && livePayments.length > 0;
 
-  const totalFees = feeOf(d, student.moduleIds);
-  const paid = tuitionPaid(d, student.id);
+  const payments: StudentPayment[] = hasLivePayments
+    ? livePayments.map((p) => ({
+        id: p.id || p._id,
+        receiptNo: p.receiptNo || receiptNo(p.id || "PAY_0", p.date || today),
+        date: p.date ? p.date.slice(0, 10) : today,
+        description: p.description || `${p.category || "Tuition fees"} - ${student?.fullName || "Student"}`,
+        category: p.category || "Tuition fees",
+        amount: Number(p.amount) || 0,
+        method: p.method || "Cash",
+        status: (p.status === "completed" || p.status === "paid") ? ("paid" as const) : ("pending" as const),
+      }))
+    : (d.transactions || [])
+        .filter((t) => t.type === "income" && t.studentId === student.id)
+        .map((t) => ({
+          id: t.id,
+          receiptNo: receiptNo(t.id, t.date),
+          date: t.date,
+          description: t.description.replace(/\s—\s.*$/, ""),
+          category: t.category,
+          amount: t.amount,
+          method: t.method ?? "Cash",
+          status: "paid" as const,
+        }));
+
+  // Dynamically compute fees and balance from enrolled modules & confirmed payments
+  const totalFees = myModules.reduce((s, m) => s + (Number(m.fee) || 0), 0);
+  const paid = payments.filter((p) => p.status === "paid").reduce((s, p) => s + (p.amount || 0), 0);
   const outstanding = Math.max(0, totalFees - paid);
-  let pendingVerification = 0;
-  if (outstanding > 0 && hashStr(student.id) % 2 === 0) {
+
+  let pendingVerification = payments.filter((p) => p.status === "pending").reduce((s, p) => s + (p.amount || 0), 0);
+  if (!hasLivePayments && outstanding > 0 && hashStr(student.id) % 2 === 0) {
     pendingVerification = Math.min(outstanding, 15000);
     const date = toISO(addDays(new Date(), -2));
-    payments.push({ id: `pend_${student.id}`, receiptNo: "—", date, description: "Tuition instalment (bank transfer slip uploaded)", category: "Tuition fees", amount: pendingVerification, method: "Bank Transfer", status: "pending" });
+    payments.push({
+      id: `pend_${student.id}`,
+      receiptNo: "—",
+      date,
+      description: "Tuition instalment (bank transfer slip uploaded)",
+      category: "Tuition fees",
+      amount: pendingVerification,
+      method: "Bank Transfer",
+      status: "pending",
+    });
   }
   payments.sort((a, b) => b.date.localeCompare(a.date));
 
+  // Split the unpaid balance into per-module dues
   const h = hashStr(student.id);
   const offsets = [-8 + (h % 16), 12 + (h % 10), 32];
   let credit = paid;
   const dues: DuePayment[] = [];
   myModules.forEach((m) => {
-    const covered = Math.min(credit, m.fee);
+    const fee = Number(m.fee) || 0;
+    const covered = Math.min(credit, fee);
     credit -= covered;
-    const remaining = m.fee - covered;
+    const remaining = fee - covered;
     if (remaining <= 0) return;
     const dueDate = toISO(addDays(new Date(), offsets[Math.min(dues.length, offsets.length - 1)]));
     const diff = Math.round((new Date(`${dueDate}T00:00`).getTime() - new Date(`${today}T00:00`).getTime()) / 86400000);
-    dues.push({ id: `due_${m.id}`, moduleId: m.id, moduleName: m.name, amount: remaining, dueDate, status: diff < 0 ? "overdue" : diff <= 7 ? "due-soon" : "upcoming" });
+    dues.push({
+      id: `due_${m.id}`,
+      moduleId: m.id,
+      moduleName: m.name,
+      amount: remaining,
+      dueDate,
+      status: diff < 0 ? "overdue" : diff <= 7 ? "due-soon" : "upcoming",
+    });
   });
   dues.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+  const overdue = dues.filter((x) => x.status === "overdue").reduce((s, x) => s + x.amount, 0);
 
   return {
     linked: true,
@@ -322,7 +380,13 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
     recordings,
     payments,
     dues,
-    paymentSummary: { totalFees, paid, outstanding, pendingVerification, overdue: dues.filter((x) => x.status === "overdue").reduce((s, x) => s + x.amount, 0) },
+    paymentSummary: {
+      totalFees,
+      paid,
+      outstanding,
+      pendingVerification,
+      overdue,
+    },
     instituteName: INSTITUTE_NAME,
   };
 }

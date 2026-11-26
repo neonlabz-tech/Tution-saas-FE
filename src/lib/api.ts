@@ -394,6 +394,10 @@ export const notificationsApi = {
     return request<{ items: NotificationItem[]; unreadCount: number }>("/notifications");
   },
 
+  get() {
+    return this.list();
+  },
+
   create(payload: {
     type?: NotificationItem["type"];
     title: string;
