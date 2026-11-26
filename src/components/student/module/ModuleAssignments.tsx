@@ -261,7 +261,7 @@ export function ModuleAssignments({
                 "cursor-pointer rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
                 isActive
                   ? isSubmittedFilter
-                    ? "border-red-500 bg-red-500/10 text-red-600 dark:text-red-400"
+                    ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                     : "border-primary bg-primary/10 text-brand"
                   : "border-line bg-surface text-muted hover:border-primary/40 hover:text-ink"
               )}
@@ -271,7 +271,7 @@ export function ModuleAssignments({
                 className={cn(
                   "num ml-1",
                   isSubmittedFilter && count > 0
-                    ? "font-bold text-red-600 dark:text-red-400"
+                    ? "font-bold text-emerald-600 dark:text-emerald-400"
                     : "opacity-70"
                 )}
               >
@@ -314,10 +314,10 @@ export function ModuleAssignments({
                   </span>
                 </span>
 
-                {/* Submitted Date in red color */}
+                {/* Submitted Date in green color */}
                 {a.submittedAt && (
-                  <span className="flex items-center gap-1.5 font-semibold text-red-600 dark:text-red-400">
-                    <CheckCircle2 className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
+                  <span className="flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <span>Submitted {fmtDate(a.submittedAt)}</span>
                   </span>
                 )}

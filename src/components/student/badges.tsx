@@ -19,15 +19,15 @@ export const DueBadge = make<DueStatus>({ overdue: { tone: "rose", label: "Overd
 export function AssignmentBadge({ status }: { status: AssignmentStatus }) {
   if (status === "submitted") {
     return (
-      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-red-200 bg-red-500/15 px-2.5 py-0.5 text-[11px] font-bold capitalize text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-red-600 dark:bg-red-400" />
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold capitalize text-emerald-600 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
         Submitted
       </span>
     );
   }
   const toneMap: Record<AssignmentStatus, Tone> = {
     pending: "amber",
-    submitted: "rose",
+    submitted: "green",
     graded: "green",
     overdue: "rose",
   };
