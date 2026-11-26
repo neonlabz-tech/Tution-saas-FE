@@ -196,35 +196,12 @@ export default function AttendancePage() {
   const [serverRoster, setServerRoster] = useState<DailyRosterEntry[] | null>(null);
   const [serverSummaries, setServerSummaries] = useState<StudentAttendanceSummary[] | null>(null);
 
-  // Consolidated modules available across database, server roster, and student profiles
+  // Only use valid modules defined in the database
   const availableModules = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; code: string }>();
-    modules.forEach((m) => {
-      map.set(m.id, { id: m.id, name: m.name, code: m.code });
-    });
-    serverRoster?.forEach((entry) => {
-      if (!map.has(entry.module.id)) {
-        map.set(entry.module.id, {
-          id: entry.module.id,
-          name: entry.module.name || entry.module.code || entry.module.id,
-          code: entry.module.code || entry.module.id,
-        });
-      }
-    });
-    students.forEach((s) => {
-      s.moduleIds?.forEach((mid) => {
-        if (!map.has(mid)) {
-          const mod = getModule(mid);
-          map.set(mid, {
-            id: mid,
-            name: mod?.name || mid,
-            code: mod?.code || mid,
-          });
-        }
-      });
-    });
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [modules, serverRoster, students, getModule]);
+    return modules
+      .map((m) => ({ id: m.id, name: m.name, code: m.code }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [modules]);
 
   const range = useMemo(() => {
     if (view === "daily") return { from: date, to: date };
@@ -360,23 +337,13 @@ export default function AttendancePage() {
           enrollmentDate: date,
           status: "active" as const,
         };
-        const moduleObj =
-          modules.find(
-            (m) =>
-              m.id === entry.module.id ||
-              m.code === entry.module.code ||
-              m.code === entry.module.id,
-          ) ?? {
-            id: entry.module.id,
-            code: entry.module.code,
-            name: entry.module.name || entry.module.code || entry.module.id,
-            description: "",
-            fee: 5000,
-            duration: "3 months",
-            teacherId: "",
-            batches: [],
-            status: "active" as const,
-          };
+        const moduleObj = modules.find(
+          (m) =>
+            m.id === entry.module.id ||
+            m.code === entry.module.code ||
+            m.code === entry.module.id,
+        );
+        if (!moduleObj) return;
         const rec = map.get(`att_${studentObj.id}_${moduleObj.id}_${date}`) ?? (entry.record ?? undefined);
         raw.push({
           key: `${studentObj.id}_${moduleObj.id}`,
@@ -601,6 +568,15 @@ export default function AttendancePage() {
               <span className="text-[10px] text-muted font-mono">{row.original.module.code}</span>
             )}
           </div>
+        ),
+      },
+      {
+        id: "date",
+        header: "Date",
+        cell: () => (
+          <span className="num font-semibold text-xs text-ink/80 whitespace-nowrap bg-surface-2 px-2.5 py-1 rounded-md border border-line">
+            {formatShortDate(date)}
+          </span>
         ),
       },
       {
@@ -1003,20 +979,20 @@ export default function AttendancePage() {
           }
           subtitle={
             view === "daily"
-              ? `${rows.length} class entries · ${unmarked} unmarked${
+              ? `${rows.length} class entries · ${unmarked} unmarked · Target date: ${formatShortDate(date)}${
                   moduleId !== "all"
-                    ? ` · ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
+                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
                     : ""
                 }`
               : view === "records"
-              ? `${recs.length} total records${
+              ? `${recs.length} total records · ${formatShortDate(range.from)} – ${formatShortDate(range.to)}${
                   moduleId !== "all"
-                    ? ` · ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
+                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
                     : ""
                 }`
-              : `${summaries.length} enrolled students in range${
+              : `${summaries.length} enrolled students in range · ${formatShortDate(range.from)} – ${formatShortDate(range.to)}${
                   moduleId !== "all"
-                    ? ` · ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
+                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
                     : ""
                 }`
           }
@@ -1033,21 +1009,31 @@ export default function AttendancePage() {
 
         {/* Module selection dropdown filter for module-wise attendance view */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3 bg-surface-2/40">
-          <div className="flex items-center gap-2.5">
-            <span className="text-xs font-semibold text-muted">Filter module:</span>
-            <div className="w-64 max-w-full">
-              <Select
-                value={moduleId}
-                onChange={(e) => setModuleId(e.target.value)}
-                className="h-8.5 text-xs bg-surface"
-              >
-                <option value="all">All modules</option>
-                {availableModules.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} {m.code && m.code !== m.name ? `(${m.code})` : ""}
-                  </option>
-                ))}
-              </Select>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted">Target date:</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-ink bg-surface border border-line rounded-lg">
+                <span className="h-2 w-2 rounded-full bg-brand"></span>
+                {formatShortDate(date)}
+              </span>
+            </div>
+            <div className="h-4 w-px bg-line hidden sm:block"></div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted">Filter module:</span>
+              <div className="w-60 max-w-full">
+                <Select
+                  value={moduleId}
+                  onChange={(e) => setModuleId(e.target.value)}
+                  className="h-8.5 text-xs bg-surface"
+                >
+                  <option value="all">All modules</option>
+                  {availableModules.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} {m.code && m.code !== m.name ? `(${m.code})` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </div>
           </div>
           {moduleId !== "all" && (
