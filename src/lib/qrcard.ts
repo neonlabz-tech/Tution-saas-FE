@@ -5,7 +5,7 @@ import { downloadDataUrl } from "@/lib/utils";
 const W = 1070;
 const H = 675;
 
-export function renderCardCanvas(student: Student, qr: HTMLCanvasElement): HTMLCanvasElement {
+export function renderCardCanvas(student: Student, qr: HTMLCanvasElement, instituteName?: string): HTMLCanvasElement {
   const c = document.createElement("canvas");
   c.width = W;
   c.height = H;
@@ -43,7 +43,10 @@ export function renderCardCanvas(student: Student, qr: HTMLCanvasElement): HTMLC
   g.fillText("EduFlow", 64, 96);
   g.font = `500 22px ${sans}`;
   g.globalAlpha = 0.75;
-  g.fillText("Bright Future Institute · Student Card", 64, 134);
+  const cardSubtitle = instituteName?.trim()
+    ? `${instituteName.trim()} · Student Card`
+    : (import.meta.env.VITE_INSTITUTE_NAME ? `${import.meta.env.VITE_INSTITUTE_NAME} · Student Card` : "Student Card");
+  g.fillText(cardSubtitle, 64, 134);
   g.globalAlpha = 1;
 
   g.font = `800 50px ${sans}`;
@@ -71,19 +74,19 @@ export function renderCardCanvas(student: Student, qr: HTMLCanvasElement): HTMLC
   return c;
 }
 
-export function downloadCardPng(student: Student, qr: HTMLCanvasElement) {
-  downloadDataUrl(renderCardCanvas(student, qr).toDataURL("image/png"), `${student.id}-qr-card.png`);
+export function downloadCardPng(student: Student, qr: HTMLCanvasElement, instituteName?: string) {
+  downloadDataUrl(renderCardCanvas(student, qr, instituteName).toDataURL("image/png"), `${student.id}-qr-card.png`);
 }
 
-export function downloadCardPdf(student: Student, qr: HTMLCanvasElement) {
-  const url = renderCardCanvas(student, qr).toDataURL("image/png");
+export function downloadCardPdf(student: Student, qr: HTMLCanvasElement, instituteName?: string) {
+  const url = renderCardCanvas(student, qr, instituteName).toDataURL("image/png");
   const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: [85.6, 54] });
   pdf.addImage(url, "PNG", 0, 0, 85.6, 54);
   pdf.save(`${student.id}-qr-card.pdf`);
 }
 
-export function printCard(student: Student, qr: HTMLCanvasElement) {
-  const url = renderCardCanvas(student, qr).toDataURL("image/png");
+export function printCard(student: Student, qr: HTMLCanvasElement, instituteName?: string) {
+  const url = renderCardCanvas(student, qr, instituteName).toDataURL("image/png");
   const iframe = document.createElement("iframe");
   iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
   document.body.appendChild(iframe);

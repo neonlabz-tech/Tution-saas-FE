@@ -7,6 +7,7 @@ import type { DatesSetArg, EventClickArg } from "@fullcalendar/core";
 import { CalendarClock, ChevronLeft, ChevronRight, Clock, ExternalLink, MapPin, Video } from "lucide-react";
 import { Badge, Button, Card, CardHeader, Select } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/overlays";
+import { useStudentData } from "@/hooks/useStudentData";
 import type { OnlineClass } from "@/types";
 import type { PhysicalClass } from "@/types/student";
 import { fmtDate, fmtTime, toLocalDT } from "@/lib/utils";
@@ -23,6 +24,16 @@ export function ModuleCalendar({ online, physical }: { online: OnlineClass[]; ph
   const [currentView, setCurrentView] = useState(() =>
     typeof window !== "undefined" && window.innerWidth < 768 ? "listMonth" : "dayGridMonth"
   );
+
+  let instituteName = "On-site Campus";
+  try {
+    const studentData = useStudentData();
+    if (studentData?.data?.instituteName) {
+      instituteName = studentData.data.instituteName;
+    }
+  } catch {
+    // optional outside StudentDataProvider
+  }
 
   const sessions = useMemo<Session[]>(
     () => [...online.map((item) => ({ kind: "online" as const, item })), ...physical.map((item) => ({ kind: "physical" as const, item }))],
@@ -194,7 +205,7 @@ export function ModuleCalendar({ online, physical }: { online: OnlineClass[]; ph
           <div className="space-y-3 text-sm">
             <div className="flex items-start gap-3"><CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-muted" /><div><p className="font-semibold">{new Date(`${open.item.start.slice(0, 10)}T00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p><p className="num text-muted">{fmtTime(open.item.start)} – {fmtTime(open.item.end)}</p></div></div>
             {open.kind === "physical" ? (
-              <div className="flex items-start gap-3"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted" /><div><p className="font-semibold">{open.item.location}</p><p className="text-muted">Bright Future Institute</p></div></div>
+              <div className="flex items-start gap-3"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted" /><div><p className="font-semibold">{open.item.location}</p><p className="text-muted">{instituteName}</p></div></div>
             ) : (
               <div className="flex items-start gap-3"><Video className="mt-0.5 h-4 w-4 shrink-0 text-muted" /><p className="text-muted">{open.item.description}</p></div>
             )}

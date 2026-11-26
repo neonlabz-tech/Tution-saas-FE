@@ -118,7 +118,11 @@ export function downloadMaterial(mat: StudyMaterial, moduleName: string) {
 }
 
 /** Downloads the assignment task file from Cloudflare R2 (or generates a branded brief PDF if running offline). */
-export function downloadAssignmentFile(assignment: Assignment, moduleName = "Module") {
+export function downloadAssignmentFile(
+  assignment: Assignment,
+  moduleName = "Module",
+  instituteName?: string,
+) {
   const filename = `${slug(assignment.title)}-assignment.pdf`;
   if (assignment.fileUrl) {
     const a = document.createElement("a");
@@ -137,7 +141,11 @@ export function downloadAssignmentFile(assignment: Assignment, moduleName = "Mod
   pdf.setTextColor(255, 255, 255);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(16);
-  pdf.text("Bright Future Institute", 15, 13);
+  const headerTitle =
+    instituteName?.trim() ||
+    import.meta.env.VITE_INSTITUTE_NAME ||
+    "Tuition Institute";
+  pdf.text(headerTitle, 15, 13);
   pdf.setFontSize(10);
   pdf.setFont("helvetica", "normal");
   pdf.text(`${moduleName} · Assignment Brief`, 15, 21);

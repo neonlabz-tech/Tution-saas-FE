@@ -218,7 +218,7 @@ export function Topbar({ onMenu, collapsed, onToggleCollapse }: { onMenu: () => 
   const current = ALL_NAV.find((n) => n.route === pathname) ?? ALL_NAV[0];
   const displayName = user?.fullName ?? "Amara Perera";
   const shortName = displayName.split(" ")[0] + (displayName.split(" ")[1] ? ` ${displayName.split(" ")[1][0]}.` : "");
-  const displayEmail = user?.email ?? "amara@brightfuture.lk";
+  const displayEmail = user?.email ?? "";
   const displayRole = user?.role ? user.role.replace("_", " ") : "Admin";
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-canvas/80 backdrop-blur-xl">

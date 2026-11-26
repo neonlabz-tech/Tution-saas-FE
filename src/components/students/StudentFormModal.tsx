@@ -120,7 +120,7 @@ function Inner({
   onSubmittingChange: (submitting: boolean) => void;
 }) {
   const toast = useToast();
-  const { user } = useAuth();
+  const { user, config } = useAuth();
   const [modules, setModules] = useState<Module[]>(modulesProp ?? []);
   const [loadingModules, setLoadingModules] = useState(!modulesProp?.length);
   const [batchOptions, setBatchOptions] = useState<string[]>(() => (item?.batch ? [item.batch] : []));
@@ -271,9 +271,10 @@ function Inner({
           });
 
           // 2. Student welcome alert (targeted to new student)
+          const welcomeInstitute = config?.instituteName || "the Institute";
           await createNotification({
             type: "student",
-            title: "Welcome to Bright Future Institute! 🎉",
+            title: `Welcome to ${welcomeInstitute}! 🎉`,
             subtitle: "Your enrollment is complete. Welcome to your student portal! You can now view your classes, timetable, and study materials.",
             link: "/dashboard/modules",
             targetRoles: ["student"],

@@ -8,7 +8,13 @@ import { useToast } from "@/components/ui/toast";
 import { useLock } from "@/components/ui/overlays";
 import { useAuth } from "@/hooks/useAuth";
 
-export function Logo({ compact = false }: { compact?: boolean }) {
+export function Logo({
+  compact = false,
+  subtitle,
+}: {
+  compact?: boolean;
+  subtitle?: string;
+}) {
   return (
     <div className="flex items-center gap-3">
       <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-secondary via-primary to-accent shadow-lg shadow-primary/40">
@@ -20,7 +26,9 @@ export function Logo({ compact = false }: { compact?: boolean }) {
       {!compact && (
         <div className="min-w-0 leading-tight">
           <p className="font-heading text-lg font-extrabold tracking-tight text-white">EduFlow</p>
-          <p className="truncate text-[11px] text-slate-400">Bright Future Institute</p>
+          <p className="truncate text-[11px] text-slate-400">
+            {subtitle || import.meta.env.VITE_INSTITUTE_NAME || "Tuition Institute"}
+          </p>
         </div>
       )}
     </div>
@@ -30,13 +38,13 @@ export function Logo({ compact = false }: { compact?: boolean }) {
 function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: boolean; onNavigate?: () => void; onCollapse?: () => void }) {
   const toast = useToast();
   const nav = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, config, logout } = useAuth();
   const displayName = user?.fullName ?? "Amara Perera";
   const displayRole = user?.role ? user.role.replace("_", " ") : "Administrator";
   return (
     <div className="sidebar-glow flex h-full flex-col bg-sidebar text-slate-300 overscroll-contain">
       <div className={cn("flex h-[72px] shrink-0 items-center", collapsed ? "justify-center gap-1 px-2" : "justify-between px-5")}>
-        <Logo compact={collapsed} />
+        <Logo compact={collapsed} subtitle={config?.instituteName} />
         {onCollapse && (
           <button
             onClick={onCollapse}
