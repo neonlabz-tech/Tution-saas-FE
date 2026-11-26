@@ -2,6 +2,21 @@
 import type { StudentAccount, StudentPortalData } from "@/types/student";
 import { buildPortalData, getLivePortalData } from "@/lib/studentPortal";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "")
+  : `${(import.meta.env.VITE_SERVER_URL ?? "").replace(/\/+$/, "")}/api`;
+
+async function lookupBackendStudent(code: string): Promise<any | null> {
+  try {
+    const res = await fetch(`${API_BASE}/students/lookup?code=${encodeURIComponent(code)}`, { credentials: "include" });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.data ?? json;
+  } catch {
+    return null;
+  }
+}
+
 export const PASSWORD_MIN_LENGTH = 8;
 
 export interface AuthResult {
