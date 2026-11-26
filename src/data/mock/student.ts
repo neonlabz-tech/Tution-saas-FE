@@ -87,22 +87,9 @@ export function buildAssignments(modules: Module[], studentKey: string): Assignm
         r2Key: `assignments/${id}.pdf`,
       };
       if (toISO(due) < today) {
-        if (h < 62) {
-          base.status = "submitted";
-          base.submittedAt = toISO(addDays(due, -1 - (h % 3)));
-          base.submissionType = "drive";
-          base.submissionUrl = "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view?usp=sharing";
-        } else if (h < 84) {
-          base.status = "submitted";
-          base.submittedAt = toISO(addDays(due, -(h % 2)));
-          base.submissionType = "drive";
-          base.submissionUrl = "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view?usp=sharing";
-        } else base.status = "overdue";
-      } else if (i === 2 && h < 25) {
-        base.status = "submitted";
-        base.submittedAt = today;
-        base.submissionType = "drive";
-        base.submissionUrl = "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view?usp=sharing";
+        base.status = "overdue";
+      } else {
+        base.status = "pending";
       }
       out.push(base);
     });
