@@ -55,7 +55,12 @@ const schema = z.object({
   moduleIds: z.array(z.string()).min(1, "Select at least one module"),
   enrollmentDate: z.string().optional(),
   status: z.enum(["pending", "active", "inactive", "graduated"]),
-  password: z.string().min(6, "Password must be at least 6 characters").optional(),
+  password: z
+    .string()
+    .refine((val) => !val || val.length >= 6, {
+      message: "Password must be at least 6 characters",
+    })
+    .optional(),
 });
 type Values = z.infer<typeof schema>;
 
@@ -305,8 +310,19 @@ function Inner({
     );
   }
 
+  const onInvalid = (fieldErrors: typeof errors) => {
+    const first = Object.values(fieldErrors)[0];
+    if (first?.message) {
+      toast.error(first.message);
+    }
+  };
+
   return (
-    <form id="student-form" onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="grid gap-4 sm:grid-cols-2">
+    <form
+      id="student-form"
+      onSubmit={(e) => void handleSubmit(onSubmit, onInvalid)(e)}
+      className="grid gap-4 sm:grid-cols-2"
+    >
       <Field label="Full name" error={errors.fullName?.message} className="sm:col-span-2">
         <Input {...register("fullName")} placeholder="e.g. Nimal Perera" />
       </Field>
