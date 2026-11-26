@@ -4,7 +4,6 @@ import {
   CalendarClock,
   CheckCircle2,
   ClipboardList,
-  Cloud,
   Download,
   ExternalLink,
   FileText,
@@ -338,11 +337,6 @@ export function ModuleAssignments({
                     <Download className="h-3.5 w-3.5" />
                     Download Assignment
                   </Button>
-
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted">
-                    <Cloud className="h-3 w-3 text-sky-500" />
-                    Cloudflare R2
-                  </span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -485,7 +479,7 @@ export function ModuleAssignments({
                   )}
                 >
                   <Upload className="h-4 w-4" />
-                  Upload File (R2)
+                  Upload File
                 </button>
               </div>
             </div>
@@ -507,7 +501,7 @@ export function ModuleAssignments({
             ) : (
               <Field
                 label="Select Assignment File"
-                hint="Upload your file directly to Cloudflare R2 storage. Supported: PDF, Word (DOC/DOCX), ZIP, Images (up to 10 MB)."
+                hint="Upload your assignment file. Supported: PDF, Word (DOC/DOCX), ZIP, Images (up to 10 MB)."
               >
                 <div className="mt-1 rounded-xl border border-dashed border-line p-4 text-center hover:border-primary/50 transition">
                   <input
@@ -545,17 +539,6 @@ export function ModuleAssignments({
                 </div>
               </Field>
             )}
-
-            <div className="rounded-xl border border-line bg-surface-2 p-3 text-xs text-muted">
-              <p className="flex items-center gap-1.5 font-semibold text-ink">
-                <Cloud className="h-3.5 w-3.5 text-sky-500" />
-                Cloudflare R2 Integration
-              </p>
-              <p className="mt-0.5 text-[11px]">
-                Assignment documents are stored and served securely via Cloudflare R2 high-speed
-                storage.
-              </p>
-            </div>
           </div>
         )}
       </Modal>
