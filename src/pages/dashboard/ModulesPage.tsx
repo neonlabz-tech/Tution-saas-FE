@@ -78,7 +78,6 @@ export default function ModulesPage() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [q, setQ] = useState(initialQ);
   const [debouncedQ, setDebouncedQ] = useState(initialQ.trim());
-  const [status, setStatus] = useState<string>("all");
   const [teacher, setTeacher] = useState<string>("all");
   const [batch, setBatch] = useState<string>("all");
 
@@ -218,7 +217,7 @@ export default function ModulesPage() {
     refetch,
   } = useModules({
     q: debouncedQ || undefined,
-    status: status as ModuleStatus | "all",
+    status: "all",
     teacherId: teacher,
     batch,
   });
@@ -445,14 +444,8 @@ export default function ModulesPage() {
             description="Courses offered by the institute — fees, teachers, batches and enrollments."
           />
 
-          <Card className="mb-6 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="mb-6 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
             <SearchInput placeholder="Search modules…" value={q} onChange={(e) => setQ(e.target.value)} />
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
-              <option value="all">All statuses</option>
-              <option value="active">Active</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="archived">Archived</option>
-            </Select>
             <Select value={teacher} onChange={(e) => setTeacher(e.target.value)} aria-label="Teacher">
               <option value="all">All teachers</option>
               {teachers.map((t) => (

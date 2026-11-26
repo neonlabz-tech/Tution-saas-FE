@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, BookOpen, CalendarClock, ClipboardList, Clock, FolderOpen, MapPin, MonitorPlay, RotateCcw, Video, X } from "lucide-react";
-import { Avatar, Badge, Button, Card, EmptyState, PageHeader, SearchInput, Select, StatusBadge } from "@/components/ui/primitives";
+import { Avatar, Badge, Button, Card, EmptyState, PageHeader, SearchInput, StatusBadge } from "@/components/ui/primitives";
 import { DataGate } from "@/components/student/states";
 import { COLORS } from "@/components/analytics/chartParts";
 import { useStudentData } from "@/hooks/useStudentData";
@@ -12,7 +12,6 @@ export default function StudentModulesPage() {
   const [params, setParams] = useSearchParams();
 
   const [q, setQ] = useState(params.get("q") ?? "");
-  const [status, setStatus] = useState(params.get("status") ?? "all");
 
   useEffect(() => {
     const next = new URLSearchParams(params);
@@ -21,52 +20,24 @@ export default function StudentModulesPage() {
     } else {
       next.delete("q");
     }
-    if (status && status !== "all") {
-      next.set("status", status);
-    } else {
-      next.delete("status");
-    }
     setParams(next, { replace: true });
-  }, [q, status, setParams]);
-
-  const counts = useMemo(() => {
-    const all = data?.modules ?? [];
-    return {
-      all: all.length,
-      active: all.filter((m) => (m.status ?? "active").toLowerCase() === "active").length,
-      upcoming: all.filter((m) => (m.status ?? "").toLowerCase() === "upcoming").length,
-      archived: all.filter((m) => (m.status ?? "").toLowerCase() === "archived").length,
-    };
-  }, [data?.modules]);
+  }, [q, setParams]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    const st = status.toLowerCase();
+    if (!s) return data?.modules ?? [];
 
-    return (data?.modules ?? []).filter((m) => {
-      const mStatus = (m.status ?? "active").toLowerCase();
-      const statusMatches = st === "all" || mStatus === st;
-      if (!statusMatches) return false;
-
-      if (!s) return true;
-      return (
+    return (data?.modules ?? []).filter(
+      (m) =>
         m.name.toLowerCase().includes(s) ||
         m.code.toLowerCase().includes(s) ||
         (m.description ?? "").toLowerCase().includes(s) ||
         (m.teacher?.fullName ?? "").toLowerCase().includes(s) ||
         (m.teacher?.specialization ?? "").toLowerCase().includes(s) ||
         (m.onlineSchedule ?? "").toLowerCase().includes(s) ||
-        (m.physicalSchedule ?? "").toLowerCase().includes(s)
-      );
-    });
-  }, [data?.modules, q, status]);
-
-  const handleReset = () => {
-    setQ("");
-    setStatus("all");
-  };
-
-  const hasActiveFilters = Boolean(q.trim() || (status && status !== "all"));
+        (m.physicalSchedule ?? "").toLowerCase().includes(s),
+    );
+  }, [data?.modules, q]);
 
   return (
     <DataGate loading={loading} error={error} linked={data?.linked} data={data} onRetry={reload} cards={3}>
@@ -78,75 +49,28 @@ export default function StudentModulesPage() {
           />
 
           <Card className="mb-6 p-4">
-            <div className="grid gap-3 sm:grid-cols-[1fr_220px]">
-              <SearchInput
-                placeholder="Search modules by name, code, teacher, or topic…"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                aria-label="Search modules"
-              />
-              <Select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                aria-label="Filter by status"
-              >
-                <option value="all">All statuses ({counts.all})</option>
-                <option value="active">Active ({counts.active})</option>
-                <option value="upcoming">Upcoming ({counts.upcoming})</option>
-                <option value="archived">Archived ({counts.archived})</option>
-              </Select>
-            </div>
+            <SearchInput
+              placeholder="Search modules by name, code, teacher, or topic…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              aria-label="Search modules"
+            />
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-line/70 pt-3 text-xs">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {(
-                  [
-                    { id: "all", label: "All", count: counts.all },
-                    { id: "active", label: "Active", count: counts.active },
-                    { id: "upcoming", label: "Upcoming", count: counts.upcoming },
-                    { id: "archived", label: "Archived", count: counts.archived },
-                  ] as const
-                ).map((pill) => (
-                  <button
-                    key={pill.id}
-                    type="button"
-                    onClick={() => setStatus(pill.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-semibold transition ${
-                      status === pill.id
-                        ? "bg-brand text-white shadow-sm"
-                        : "bg-surface-2 text-muted hover:bg-surface-2/80 hover:text-ink"
-                    }`}
-                  >
-                    <span>{pill.label}</span>
-                    <span
-                      className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
-                        status === pill.id
-                          ? "bg-white/20 text-white"
-                          : "bg-surface text-muted"
-                      }`}
-                    >
-                      {pill.count}
-                    </span>
-                  </button>
-                ))}
+            {q.trim() && (
+              <div className="mt-2.5 flex items-center justify-between text-xs text-muted">
+                <span>
+                  Showing <b className="text-ink">{filtered.length}</b> of {data.modules.length} registered modules
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setQ("")}
+                  className="h-6 px-2 text-xs text-muted hover:text-ink"
+                >
+                  <X className="h-3 w-3" /> Clear search
+                </Button>
               </div>
-
-              {hasActiveFilters && (
-                <div className="flex items-center gap-2">
-                  <span className="text-muted">
-                    Showing <b className="text-ink">{filtered.length}</b> of {data.modules.length}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleReset}
-                    className="h-7 px-2 text-xs text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
-                  >
-                    <X className="h-3 w-3" /> Clear filters
-                  </Button>
-                </div>
-              )}
-            </div>
+            )}
           </Card>
 
           {filtered.length === 0 ? (
@@ -157,12 +81,12 @@ export default function StudentModulesPage() {
                 text={
                   data.modules.length === 0
                     ? "You haven't been enrolled in any modules yet. Contact the front desk to register."
-                    : "Try a different search query or change your status filter."
+                    : "Try a different search query."
                 }
                 action={
-                  hasActiveFilters ? (
-                    <Button variant="secondary" onClick={handleReset}>
-                      <RotateCcw className="h-4 w-4" /> Reset filters
+                  q.trim() ? (
+                    <Button variant="secondary" onClick={() => setQ("")}>
+                      <RotateCcw className="h-4 w-4" /> Clear search
                     </Button>
                   ) : undefined
                 }

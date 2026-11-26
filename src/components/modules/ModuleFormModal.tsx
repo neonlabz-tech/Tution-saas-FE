@@ -18,7 +18,7 @@ const schema = z.object({
   duration: z.string().trim().min(2, "e.g. 6 months"),
   teacherId: z.string(),
   batches: z.array(z.string()).min(1, "Assign at least one batch"),
-  status: z.enum(["active", "upcoming", "archived"]),
+  status: z.enum(["active", "upcoming", "archived"]).optional().default("active"),
 });
 type Values = z.infer<typeof schema>;
 
@@ -135,7 +135,7 @@ function Inner({
       fee: v.fee,
       duration: v.duration.trim(),
       batches: v.batches,
-      status: v.status,
+      status: item?.status ?? v.status ?? "active",
     };
 
     onSubmittingChange(true);
@@ -193,7 +193,7 @@ function Inner({
       <Field label="Duration" error={errors.duration?.message}>
         <Input {...register("duration")} />
       </Field>
-      <Field label="Teacher" error={errors.teacherId?.message}>
+      <Field label="Teacher" error={errors.teacherId?.message} className="sm:col-span-2">
         {loadingTeachers ? (
           <Skeleton className="h-10 w-full" />
         ) : (
@@ -206,13 +206,6 @@ function Inner({
             ))}
           </Select>
         )}
-      </Field>
-      <Field label="Status" error={errors.status?.message}>
-        <Select {...register("status")}>
-          <option value="active">Active</option>
-          <option value="upcoming">Upcoming</option>
-          <option value="archived">Archived</option>
-        </Select>
       </Field>
       <Field label="Batches" error={errors.batches?.message} className="sm:col-span-2">
         <Controller
