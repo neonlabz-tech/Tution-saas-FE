@@ -80,23 +80,29 @@ export function buildAssignments(modules: Module[], studentKey: string): Assignm
         id,
         moduleId: m.id,
         title: i === 3 ? `${topic}: Mini project` : `${topic}: ${i % 2 === 0 ? "Problem set" : "Worksheet"}`,
-        description: `Complete the ${topic.toLowerCase()} exercises for ${m.name}. Submit a single PDF or photo scan; show your working for full marks.`,
+        description: `Complete the ${topic.toLowerCase()} exercises for ${m.name}. Submit your solution via Google Drive link or file upload.`,
         dueDate,
         status: "pending",
-        maxMarks,
+        fileUrl: `https://pub-f17818466e4646e8aae1bf24d363f534.r2.dev/assignments/${id}.pdf`,
+        r2Key: `assignments/${id}.pdf`,
       };
       if (toISO(due) < today) {
         if (h < 62) {
-          base.status = "graded";
-          base.marks = Math.round(maxMarks * (0.55 + (h % 40) / 100));
+          base.status = "submitted";
           base.submittedAt = toISO(addDays(due, -1 - (h % 3)));
+          base.submissionType = "drive";
+          base.submissionUrl = "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view?usp=sharing";
         } else if (h < 84) {
           base.status = "submitted";
           base.submittedAt = toISO(addDays(due, -(h % 2)));
+          base.submissionType = "drive";
+          base.submissionUrl = "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view?usp=sharing";
         } else base.status = "overdue";
       } else if (i === 2 && h < 25) {
         base.status = "submitted";
         base.submittedAt = today;
+        base.submissionType = "drive";
+        base.submissionUrl = "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view?usp=sharing";
       }
       out.push(base);
     });

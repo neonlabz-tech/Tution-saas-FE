@@ -29,9 +29,14 @@ export interface Assignment {
   description: string;
   dueDate: string; // YYYY-MM-DDTHH:mm
   status: AssignmentStatus;
-  maxMarks: number;
+  maxMarks?: number;
   marks?: number;
   submittedAt?: string;
+  fileUrl?: string; // Cloudflare R2 download URL
+  r2Key?: string;   // Cloudflare R2 object key
+  submissionType?: "drive" | "file";
+  submissionUrl?: string; // Submitted Google Drive link or R2 file URL
+  submissionFileName?: string;
 }
 
 export type MaterialFileType = "pdf" | "csv" | "txt";
