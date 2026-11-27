@@ -86,7 +86,7 @@ export default function NoticesPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const today = todayISO();
-  const { batches: batchOptions } = useBatches(notices.flatMap((n) => n.batches));
+  const { batches: batchOptions } = useBatches();
 
   const loadNotices = () => {
     setLoading(true);
@@ -196,14 +196,14 @@ export default function NoticesPage() {
       />
 
       {/* Filters, right above the cards */}
-      <div className="mb-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+      <div className="mb-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
         <SearchInput
           placeholder="Search notices…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="col-span-2 sm:w-56"
+          className="w-full sm:w-56"
         />
-        <div className="sm:w-44">
+        <div className="w-full sm:w-44">
           <Select value={filter} onChange={(e) => setFilter(e.target.value as Filter)} aria-label="Status">
             {STATUS_OPTIONS.map((o) => (
               <option key={o.id} value={o.id}>
@@ -212,7 +212,7 @@ export default function NoticesPage() {
             ))}
           </Select>
         </div>
-        <div className="sm:w-40">
+        <div className="w-full sm:w-40">
           <Select value={priority} onChange={(e) => setPriority(e.target.value)} aria-label="Priority">
             <option value="all">All priorities</option>
             <option value="high">High</option>
@@ -220,7 +220,7 @@ export default function NoticesPage() {
             <option value="low">Low</option>
           </Select>
         </div>
-        <div className="col-span-2 sm:w-44">
+        <div className="w-full sm:w-44">
           <Select value={batch} onChange={(e) => setBatch(e.target.value)} aria-label="Batch">
             <option value="all">All batches</option>
             {batchOptions.map((b) => (

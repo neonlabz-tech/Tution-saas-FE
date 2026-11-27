@@ -5,16 +5,39 @@ import { AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./primitives";
 
-function useLock(open: boolean, onClose: () => void) {
+let activeLocks = 0;
+let originalOverflow = "";
+
+function acquireLock() {
+  if (typeof document === "undefined") return;
+  if (activeLocks === 0) {
+    originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+  activeLocks++;
+}
+
+function releaseLock() {
+  if (typeof document === "undefined") return;
+  activeLocks = Math.max(0, activeLocks - 1);
+  if (activeLocks === 0) {
+    document.body.style.overflow = originalOverflow;
+  }
+}
+
+export function useLock(open: boolean, onClose?: () => void) {
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && onClose) {
+        onClose();
+      }
+    };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    acquireLock();
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
+      releaseLock();
     };
   }, [open, onClose]);
 }
@@ -44,10 +67,10 @@ export function Modal({ open, onClose, title, description, children, footer, siz
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.97 }}
             transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            className={cn("relative flex max-h-[92vh] w-full flex-col rounded-t-3xl border border-line bg-surface shadow-pop sm:rounded-3xl", w)}
+            className={cn("relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl border border-line bg-surface shadow-pop sm:rounded-3xl", w)}
           >
             {(title || description) && (
-              <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
+              <div className="flex items-start justify-between gap-4 border-b border-line px-4 py-3.5 sm:px-6 sm:py-4">
                 <div className="min-w-0">
                   <h2 className="font-heading text-lg font-bold">{title}</h2>
                   {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
@@ -57,8 +80,8 @@ export function Modal({ open, onClose, title, description, children, footer, siz
                 </button>
               </div>
             )}
-            <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
-            {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line px-6 py-4">{footer}</div>}
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">{children}</div>
+            {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3 sm:px-6 sm:py-4">{footer}</div>}
           </motion.div>
         </div>
       )}
@@ -82,9 +105,9 @@ export function Drawer({ open, onClose, title, description, children, footer, si
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 32, stiffness: 300 }}
-            className={cn("relative flex h-full w-full flex-col border-l border-line bg-surface shadow-pop", w)}
+            className={cn("relative flex h-full max-h-dvh w-full flex-col border-l border-line bg-surface shadow-pop", w)}
           >
-            <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
+            <div className="flex items-start justify-between gap-4 border-b border-line px-4 py-3.5 sm:px-6 sm:py-4">
               <div className="min-w-0">
                 <h2 className="truncate font-heading text-lg font-bold">{title}</h2>
                 {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
@@ -93,8 +116,8 @@ export function Drawer({ open, onClose, title, description, children, footer, si
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
-            {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line px-6 py-4">{footer}</div>}
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">{children}</div>
+            {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3 sm:px-6 sm:py-4">{footer}</div>}
           </motion.aside>
         </div>
       )}

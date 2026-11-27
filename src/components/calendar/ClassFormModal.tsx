@@ -2,8 +2,14 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ExternalLink, Trash2 } from "lucide-react";
-import type { CreateOnlineClassDto, ModuleListItem, OnlineClassItem, UpdateOnlineClassDto } from "@/types";
+import { ExternalLink, MapPin, Trash2, Video } from "lucide-react";
+import type {
+  ClassType,
+  CreateOnlineClassDto,
+  ModuleListItem,
+  OnlineClassItem,
+  UpdateOnlineClassDto,
+} from "@/types";
 import { Modal } from "@/components/ui/overlays";
 import { Button, Field, Input, Select, Skeleton, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
@@ -13,22 +19,54 @@ import { createNotification } from "@/api/notifications";
 import { useAuth } from "@/hooks/useAuth";
 import { applyApiValidationErrors, teachersApi, type TeacherListItem } from "@/lib/api";
 import { useBatches } from "@/hooks/useBatches";
-import { todayISO } from "@/lib/utils";
+import { cn, todayISO } from "@/lib/utils";
 
 const schema = z
   .object({
     title: z.string().trim().min(3, "Enter a class title"),
+    classType: z.enum(["online", "physical"]),
     moduleId: z.string().min(1, "Select a module"),
     teacherId: z.string().min(1, "Select a teacher"),
     batch: z.string().min(1, "Select a batch"),
     date: z.string().min(1, "Required"),
     startTime: z.string().min(1, "Required"),
     endTime: z.string().min(1, "Required"),
-    link: z.string().trim().url("Enter a valid URL, e.g. https://meet.example.com/room"),
+    link: z.string(),
+    hall: z.string(),
     description: z.string(),
     status: z.enum(["scheduled", "completed", "cancelled"]),
   })
-  .refine((v) => v.endTime > v.startTime, { path: ["endTime"], message: "End must be after start" });
+  .refine((v) => v.endTime > v.startTime, { path: ["endTime"], message: "End must be after start" })
+  .superRefine((v, ctx) => {
+    if (v.classType === "online") {
+      const trimmed = v.link.trim();
+      if (!trimmed) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["link"],
+          message: "Enter a valid meeting URL",
+        });
+      } else {
+        try {
+          new URL(trimmed);
+        } catch {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["link"],
+            message: "Enter a valid URL, e.g. https://meet.example.com/room",
+          });
+        }
+      }
+    } else if (v.classType === "physical") {
+      if (!v.hall.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["hall"],
+          message: "Enter hall or room name",
+        });
+      }
+    }
+  });
 type Values = z.infer<typeof schema>;
 
 export interface ClassDraft {
@@ -40,8 +78,10 @@ export interface ClassDraft {
 
 function toFormValues(item: OnlineClassItem | null, draft: ClassDraft): Values {
   if (item) {
+    const classType: ClassType = item.classType ?? (item.hall && !item.link ? "physical" : "online");
     return {
       title: item.title ?? "",
+      classType,
       moduleId: item.moduleId ?? "",
       teacherId: item.teacherId ?? "",
       batch: item.batch ?? "",
@@ -49,12 +89,14 @@ function toFormValues(item: OnlineClassItem | null, draft: ClassDraft): Values {
       startTime: item.start.slice(11, 16),
       endTime: item.end.slice(11, 16),
       link: item.link ?? "",
+      hall: item.hall ?? "",
       description: item.description ?? "",
       status: item.status ?? "scheduled",
     };
   }
   return {
     title: "",
+    classType: "online",
     moduleId: "",
     teacherId: "",
     batch: "",
@@ -62,6 +104,7 @@ function toFormValues(item: OnlineClassItem | null, draft: ClassDraft): Values {
     startTime: draft.startTime ?? "18:00",
     endTime: draft.endTime ?? "19:30",
     link: "https://meet.example.com/eduflow-room",
+    hall: "",
     description: "",
     status: "scheduled",
   };
@@ -88,8 +131,7 @@ function Inner({
 }) {
   const toast = useToast();
   const { user } = useAuth();
-  const { batches: batchOptions, registerBatches } = useBatches(item?.batch ? [item.batch] : undefined);
-  const [customBatch, setCustomBatch] = useState(false);
+  const { batches: batchOptions } = useBatches(item?.batch ? [item.batch] : undefined);
   const [modules, setModules] = useState<ModuleListItem[]>(modulesProp ?? []);
   const [teachers, setTeachers] = useState<TeacherListItem[]>(teachersProp ?? []);
   const [loadingModules, setLoadingModules] = useState(!modulesProp);
@@ -183,23 +225,30 @@ function Inner({
       if (item) {
         const payload: UpdateOnlineClassDto = {
           title: v.title.trim(),
+          classType: v.classType,
           moduleId: v.moduleId,
           teacherId: v.teacherId,
           batch: trimmedBatch,
           start,
           end,
-          link: v.link.trim(),
+          link: v.classType === "online" ? v.link.trim() : undefined,
+          hall: v.classType === "physical" ? v.hall.trim() : undefined,
           description: desc,
           status: v.status,
         };
         saved = await updateOnlineClass(item.id, payload);
-        toast.success("Online class updated");
+        toast.success("Class updated");
 
         try {
+          const locSubtitle =
+            v.classType === "physical" && saved.hall
+              ? `${saved.title} updated for ${v.date} at ${v.startTime} (${saved.batch} · ${saved.hall}).`
+              : `${saved.title} updated for ${v.date} at ${v.startTime} (${saved.batch}).`;
+
           await createNotification({
             type: "class",
             title: "Class Schedule Updated",
-            subtitle: `${saved.title} updated for ${v.date} at ${v.startTime} (${saved.batch}).`,
+            subtitle: locSubtitle,
             link: "/dashboard/online-classes",
             targetRoles: ["teacher", "student"],
             targetBatch: saved.batch,
@@ -213,24 +262,31 @@ function Inner({
       } else {
         const payload: CreateOnlineClassDto = {
           title: v.title.trim(),
+          classType: v.classType,
           moduleId: v.moduleId,
           teacherId: v.teacherId,
           batch: trimmedBatch,
           start,
           end,
-          link: v.link.trim(),
+          link: v.classType === "online" ? v.link.trim() : undefined,
+          hall: v.classType === "physical" ? v.hall.trim() : undefined,
           ...(desc ? { description: desc } : {}),
           status: v.status,
         };
         saved = await createOnlineClass(payload);
-        toast.success("Online class scheduled");
+        toast.success("Class scheduled");
 
         try {
+          const locSubtitle =
+            v.classType === "physical" && saved.hall
+              ? `${saved.title} has been scheduled for ${v.date} at ${v.startTime} (${saved.batch} · ${saved.hall}).`
+              : `${saved.title} has been scheduled for ${v.date} at ${v.startTime} (${saved.batch}).`;
+
           // 1. Teacher alert
           await createNotification({
             type: "class",
             title: "New Class Scheduled",
-            subtitle: `${saved.title} has been scheduled for ${v.date} at ${v.startTime} (${saved.batch}).`,
+            subtitle: locSubtitle,
             link: "/dashboard/online-classes",
             targetRoles: ["teacher"],
             targetUserIds: [saved.teacherId],
@@ -253,20 +309,20 @@ function Inner({
           // non-blocking
         }
       }
-      registerBatches([saved.batch || trimmedBatch]);
       onSaved?.(saved);
       onClose();
     } catch (err: unknown) {
       const mapped = applyApiValidationErrors(err, setError);
-      const msg = err instanceof Error ? err.message : "Failed to save online class";
+      const msg = err instanceof Error ? err.message : "Failed to save class";
       toast.error(mapped ? `Please check the highlighted fields: ${msg}` : msg);
     } finally {
       onSubmittingChange(false);
     }
   };
 
+  const classType = watch("classType");
   const link = watch("link");
-  const validHref = /^https?:\/\/.+/i.test(link.trim());
+  const validHref = /^https?:\/\/.+/i.test((link || "").trim());
 
   return (
     <form id="class-form" onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="grid gap-4 sm:grid-cols-2">
@@ -302,42 +358,14 @@ function Inner({
         )}
       </Field>
       <Field label="Batch" error={errors.batch?.message}>
-        <div className="space-y-1.5">
-          {customBatch ? (
-            <Input
-              {...register("batch")}
-              placeholder="e.g. 2027-AL"
-              autoFocus
-            />
-          ) : (
-            <Select {...register("batch")}>
-              <option value="">Select batch…</option>
-              {batchOptions.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-            </Select>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              if (customBatch) {
-                setCustomBatch(false);
-                setValue("batch", item?.batch || "", {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                });
-              } else {
-                setCustomBatch(true);
-                setValue("batch", "", { shouldDirty: true });
-              }
-            }}
-            className="text-xs font-medium text-primary hover:underline"
-          >
-            {customBatch ? "Choose existing batch" : "+ New batch"}
-          </button>
-        </div>
+        <Select {...register("batch")}>
+          <option value="">Select batch…</option>
+          {batchOptions.map((b) => (
+            <option key={b} value={b}>
+              {b}
+            </option>
+          ))}
+        </Select>
       </Field>
       <Field label="Status" error={errors.status?.message}>
         <Select {...register("status")}>
@@ -357,29 +385,96 @@ function Inner({
           <Input type="time" {...register("endTime")} />
         </Field>
       </div>
-      <Field label="Meeting link" error={errors.link?.message} className="sm:col-span-2">
-        <div className="flex gap-2">
-          <Input {...register("link")} />
-          {validHref ? (
-            <a
-              href={link.trim()}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Open link"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line text-muted hover:text-ink"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          ) : (
-            <span
-              aria-disabled="true"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line text-muted opacity-40"
-            >
-              <ExternalLink className="h-4 w-4" />
+
+      <div className="sm:col-span-2">
+        <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted">
+          Class type
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label
+            className={cn(
+              "flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-medium transition",
+              classType === "online"
+                ? "border-brand/40 bg-brand/5 text-ink shadow-sm"
+                : "border-line bg-surface-2/40 text-muted hover:border-line hover:text-ink",
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={classType === "online"}
+              onChange={() => {
+                setValue("classType", "online", { shouldValidate: true, shouldDirty: true });
+                if (!watch("link")) {
+                  setValue("link", "https://meet.example.com/eduflow-room");
+                }
+              }}
+              className="h-4 w-4 rounded border-line text-brand accent-brand focus:ring-brand"
+            />
+            <span className="flex items-center gap-2">
+              <Video className="h-4 w-4 text-brand" />
+              Online class
             </span>
-          )}
+          </label>
+
+          <label
+            className={cn(
+              "flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-medium transition",
+              classType === "physical"
+                ? "border-teal-500/40 bg-teal-500/5 text-ink shadow-sm"
+                : "border-line bg-surface-2/40 text-muted hover:border-line hover:text-ink",
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={classType === "physical"}
+              onChange={() => {
+                setValue("classType", "physical", { shouldValidate: true, shouldDirty: true });
+              }}
+              className="h-4 w-4 rounded border-line text-brand accent-brand focus:ring-brand"
+            />
+            <span className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+              Physical class
+            </span>
+          </label>
         </div>
-      </Field>
+      </div>
+
+      {classType === "online" ? (
+        <Field label="Meeting link" error={errors.link?.message} className="sm:col-span-2">
+          <div className="flex gap-2">
+            <Input {...register("link")} placeholder="https://meet.example.com/eduflow-room" />
+            {validHref ? (
+              <a
+                href={(link || "").trim()}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Open link"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line text-muted hover:text-ink"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            ) : (
+              <span
+                aria-disabled="true"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line text-muted opacity-40"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </span>
+            )}
+          </div>
+        </Field>
+      ) : (
+        <Field label="Hall" error={errors.hall?.message} className="sm:col-span-2">
+          <div className="relative">
+            <Input {...register("hall")} placeholder="e.g. Hall A, Main Auditorium, Lab 2" />
+            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted">
+              <MapPin className="h-4 w-4" />
+            </div>
+          </div>
+        </Field>
+      )}
+
       <Field label="Description" error={errors.description?.message} className="sm:col-span-2">
         <Textarea {...register("description")} className="min-h-[70px]" />
       </Field>
@@ -426,7 +521,7 @@ export function ClassFormModal({
         if (!submitting) onClose();
       }}
       size="lg"
-      title={item ? "Edit online class" : "Schedule online class"}
+      title={item ? "Edit class" : "Schedule class"}
       description="Drag events on the calendar to reschedule, or resize to change duration"
       footer={
         <>

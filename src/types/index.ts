@@ -119,6 +119,7 @@ export interface StudentPaymentRecord {
 export interface StudentDetail extends Student {
   qrPayload?: string;
   qrRotatedAt?: string | null;
+  generatedPassword?: string;
   modules: StudentModuleRef[];
   feeTotal: number;
   paidTotal: number;
@@ -142,6 +143,7 @@ export interface CreateStudentDto {
   moduleIds: string[];
   enrollmentDate?: string;
   status?: StudentStatus;
+  password?: string;
 }
 
 export type UpdateStudentDto = Partial<CreateStudentDto>;
@@ -519,15 +521,19 @@ export interface DeleteTransactionResponse {
 }
 
 export type ClassStatus = "scheduled" | "completed" | "cancelled";
+export type ClassType = "online" | "physical";
+
 export interface OnlineClass {
   id: string;
   title: string;
+  classType?: ClassType;
+  hall?: string;
   moduleId: string;
   teacherId: string;
   batch: string;
   start: string; // YYYY-MM-DDTHH:mm (floating local time)
   end: string;
-  link: string;
+  link?: string;
   description: string;
   status: ClassStatus;
 }
@@ -558,6 +564,7 @@ export interface OnlineClassQueryParams {
   moduleId?: string;
   batch?: string;
   status?: ClassStatus | "all";
+  classType?: ClassType | "all";
   from?: string;
   to?: string;
   q?: string;
@@ -565,12 +572,14 @@ export interface OnlineClassQueryParams {
 
 export interface CreateOnlineClassDto {
   title: string;
+  classType?: ClassType;
+  hall?: string;
   moduleId: string;
   teacherId: string;
   batch: string;
   start: string;
   end: string;
-  link: string;
+  link?: string;
   description?: string;
   status?: ClassStatus;
 }

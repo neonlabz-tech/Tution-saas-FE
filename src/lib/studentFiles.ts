@@ -1,7 +1,7 @@
 // Client-side file generation for e-receipts and (mock) study materials.
 import { jsPDF } from "jspdf";
-import type { StudentAccount, StudentPayment, StudyMaterial } from "@/types/student";
-import { fmtDate, fmtLKR } from "@/lib/utils";
+import type { Assignment, StudentAccount, StudentPayment, StudyMaterial } from "@/types/student";
+import { fmtDate, fmtLKR, fmtTime } from "@/lib/utils";
 
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -116,3 +116,141 @@ export function downloadMaterial(mat: StudyMaterial, moduleName: string) {
     saveBlob(new Blob([`${mat.name}\n${moduleName}\n\n${mat.description}\n\n1. Textbook, Unit 1–4\n2. Past paper archive (front desk)\n3. Teacher handouts (this portal)\n`], { type: "text/plain" }), filename);
   }
 }
+
+/** Downloads the assignment task file from Cloudflare R2 (or generates a branded brief PDF if running offline). */
+export function downloadAssignmentFile(
+  assignment: Assignment,
+  moduleName = "Module",
+  instituteName?: string,
+) {
+  const filename = `${slug(assignment.title)}-assignment.pdf`;
+  if (assignment.fileUrl) {
+    const a = document.createElement("a");
+    a.href = assignment.fileUrl;
+    a.download = filename;
+    a.target = "_blank";
+    a.rel = "noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  }
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  pdf.setFillColor(79, 70, 229);
+  pdf.rect(0, 0, 210, 28, "F");
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(16);
+  const headerTitle =
+    instituteName?.trim() ||
+    import.meta.env.VITE_INSTITUTE_NAME ||
+    "Tuition Institute";
+  pdf.text(headerTitle, 15, 13);
+  pdf.setFontSize(10);
+  pdf.setFont("helvetica", "normal");
+  pdf.text(`${moduleName} · Assignment Brief`, 15, 21);
+
+  pdf.setTextColor(17, 24, 39);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(15);
+  pdf.text(assignment.title, 15, 42);
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(10);
+  pdf.setTextColor(220, 38, 38);
+  pdf.text(`Due Date: ${fmtDate(assignment.dueDate)} at ${fmtTime(assignment.dueDate)}`, 15, 50);
+
+  pdf.setTextColor(30, 41, 59);
+  pdf.setFontSize(11);
+  const descLines = pdf.splitTextToSize(assignment.description, 180) as string[];
+  pdf.text(descLines, 15, 62);
+
+  pdf.setTextColor(17, 24, 39);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(11);
+  pdf.text("Submission Guidelines:", 15, 82);
+
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(10);
+  pdf.setTextColor(71, 85, 105);
+  pdf.text(
+    pdf.splitTextToSize(
+      "1. Submit your completed assignment as a Google Drive link or by uploading your document.\n2. Ensure Google Drive link sharing permissions are set to 'Anyone with the link can view'.\n3. File storage and attachments are powered by Cloudflare R2.\n4. Late submissions will be flagged as overdue.",
+      180
+    ) as string[],
+    15,
+    90
+  );
+
+  pdf.save(filename);
+}
+
+export interface CalendarSessionExportItem {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  kind: "online" | "physical";
+  location?: string;
+  link?: string;
+  description?: string;
+}
+
+export function exportCalendarIcs(sessions: CalendarSessionExportItem[], calendarTitle = "EduFlow Class Schedule") {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const now = new Date();
+  const dtStamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+
+  const formatIcsDate = (dateStr: string) => {
+    const clean = dateStr.replace(/[-:]/g, "");
+    if (clean.includes("T")) {
+      const [d, t] = clean.split("T");
+      const timePad = (t + "000000").slice(0, 6);
+      return `${d}T${timePad}`;
+    }
+    return clean;
+  };
+
+  const escapeIcs = (str?: string) =>
+    (str || "").replace(/[\\;,]/g, (m) => "\\" + m).replace(/\r?\n/g, "\\n");
+
+  const events = sessions.map((s) => {
+    const isOnline = s.kind === "online";
+    const cleanTitle = s.title.replace(/\s\(on-site\)$/, "");
+    const summary = `${isOnline ? "[Online] " : "[On-site] "}${cleanTitle}`;
+    const dtStart = formatIcsDate(s.start);
+    const dtEnd = formatIcsDate(s.end);
+    const location = isOnline ? (s.link || "Online Meeting") : (s.location || "Campus Hall");
+    const desc = isOnline
+      ? `Online session\\nMeeting link: ${s.link || "Available in portal"}`
+      : `Physical session\\nLocation: ${s.location || "Institute Hall"}`;
+
+    return [
+      "BEGIN:VEVENT",
+      `UID:class-${s.id}@eduflow.lk`,
+      `DTSTAMP:${dtStamp}`,
+      `DTSTART:${dtStart}`,
+      `DTEND:${dtEnd}`,
+      `SUMMARY:${escapeIcs(summary)}`,
+      `DESCRIPTION:${escapeIcs(desc)}`,
+      `LOCATION:${escapeIcs(location)}`,
+      "STATUS:CONFIRMED",
+      "END:VEVENT",
+    ].join("\r\n");
+  });
+
+  const icsLines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//EduFlow//Student Portal Timetable//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    `X-WR-CALNAME:${escapeIcs(calendarTitle)}`,
+    ...events,
+    "END:VCALENDAR",
+  ].join("\r\n");
+
+  const blob = new Blob([icsLines], { type: "text/calendar;charset=utf-8" });
+  saveBlob(blob, `${calendarTitle.toLowerCase().replace(/[^a-z0-9]/g, "-")}.ics`);
+}
+

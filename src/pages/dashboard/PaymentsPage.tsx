@@ -88,6 +88,7 @@ function downloadPaymentReceiptPdf(params: {
   payment: PaymentItem;
   studentName?: string;
   studentBatch?: string;
+  instituteName?: string;
 }) {
   const { payment, studentName, studentBatch } = params;
   const doc = new jsPDF({ unit: "pt", format: "a5" });
@@ -102,7 +103,10 @@ function downloadPaymentReceiptPdf(params: {
   doc.text("EduFlow", 32, 38);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.text("Bright Future Institute · Official Payment Receipt", 32, 56);
+  const instituteTitle = params.instituteName?.trim()
+    ? `${params.instituteName.trim()} · Official Payment Receipt`
+    : (import.meta.env.VITE_INSTITUTE_NAME ? `${import.meta.env.VITE_INSTITUTE_NAME} · Official Payment Receipt` : "Official Payment Receipt");
+  doc.text(instituteTitle, 32, 56);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
@@ -718,6 +722,7 @@ function StudentPaymentDrawer({
                               payment: p,
                               studentName: detail.fullName,
                               studentBatch: detail.batch,
+                              instituteName: config?.instituteName,
                             });
                             toast.success("Receipt PDF downloaded");
                           }}
@@ -760,7 +765,7 @@ function StudentPaymentDrawer({
 
 export default function PaymentsPage() {
   const toast = useToast();
-  const { user } = useAuth();
+  const { user, config } = useAuth();
   const [params, setParams] = useSearchParams();
   const [tab, setTab] = useState<Tab>("students");
   const period = usePeriod("year");
@@ -1381,7 +1386,10 @@ export default function PaymentsPage() {
                 aria-label="Download receipt"
                 title="Download PDF receipt"
                 onClick={() => {
-                  downloadPaymentReceiptPdf({ payment: p });
+                  downloadPaymentReceiptPdf({
+                    payment: p,
+                    instituteName: config?.instituteName,
+                  });
                   toast.success(`Receipt ${p.receiptNo} downloaded`);
                 }}
               >

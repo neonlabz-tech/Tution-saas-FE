@@ -1,5 +1,5 @@
 // Student-portal domain types. Shared admin types (Module, Notice, OnlineClass…) are reused from "@/types".
-import type { Module, Notice, OnlineClass, Student, Teacher } from "@/types";
+import type { Module, Notice, OnlineClass, Student, StudentAttendanceRecord, StudentAttendanceSummary, Teacher } from "@/types";
 
 /** A login account for the student portal. Optionally linked to an admin-managed Student record. */
 export interface StudentAccount {
@@ -8,6 +8,7 @@ export interface StudentAccount {
   fullName: string;
   email: string;
   phone: string;
+  mustChangePassword?: boolean;
 }
 
 export interface PhysicalClass {
@@ -28,9 +29,14 @@ export interface Assignment {
   description: string;
   dueDate: string; // YYYY-MM-DDTHH:mm
   status: AssignmentStatus;
-  maxMarks: number;
+  maxMarks?: number;
   marks?: number;
   submittedAt?: string;
+  fileUrl?: string; // Cloudflare R2 download URL
+  r2Key?: string;   // Cloudflare R2 object key
+  submissionType?: "drive" | "file";
+  submissionUrl?: string; // Submitted Google Drive link or R2 file URL
+  submissionFileName?: string;
 }
 
 export type MaterialFileType = "pdf" | "csv" | "txt";
@@ -110,4 +116,6 @@ export interface StudentPortalData {
   dues: DuePayment[];
   paymentSummary: PaymentSummary;
   instituteName: string;
+  attendanceSummary?: StudentAttendanceSummary;
+  attendanceRecords?: StudentAttendanceRecord[];
 }

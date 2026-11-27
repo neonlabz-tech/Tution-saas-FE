@@ -18,7 +18,7 @@ function SidebarContent({ collapsed, onNavigate, onCollapse }: { collapsed: bool
   return (
     <div className="sidebar-glow flex h-full flex-col bg-sidebar text-slate-300">
       <div className={cn("flex h-[72px] shrink-0 items-center", collapsed ? "justify-center gap-1 px-2" : "justify-between px-5")}>
-        <Logo compact={collapsed} />
+        <Logo compact={collapsed} subtitle={data?.instituteName} />
         {onCollapse && (
           <button
             onClick={onCollapse}

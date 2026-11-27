@@ -10,6 +10,7 @@ import {
   AlertCircle,
   CalendarDays,
   List,
+  MapPin,
   Pencil,
   Plus,
   RotateCw,
@@ -56,7 +57,7 @@ export default function OnlineClassesPage() {
 
   const [modules, setModules] = useState<ModuleListItem[]>([]);
   const [teachers, setTeachers] = useState<TeacherListItem[]>([]);
-  const { batches: batchOptions } = useBatches(modules.flatMap((m) => m.batches));
+  const { batches: batchOptions } = useBatches();
 
   const [form, setForm] = useState<{ open: boolean; item: OnlineClassItem | null; draft: ClassDraft }>({
     open: false,
@@ -129,24 +130,40 @@ export default function OnlineClassesPage() {
     [teacherMap],
   );
 
-  const events = useMemo(
-    () =>
-      classes.map((c) => {
-        const idx = moduleIndexMap.get(c.moduleId) ?? 0;
-        const color = COLORS[idx % COLORS.length];
-        return {
-          id: c.id,
-          title: c.title,
-          start: c.start,
-          end: c.end,
-          backgroundColor: color,
-          borderColor: color,
-          textColor: "#fff",
-          classNames: c.status === "cancelled" ? ["opacity-50", "line-through"] : [],
-        };
-      }),
-    [classes, moduleIndexMap],
-  );
+  const events = useMemo(() => {
+    const now = toLocalDT(new Date());
+    return classes.map((c) => {
+      const idx = moduleIndexMap.get(c.moduleId) ?? 0;
+      const baseColor = COLORS[idx % COLORS.length];
+      const isPast = c.end < now;
+      const isCancelled = c.status === "cancelled";
+      const isCompleted = c.status === "completed";
+      const isEnded = isPast || isCompleted;
+      const editable = !isPast && !isCancelled && !isCompleted;
+
+      return {
+        id: c.id,
+        title: isCancelled
+          ? `${c.title} (Cancelled)`
+          : isEnded
+            ? `${c.title} (Ended)`
+            : c.title,
+        start: c.start,
+        end: c.end,
+        backgroundColor: isCancelled || isEnded ? "#94a3b8" : baseColor,
+        borderColor: isCancelled || isEnded ? "#64748b" : baseColor,
+        textColor: "#fff",
+        editable,
+        startEditable: editable,
+        durationEditable: editable,
+        classNames: isCancelled
+          ? ["opacity-45", "line-through", "!cursor-default"]
+          : isEnded
+            ? ["opacity-50", "filter", "grayscale-[50%]", "!cursor-default"]
+            : [],
+      };
+    });
+  }, [classes, moduleIndexMap]);
 
   const upcoming = useMemo(() => {
     const now = toLocalDT(new Date());
@@ -171,7 +188,19 @@ export default function OnlineClassesPage() {
 
   const onDrop = async (info: EventDropArg | EventResizeDoneArg) => {
     if (!info.event.start) return;
+    const now = toLocalDT(new Date());
+    const existing = classes.find((c) => c.id === info.event.id);
+    if (existing && (existing.end < now || existing.status !== "scheduled")) {
+      info.revert();
+      toast.error("Past or completed classes cannot be rescheduled");
+      return;
+    }
     const { start, end } = fmtRange(info.event.start, info.event.end);
+    if (end < now) {
+      info.revert();
+      toast.error("Cannot move class to a past time");
+      return;
+    }
     const id = info.event.id;
     const prevClasses = classes;
 
@@ -245,44 +274,108 @@ export default function OnlineClassesPage() {
         ),
       },
       {
+        id: "type",
+        header: "Type",
+        accessorFn: (c) => c.classType ?? (c.hall ? "physical" : "online"),
+        cell: ({ row }) => {
+          const isPhysical =
+            row.original.classType === "physical" || (!!row.original.hall && !row.original.link);
+          return isPhysical ? (
+            <Badge tone="teal" className="inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              {row.original.hall || "Physical"}
+            </Badge>
+          ) : (
+            <Badge tone="primary" className="inline-flex items-center gap-1">
+              <Video className="h-3 w-3" />
+              Online
+            </Badge>
+          );
+        },
+      },
+      {
         accessorKey: "status",
         header: "Status",
-        cell: (c) => <StatusBadge status={c.getValue() as string} />,
+        cell: ({ row }) => {
+          const now = toLocalDT(new Date());
+          const isPast = row.original.end < now;
+          if (row.original.status === "scheduled" && isPast) {
+            return (
+              <Badge tone="neutral">
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                Ended
+              </Badge>
+            );
+          }
+          return <StatusBadge status={row.original.status} />;
+        },
       },
       {
         id: "actions",
         header: "",
         enableSorting: false,
-        cell: ({ row }) => (
-          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-            <a
-              href={row.original.link}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Join class"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-brand hover:bg-primary/10"
-            >
-              <Video className="h-4 w-4" />
-            </a>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Edit"
-              onClick={() => setForm({ open: true, item: row.original, draft: {} })}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Delete"
-              className="hover:text-rose-500"
-              onClick={() => setDelTarget({ id: row.original.id, title: row.original.title })}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const now = toLocalDT(new Date());
+          const isPast = row.original.end < now;
+          const isEnded = isPast || row.original.status === "completed";
+          const isCancelled = row.original.status === "cancelled";
+
+          return (
+            <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+              {row.original.link ? (
+                isCancelled ? (
+                  <span
+                    title="Class is cancelled"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-muted opacity-40 cursor-not-allowed"
+                  >
+                    <Video className="h-4 w-4" />
+                  </span>
+                ) : isEnded ? (
+                  <span
+                    title="Class has ended"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-muted opacity-40 cursor-not-allowed"
+                  >
+                    <Video className="h-4 w-4" />
+                  </span>
+                ) : (
+                  <a
+                    href={row.original.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Join class"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-brand hover:bg-primary/10"
+                  >
+                    <Video className="h-4 w-4" />
+                  </a>
+                )
+              ) : row.original.hall ? (
+                <span
+                  title={`Hall: ${row.original.hall}`}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-teal-600 dark:text-teal-400"
+                >
+                  <MapPin className="h-4 w-4" />
+                </span>
+              ) : null}
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Edit"
+                onClick={() => setForm({ open: true, item: row.original, draft: {} })}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Delete"
+                className="hover:text-rose-500"
+                onClick={() => setDelTarget({ id: row.original.id, title: row.original.title })}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          );
+        },
       },
     ],
     [resolveModuleCode, resolveTeacherName],
@@ -295,10 +388,10 @@ export default function OnlineClassesPage() {
       await deleteOnlineClass(targetId);
       setForm((f) => (f.item?.id === targetId ? { ...f, open: false } : f));
       if (detailId === targetId) setDetailId(null);
-      toast.success("Online class deleted");
+      toast.success("Class deleted");
       refetch();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete online class");
+      toast.error(err instanceof Error ? err.message : "Failed to delete class");
       throw err;
     }
   };
@@ -309,8 +402,8 @@ export default function OnlineClassesPage() {
   return (
     <>
       <PageHeader
-        title="Online Classes"
-        description="Schedule live sessions. Drag to reschedule, resize to change duration, click a session for details."
+        title="Classes"
+        description="Schedule online and physical classes. Drag to reschedule, resize to change duration, click a session for details."
         actions={
           <>
             <Tabs

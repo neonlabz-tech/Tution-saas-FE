@@ -28,12 +28,12 @@ export function DashboardLayout() {
   }, [collapsed]);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-clip">
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
-      <div className={`min-h-screen transition-[padding] duration-300 ${collapsed ? "lg:pl-[84px]" : "lg:pl-[272px]"}`}>
+      <div className={`min-h-screen flex flex-col min-w-0 transition-[padding] duration-300 ${collapsed ? "lg:pl-[84px]" : "lg:pl-[272px]"}`}>
         <Topbar onMenu={() => setMobileOpen(true)} collapsed={collapsed} onToggleCollapse={() => setCollapsed((c) => !c)} />
-        <main className="mx-auto w-full max-w-[1500px] p-4 sm:p-6 lg:p-8">
-          <motion.div key={pathname} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: "easeOut" }}>
+        <main className="mx-auto w-full max-w-[1500px] min-w-0 flex-1 p-3.5 sm:p-6 lg:p-8">
+          <motion.div key={pathname} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: "easeOut" }} className="w-full min-w-0">
             <Outlet />
           </motion.div>
         </main>

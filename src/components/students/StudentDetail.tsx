@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CreditCard, Pencil, RotateCw, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle, CreditCard, Pencil, RotateCw, Trash2 } from "lucide-react";
 import type { Module, RotateQrResponse, StudentDetail as StudentDetailType } from "@/types";
 import { Drawer } from "@/components/ui/overlays";
 import {
@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/primitives";
 import { StudentQRCard } from "@/components/qr/StudentQRCard";
 import { useStudentDetail } from "@/hooks/useStudents";
+import { verifyStudent } from "@/api/students";
+import { useToast } from "@/components/ui/toast";
 import { formatDate, formatLkrPrice, formatShortDate } from "@/lib/utils";
 
 type Tab = "overview" | "attendance" | "payments" | "qr";
@@ -39,7 +41,24 @@ export function StudentDetail({
   onRefresh?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("overview");
+  const toast = useToast();
+  const [verifying, setVerifying] = useState(false);
   const { student: s, setStudent, loading, error, refresh } = useStudentDetail(studentId, refreshKey);
+
+  const handleVerify = async () => {
+    if (!s) return;
+    setVerifying(true);
+    try {
+      await verifyStudent(s.id);
+      toast.success(`${s.fullName} verified successfully! Student portal access activated.`);
+      refresh();
+      onRefresh?.();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to verify student");
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   useEffect(() => {
     setTab("overview");
@@ -125,6 +144,17 @@ export function StudentDetail({
             </div>
 
             <div className="flex flex-wrap gap-2">
+              {s.status === "pending" && (
+                <Button
+                  size="sm"
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                  disabled={verifying}
+                  onClick={handleVerify}
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  {verifying ? "Verifying…" : "Verify student"}
+                </Button>
+              )}
               <Button size="sm" variant="soft" onClick={() => onEdit(s)}>
                 <Pencil className="h-3.5 w-3.5" /> Edit
               </Button>

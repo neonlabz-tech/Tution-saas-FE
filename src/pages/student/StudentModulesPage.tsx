@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, CalendarClock, ClipboardList, Clock, FolderOpen, MapPin, MonitorPlay, Video } from "lucide-react";
-import { Avatar, Badge, Card, EmptyState, PageHeader, SearchInput, Select, StatusBadge } from "@/components/ui/primitives";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { ArrowRight, BookOpen, CalendarClock, ClipboardList, Clock, FolderOpen, MapPin, MonitorPlay, RotateCcw, Video, X } from "lucide-react";
+import { Avatar, Badge, Button, Card, EmptyState, PageHeader, SearchInput, StatusBadge } from "@/components/ui/primitives";
 import { DataGate } from "@/components/student/states";
 import { COLORS } from "@/components/analytics/chartParts";
 import { useStudentData } from "@/hooks/useStudentData";
@@ -9,33 +9,88 @@ import { fmtDate, fmtTime } from "@/lib/utils";
 
 export default function StudentModulesPage() {
   const { data, loading, error, reload } = useStudentData();
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("all");
+  const [params, setParams] = useSearchParams();
+
+  const [q, setQ] = useState(params.get("q") ?? "");
+
+  useEffect(() => {
+    const next = new URLSearchParams(params);
+    if (q.trim()) {
+      next.set("q", q.trim());
+    } else {
+      next.delete("q");
+    }
+    setParams(next, { replace: true });
+  }, [q, setParams]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (data?.modules ?? []).filter((m) => (status === "all" || m.status === status) && (!s || m.name.toLowerCase().includes(s) || m.code.toLowerCase().includes(s) || (m.teacher?.fullName ?? "").toLowerCase().includes(s)));
-  }, [data, q, status]);
+    if (!s) return data?.modules ?? [];
+
+    return (data?.modules ?? []).filter(
+      (m) =>
+        m.name.toLowerCase().includes(s) ||
+        m.code.toLowerCase().includes(s) ||
+        (m.description ?? "").toLowerCase().includes(s) ||
+        (m.teacher?.fullName ?? "").toLowerCase().includes(s) ||
+        (m.teacher?.specialization ?? "").toLowerCase().includes(s) ||
+        (m.onlineSchedule ?? "").toLowerCase().includes(s) ||
+        (m.physicalSchedule ?? "").toLowerCase().includes(s),
+    );
+  }, [data?.modules, q]);
 
   return (
     <DataGate loading={loading} error={error} linked={data?.linked} data={data} onRetry={reload} cards={3}>
       {data && (
         <>
-          <PageHeader title="My Modules" description={`You're registered for ${data.modules.length} module${data.modules.length === 1 ? "" : "s"}. Select a module to see its calendar, assignments, materials and recordings.`} />
+          <PageHeader
+            title="My Modules"
+            description={`You're registered for ${data.modules.length} module${data.modules.length === 1 ? "" : "s"}. Select a module to see its calendar, assignments, materials and recordings.`}
+          />
 
-          <Card className="mb-6 grid gap-3 p-4 sm:grid-cols-[1fr_200px]">
-            <SearchInput placeholder="Search by module, code or teacher…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search modules" />
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
-              <option value="all">All statuses</option>
-              <option value="active">Active</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="archived">Archived</option>
-            </Select>
+          <Card className="mb-6 p-4">
+            <SearchInput
+              placeholder="Search modules by name, code, teacher, or topic…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              aria-label="Search modules"
+            />
+
+            {q.trim() && (
+              <div className="mt-2.5 flex items-center justify-between text-xs text-muted">
+                <span>
+                  Showing <b className="text-ink">{filtered.length}</b> of {data.modules.length} registered modules
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setQ("")}
+                  className="h-6 px-2 text-xs text-muted hover:text-ink"
+                >
+                  <X className="h-3 w-3" /> Clear search
+                </Button>
+              </div>
+            )}
           </Card>
 
           {filtered.length === 0 ? (
             <Card>
-              <EmptyState icon={<BookOpen className="h-6 w-6" />} title={data.modules.length === 0 ? "No registered modules" : "No modules match"} text={data.modules.length === 0 ? "You haven't been enrolled in any modules yet. Contact the front desk to register." : "Try a different search or status filter."} />
+              <EmptyState
+                icon={<BookOpen className="h-6 w-6" />}
+                title={data.modules.length === 0 ? "No registered modules" : "No modules match"}
+                text={
+                  data.modules.length === 0
+                    ? "You haven't been enrolled in any modules yet. Contact the front desk to register."
+                    : "Try a different search query."
+                }
+                action={
+                  q.trim() ? (
+                    <Button variant="secondary" onClick={() => setQ("")}>
+                      <RotateCcw className="h-4 w-4" /> Clear search
+                    </Button>
+                  ) : undefined
+                }
+              />
             </Card>
           ) : (
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">

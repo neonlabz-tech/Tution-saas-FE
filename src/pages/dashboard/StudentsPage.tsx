@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { SortingState } from "@tanstack/react-table";
-import { ArrowRightLeft, Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowRightLeft, CheckCircle, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import type { BatchItem, Module, StudentDetail as StudentDetailType, StudentListItem, StudentSortBy } from "@/types";
 import { Avatar, Badge, Button, Card, PageHeader, SearchInput, Select, StatusBadge } from "@/components/ui/primitives";
 import { DataTable, type Columns } from "@/components/ui/data-table";
@@ -10,9 +10,8 @@ import { useToast } from "@/components/ui/toast";
 import { useAppData } from "@/hooks/useAppData";
 import { listModules } from "@/api/modules";
 import { listBatches } from "@/api/batches";
-import { deleteStudent } from "@/api/students";
+import { deleteStudent, verifyStudent } from "@/api/students";
 import { useStudents } from "@/hooks/useStudents";
-import { BATCHES } from "@/lib/constants";
 import { StudentFormModal } from "@/components/students/StudentFormModal";
 import { StudentDetail } from "@/components/students/StudentDetail";
 import { MoveBatchModal } from "@/components/students/MoveBatchModal";
@@ -263,7 +262,27 @@ export default function StudentsPage() {
         header: "",
         enableSorting: false,
         cell: ({ row }) => (
-          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-end items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            {row.original.status === "pending" && (
+              <Button
+                variant="soft"
+                size="sm"
+                className="h-8 gap-1 text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-400"
+                title="Verify student registration"
+                onClick={async () => {
+                  try {
+                    await verifyStudent(row.original.id);
+                    toast.success(`${row.original.fullName} verified successfully! Portal access activated.`);
+                    refetch();
+                    void refreshStudents();
+                  } catch (err: unknown) {
+                    toast.error(err instanceof Error ? err.message : "Failed to verify student");
+                  }
+                }}
+              >
+                <CheckCircle className="h-3.5 w-3.5" /> Verify
+              </Button>
+            )}
             <Button variant="ghost" size="icon" aria-label="View" onClick={() => setDetailId(row.original.id)}>
               <Eye className="h-4 w-4" />
             </Button>
@@ -293,9 +312,10 @@ export default function StudentsPage() {
 
   const allBatchOptions = useMemo(() => {
     const names = new Set<string>();
-    batches.forEach((b) => names.add(b.name));
-    BATCHES.forEach((b) => names.add(b));
-    return Array.from(names);
+    batches.forEach((b) => {
+      if (b.status === "active" || !b.status) names.add(b.name);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [batches]);
 
   const hasFilters = Boolean(debouncedQ || batch !== "all" || moduleId !== "all" || status !== "all");

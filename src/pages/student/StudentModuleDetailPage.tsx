@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, BookOpen, CalendarDays, ClipboardList, Clock, FolderOpen, MapPin, MonitorPlay, Video } from "lucide-react";
+import { ArrowLeft, BookOpen, CalendarDays, ClipboardList, Clock, FolderOpen, Mail, MapPin, MonitorPlay, Phone, Video } from "lucide-react";
 import { Avatar, Badge, Button, Card, EmptyState, StatusBadge, Tabs } from "@/components/ui/primitives";
 import { DataGate } from "@/components/student/states";
 import { ModuleAssignments } from "@/components/student/module/ModuleAssignments";
@@ -23,11 +23,11 @@ export default function StudentModuleDetailPage() {
   const scoped = useMemo(() => {
     if (!data) return null;
     return {
-      online: data.onlineClasses.filter((c) => c.moduleId === moduleId),
-      physical: data.physicalClasses.filter((c) => c.moduleId === moduleId),
-      assignments: data.assignments.filter((a) => a.moduleId === moduleId),
-      materials: data.materials.filter((x) => x.moduleId === moduleId),
-      recordings: data.recordings.filter((r) => r.moduleId === moduleId),
+      online: (data.onlineClasses || []).filter((c) => c.moduleId === moduleId),
+      physical: (data.physicalClasses || []).filter((c) => c.moduleId === moduleId),
+      assignments: (data.assignments || []).filter((a) => a.moduleId === moduleId),
+      materials: (data.materials || []).filter((x) => x.moduleId === moduleId),
+      recordings: (data.recordings || []).filter((r) => r.moduleId === moduleId),
     };
   }, [data, moduleId]);
   const color = data ? COLORS[Math.max(0, data.modules.findIndex((m) => m.id === moduleId)) % COLORS.length] : COLORS[0];
@@ -53,9 +53,31 @@ export default function StudentModuleDetailPage() {
                   <p className="mt-1 max-w-2xl text-sm text-muted">{mod.description}</p>
                 </div>
               </div>
-              <div className="grid w-full gap-3 text-xs text-muted sm:w-auto sm:min-w-[260px]">
+              <div className="grid w-full gap-3 text-xs text-muted sm:w-auto sm:min-w-[280px]">
                 {mod.teacher && (
-                  <div className="flex items-center gap-2.5"><Avatar name={mod.teacher.fullName} size="sm" /><div className="leading-tight"><p className="text-sm font-semibold text-ink">{mod.teacher.fullName}</p><p>{mod.teacher.qualification}</p></div></div>
+                  <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface-2 p-3">
+                    <Avatar name={mod.teacher.fullName} size="md" />
+                    <div className="min-w-0 flex-1 leading-tight">
+                      <p className="truncate text-sm font-semibold text-ink">{mod.teacher.fullName}</p>
+                      <p className="truncate text-xs text-muted">{mod.teacher.qualification || mod.teacher.specialization}</p>
+                      {(mod.teacher.email || mod.teacher.phone) && (
+                        <div className="mt-1 flex flex-wrap items-center gap-2.5 text-[11px] text-muted">
+                          {mod.teacher.email && (
+                            <a href={`mailto:${mod.teacher.email}`} className="flex items-center gap-1 hover:text-brand" title={mod.teacher.email}>
+                              <Mail className="h-3 w-3 shrink-0" />
+                              <span className="truncate max-w-[140px]">{mod.teacher.email}</span>
+                            </a>
+                          )}
+                          {mod.teacher.phone && (
+                            <a href={`tel:${mod.teacher.phone}`} className="flex items-center gap-1 hover:text-brand">
+                              <Phone className="h-3 w-3 shrink-0" />
+                              <span>{mod.teacher.phone}</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
                 <p className="flex items-center gap-2"><Video className="h-3.5 w-3.5 shrink-0" />{mod.onlineSchedule}</p>
                 <p className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 shrink-0" />{mod.physicalSchedule}</p>
@@ -77,7 +99,7 @@ export default function StudentModuleDetailPage() {
           />
 
           {tab === "calendar" && <ModuleCalendar online={scoped.online} physical={scoped.physical} />}
-          {tab === "assignments" && <ModuleAssignments assignments={scoped.assignments} />}
+          {tab === "assignments" && <ModuleAssignments assignments={scoped.assignments} moduleName={mod.name} />}
           {tab === "materials" && <ModuleMaterials materials={scoped.materials} moduleName={mod.name} />}
           {tab === "recordings" && <ModuleRecordings recordings={scoped.recordings} />}
         </>

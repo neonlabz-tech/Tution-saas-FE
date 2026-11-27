@@ -11,7 +11,7 @@ export default function StudentForgotPasswordPage() {
   const [error, setError] = useState<string | undefined>();
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [sent, setSent] = useState<{ demoResetLink?: string } | null>(null);
+  const [sent, setSent] = useState<{ message?: string; devResetUrl?: string; demoResetLink?: string } | null>(null);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -21,7 +21,8 @@ export default function StudentForgotPasswordPage() {
     if (err) return;
     setSubmitting(true);
     try {
-      setSent(await studentAuthApi.forgotPassword(email));
+      const res = await studentAuthApi.forgotPassword(email);
+      setSent(res);
     } catch {
       setFormError("We couldn't send the reset link. Please try again in a moment.");
     } finally {
@@ -41,12 +42,15 @@ export default function StudentForgotPasswordPage() {
     >
       {sent ? (
         <div className="space-y-4">
-          <FormAlert tone="success">If an account exists for <b>{email.trim()}</b>, a password reset link is on its way. The link expires in 30 minutes.</FormAlert>
-          {sent.demoResetLink && (
+          <FormAlert tone="success">
+            {sent.message || `If an account exists for ${email.trim()}, a password reset link is on its way. The link expires in 1 hour.`}
+          </FormAlert>
+          {(sent.devResetUrl || sent.demoResetLink) && (
             <FormAlert tone="info">
-              <p className="font-semibold">Demo mode: no email service is connected.</p>
-              <p className="mt-1 text-xs opacity-90">Use this link instead of the one that would have been emailed:</p>
-              <Link to={sent.demoResetLink} className="mt-2 inline-block font-semibold underline">Open reset page →</Link>
+              <p className="font-semibold">Dev preview (reset link generated):</p>
+              <Link to={sent.devResetUrl || sent.demoResetLink || "#"} className="mt-2 inline-block font-semibold underline">
+                Open reset password page →
+              </Link>
             </FormAlert>
           )}
           <Button variant="secondary" className="w-full" onClick={() => setSent(null)}>

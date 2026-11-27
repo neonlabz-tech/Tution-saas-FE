@@ -155,6 +155,32 @@ input[type="time"]::-webkit-calendar-picker-indicator {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.25rem;
+    gap: 0.35rem;
+  }
+  .fc .fc-button {
+    padding: 0.35rem 0.55rem;
+    font-size: 0.72rem;
+  }
+  .fc .fc-toolbar-title {
+    font-size: 1.05rem;
+    text-align: center;
+  }
+}
+
+/* Mobile touch momentum and scrollbar utilities */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media (max-width: 640px) {
+  input, select, textarea {
+    font-size: 16px;
   }
 }

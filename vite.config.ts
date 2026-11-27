@@ -20,5 +20,11 @@ export default defineConfig({
     port: 5714,
     strictPort: false,
     open: false,
+    proxy: {
+      "/api": {
+        target: "http://localhost:4000",
+        changeOrigin: true,
+      },
+    },
   },
 });
