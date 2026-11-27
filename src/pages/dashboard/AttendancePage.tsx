@@ -175,6 +175,7 @@ export default function AttendancePage() {
     getStudent,
     refreshStudents,
     refreshAttendance,
+    refreshModules,
   } = useAppData();
   const toast = useToast();
   const { user } = useAuth();
@@ -195,6 +196,13 @@ export default function AttendancePage() {
   const [serverRoster, setServerRoster] = useState<DailyRosterEntry[] | null>(null);
   const [serverSummaries, setServerSummaries] = useState<StudentAttendanceSummary[] | null>(null);
 
+  // Only use valid modules defined in the database
+  const availableModules = useMemo(() => {
+    return modules
+      .map((m) => ({ id: m.id, name: m.name, code: m.code }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [modules]);
+
   const range = useMemo(() => {
     if (view === "daily") return { from: date, to: date };
     if (view === "weekly") {
@@ -206,10 +214,10 @@ export default function AttendancePage() {
     return { from: `${date.slice(0, 7)}-01`, to: toISO(new Date(y, m, 0)) };
   }, [view, date]);
 
-  // Refresh students and attendance from MongoDB on mount
+  // Refresh students, modules, and attendance from MongoDB on mount
   useEffect(() => {
-    void Promise.allSettled([refreshStudents(), refreshAttendance()]);
-  }, [refreshStudents, refreshAttendance]);
+    void Promise.allSettled([refreshStudents(), refreshAttendance(), refreshModules()]);
+  }, [refreshStudents, refreshAttendance, refreshModules]);
 
   // Sync Daily Roster from server when date/filters change
   useEffect(() => {
@@ -308,6 +316,12 @@ export default function AttendancePage() {
     // Use server roster entries if available
     if (serverRoster !== null) {
       serverRoster.forEach((entry) => {
+        if (moduleId !== "all" && entry.module.id !== moduleId && entry.module.code !== moduleId) {
+          return;
+        }
+        if (batch !== "all" && entry.student.batch && entry.student.batch !== batch) {
+          return;
+        }
         const studentObj = students.find((s) => s.id === entry.student.id) ?? {
           id: entry.student.id,
           fullName: entry.student.fullName,
@@ -323,17 +337,13 @@ export default function AttendancePage() {
           enrollmentDate: date,
           status: "active" as const,
         };
-        const moduleObj = modules.find((m) => m.id === entry.module.id) ?? {
-          id: entry.module.id,
-          code: entry.module.code,
-          name: entry.module.name,
-          description: "",
-          fee: 5000,
-          duration: "3 months",
-          teacherId: "",
-          batches: [],
-          status: "active" as const,
-        };
+        const moduleObj = modules.find(
+          (m) =>
+            m.id === entry.module.id ||
+            m.code === entry.module.code ||
+            m.code === entry.module.id,
+        );
+        if (!moduleObj) return;
         const rec = map.get(`att_${studentObj.id}_${moduleObj.id}_${date}`) ?? (entry.record ?? undefined);
         raw.push({
           key: `${studentObj.id}_${moduleObj.id}`,
@@ -549,7 +559,25 @@ export default function AttendancePage() {
         id: "module",
         header: "Module",
         accessorFn: (r) => r.module.name,
-        cell: ({ row }) => <Badge tone="primary">{row.original.module.code}</Badge>,
+        cell: ({ row }) => (
+          <div className="flex flex-col">
+            <span className="font-semibold text-xs text-ink truncate max-w-[190px]">
+              {row.original.module.name || row.original.module.code}
+            </span>
+            {row.original.module.code && row.original.module.code !== row.original.module.name && (
+              <span className="text-[10px] text-muted font-mono">{row.original.module.code}</span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "date",
+        header: "Date",
+        cell: () => (
+          <span className="num font-semibold text-xs text-ink/80 whitespace-nowrap bg-surface-2 px-2.5 py-1 rounded-md border border-line">
+            {formatShortDate(date)}
+          </span>
+        ),
       },
       {
         id: "status",
@@ -832,9 +860,9 @@ export default function AttendancePage() {
           <Field label="Module / class">
             <Select value={moduleId} onChange={(e) => setModuleId(e.target.value)}>
               <option value="all">All modules</option>
-              {modules.map((m) => (
+              {availableModules.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name} ({m.code})
+                  {m.name} {m.code && m.code !== m.name ? `(${m.code})` : ""}
                 </option>
               ))}
             </Select>
@@ -951,10 +979,22 @@ export default function AttendancePage() {
           }
           subtitle={
             view === "daily"
-              ? `${rows.length} class entries · ${unmarked} unmarked`
+              ? `${rows.length} class entries · ${unmarked} unmarked · Target date: ${formatShortDate(date)}${
+                  moduleId !== "all"
+                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
+                    : ""
+                }`
               : view === "records"
-              ? `${recs.length} total records`
-              : `${summaries.length} enrolled students in range`
+              ? `${recs.length} total records · ${formatShortDate(range.from)} – ${formatShortDate(range.to)}${
+                  moduleId !== "all"
+                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
+                    : ""
+                }`
+              : `${summaries.length} enrolled students in range · ${formatShortDate(range.from)} – ${formatShortDate(range.to)}${
+                  moduleId !== "all"
+                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
+                    : ""
+                }`
           }
           action={
             view === "daily" && unmarked > 0 ? (
@@ -966,6 +1006,46 @@ export default function AttendancePage() {
           }
           className="pb-4"
         />
+
+        {/* Module selection dropdown filter for module-wise attendance view */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3 bg-surface-2/40">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted">Target date:</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-ink bg-surface border border-line rounded-lg">
+                <span className="h-2 w-2 rounded-full bg-brand"></span>
+                {formatShortDate(date)}
+              </span>
+            </div>
+            <div className="h-4 w-px bg-line hidden sm:block"></div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted">Filter module:</span>
+              <div className="w-60 max-w-full">
+                <Select
+                  value={moduleId}
+                  onChange={(e) => setModuleId(e.target.value)}
+                  className="h-8.5 text-xs bg-surface"
+                >
+                  <option value="all">All modules</option>
+                  {availableModules.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} {m.code && m.code !== m.name ? `(${m.code})` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+          </div>
+          {moduleId !== "all" && (
+            <button
+              type="button"
+              onClick={() => setModuleId("all")}
+              className="text-xs text-brand hover:underline font-medium cursor-pointer"
+            >
+              Reset to all modules
+            </button>
+          )}
+        </div>
 
         {view === "daily" && (
           <DataTable

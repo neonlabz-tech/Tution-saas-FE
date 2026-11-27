@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, Bell, CalendarClock, CheckCheck, ChevronRight, LogOut, Menu, Moon, PanelLeft, Receipt, Sun, Wallet } from "lucide-react";
-import { Avatar, Badge } from "@/components/ui/primitives";
+import { Avatar, Badge, Button } from "@/components/ui/primitives";
 import { Dropdown } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { useTheme } from "@/hooks/useTheme";
@@ -214,7 +214,15 @@ function Notifications() {
   );
 }
 
-export function StudentTopbar({ onMenu, collapsed, onToggleCollapse }: { onMenu: () => void; collapsed: boolean; onToggleCollapse: () => void }) {
+export function StudentTopbar({
+  onMenu,
+  collapsed,
+  onToggleCollapse,
+}: {
+  onMenu: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+}) {
   const { pathname } = useLocation();
   const nav = useNavigate();
   const { dark, toggle } = useTheme();

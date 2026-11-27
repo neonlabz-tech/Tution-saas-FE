@@ -13,11 +13,11 @@ export default function SettingsPage() {
   const [logo, setLogo] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [inst, setInst] = useState({
-    name: "Bright Future Institute",
-    email: "hello@brightfuture.lk",
-    phone: "0112345678",
-    address: "42, Temple Road, Colombo 07",
-    about: "A modern tuition institute for GCE Advanced Level and professional courses.",
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    about: "",
   });
   const [profile, setProfile] = useState({
     name: user?.fullName ?? "Admin",

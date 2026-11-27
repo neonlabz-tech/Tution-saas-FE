@@ -98,3 +98,14 @@ export async function moveStudentsToBatch(
     },
   );
 }
+
+export async function verifyStudent(
+  id: string,
+): Promise<{ message: string; student: StudentDetail }> {
+  return request<{ message: string; student: StudentDetail }>(
+    `/students/${encodeURIComponent(id)}/verify`,
+    {
+      method: "POST",
+    },
+  );
+}

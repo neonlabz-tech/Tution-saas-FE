@@ -3,10 +3,11 @@
 import { buildMockData, type MockData } from "@/data/mock";
 import { buildAssignments, buildMaterials, buildPhysicalClasses, buildRecordings, describePattern, hashStr } from "@/data/mock/student";
 import type { DuePayment, PhysicalClass, StudentAccount, StudentModule, StudentPayment, StudentPortalData } from "@/types/student";
-import type { Module, Notice, OnlineClass, Student } from "@/types";
+import type { Module, Notice, OnlineClass, Student, StudentAttendanceRecord, StudentAttendanceSummary, StudentDetail } from "@/types";
 import { addDays, toISO, toLocalDT, todayISO } from "@/lib/utils";
 
-export const INSTITUTE_NAME = "Bright Future Institute";
+export const INSTITUTE_NAME =
+  import.meta.env.VITE_INSTITUTE_NAME || "Tuition Institute";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, "")
@@ -69,6 +70,8 @@ function emptyPortal(): StudentPortalData {
     dues: [],
     paymentSummary: { totalFees: 0, paid: 0, outstanding: 0, pendingVerification: 0, overdue: 0 },
     instituteName: INSTITUTE_NAME,
+    attendanceSummary: { rate: 0, present: 0, late: 0, absent: 0, excused: 0, total: 0 },
+    attendanceRecords: [],
   };
 }
 
@@ -158,6 +161,37 @@ export function buildPortalData(studentId: string | null): StudentPortalData {
   });
   dues.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
+  const myAttendance = (d.attendance || []).filter((a) => a.studentId === student.id);
+  let present = 0;
+  let late = 0;
+  let absent = 0;
+  let excused = 0;
+  for (const r of myAttendance) {
+    if (r.status === "present") present += 1;
+    else if (r.status === "late") late += 1;
+    else if (r.status === "absent") absent += 1;
+    else if (r.status === "excused") excused += 1;
+  }
+  const counted = present + late + absent;
+  const rate = counted === 0 ? 0 : Math.round(((present + late) / counted) * 1000) / 10;
+  const attendanceSummary: StudentAttendanceSummary = {
+    rate,
+    present,
+    late,
+    absent,
+    excused,
+    total: myAttendance.length,
+  };
+  const attendanceRecords: StudentAttendanceRecord[] = myAttendance.map((a) => ({
+    id: a.id,
+    studentId: a.studentId,
+    moduleId: a.moduleId,
+    moduleName: (d.modules || []).find((m) => m.id === a.moduleId)?.name ?? a.moduleId,
+    date: a.date,
+    status: a.status as any,
+    method: (a.method ?? "manual") as "manual" | "qr",
+  }));
+
   return {
     linked: true,
     profile: student,
@@ -172,6 +206,8 @@ export function buildPortalData(studentId: string | null): StudentPortalData {
     dues,
     paymentSummary: { totalFees, paid, outstanding, pendingVerification, overdue: dues.filter((x) => x.status === "overdue").reduce((s, x) => s + x.amount, 0) },
     instituteName: INSTITUTE_NAME,
+    attendanceSummary,
+    attendanceRecords,
   };
 }
 
@@ -180,25 +216,37 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
   const today = todayISO();
   const nowDT = toLocalDT(new Date());
 
+  // Fetch dynamic institute settings from backend public settings endpoint
+  const publicSettings = await safeFetch<{ name?: string }>("/settings/public");
+  const liveInstituteName =
+    publicSettings?.name?.trim() || INSTITUTE_NAME;
+
   // 1. Fetch real student profile from MongoDB by studentId or email
-  let student: Student | null = null;
+  let studentDetail: StudentDetail | null = null;
   if (account.studentId) {
-    student = await safeFetch<Student>(`/students/${encodeURIComponent(account.studentId)}`);
+    studentDetail = await safeFetch<StudentDetail>(`/students/${encodeURIComponent(account.studentId)}`);
   }
-  if (!student && (account.studentId || account.email)) {
+  if (!studentDetail && (account.studentId || account.email)) {
     const lookupCode = account.studentId || account.email;
-    student = await safeFetch<Student>(`/students/lookup?code=${encodeURIComponent(lookupCode)}`);
+    const lookedUp = await safeFetch<StudentDetail>(`/students/lookup?code=${encodeURIComponent(lookupCode)}`);
+    if (lookedUp) studentDetail = lookedUp;
   }
-  if (!student && account.email) {
+  if (!studentDetail && account.email) {
     const list = await safeFetch<Student[] | { data: Student[] }>(`/students?q=${encodeURIComponent(account.email)}`);
     const items = Array.isArray(list) ? list : (list as { data?: Student[] })?.data ?? [];
-    student = items.find((s) => s.email.toLowerCase() === account.email.toLowerCase()) ?? null;
+    const matched = items.find((s) => s.email.toLowerCase() === account.email.toLowerCase()) ?? null;
+    if (matched) {
+      studentDetail = await safeFetch<StudentDetail>(`/students/${encodeURIComponent(matched.id)}`);
+    }
   }
+
   // Fallback to local student record if not found in MongoDB
-  if (!student) {
-    student = (account.studentId ? d.students.find((s) => s.id === account.studentId) : null) ??
-      d.students.find((s) => s.email.toLowerCase() === account.email.toLowerCase()) ?? null;
-  }
+  const mockStudent = (!studentDetail)
+    ? ((account.studentId ? d.students.find((s) => s.id === account.studentId) : null) ??
+       d.students.find((s) => s.email.toLowerCase() === account.email.toLowerCase()) ?? null)
+    : null;
+
+  const student = studentDetail ?? mockStudent;
   if (!student) return emptyPortal();
 
   // 2. Fetch live modules from MongoDB
@@ -292,12 +340,24 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
     };
   });
 
-  // 6. Payments - Query live from MongoDB
-  const livePayments = await safeFetch<any[]>(`/payments?studentId=${encodeURIComponent(student.id)}`);
-  const hasLivePayments = Array.isArray(livePayments) && livePayments.length > 0;
-
-  const payments: StudentPayment[] = hasLivePayments
-    ? livePayments.map((p) => ({
+  // 6. Payments and Financial Calculations
+  let payments: StudentPayment[] = [];
+  if (studentDetail?.payments && studentDetail.payments.length > 0) {
+    payments = studentDetail.payments.map((t) => ({
+      id: t.id,
+      receiptNo: receiptNo(t.id, t.date),
+      date: t.date,
+      description: t.description ? t.description.replace(/\s—\s.*$/, "") : "Tuition fee payment",
+      category: t.category,
+      amount: t.amount,
+      method: t.method ?? "Cash",
+      status: "paid" as const,
+    })).sort((a, b) => b.date.localeCompare(a.date));
+  } else {
+    const livePayments = await safeFetch<any[]>(`/payments?studentId=${encodeURIComponent(student.id)}`);
+    const hasLivePayments = Array.isArray(livePayments) && livePayments.length > 0;
+    if (hasLivePayments) {
+      payments = livePayments.map((p) => ({
         id: p.id || p._id,
         receiptNo: p.receiptNo || receiptNo(p.id || "PAY_0", p.date || today),
         date: p.date ? p.date.slice(0, 10) : today,
@@ -306,8 +366,9 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
         amount: Number(p.amount) || 0,
         method: p.method || "Cash",
         status: (p.status === "completed" || p.status === "paid") ? ("paid" as const) : ("pending" as const),
-      }))
-    : (d.transactions || [])
+      })).sort((a, b) => b.date.localeCompare(a.date));
+    } else if (!studentDetail) {
+      payments = (d.transactions || [])
         .filter((t) => t.type === "income" && t.studentId === student.id)
         .map((t) => ({
           id: t.id,
@@ -319,14 +380,25 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
           method: t.method ?? "Cash",
           status: "paid" as const,
         }));
+    }
+  }
 
-  // Dynamically compute fees and balance from enrolled modules & confirmed payments
-  const totalFees = myModules.reduce((s, m) => s + (Number(m.fee) || 0), 0);
-  const paid = payments.filter((p) => p.status === "paid").reduce((s, p) => s + (p.amount || 0), 0);
-  const outstanding = Math.max(0, totalFees - paid);
+  const computedTotalFees = myModules.reduce((s, m) => s + (Number(m.fee) || 0), 0);
+  const totalFees = (studentDetail && typeof studentDetail.feeTotal === "number")
+    ? studentDetail.feeTotal
+    : (computedTotalFees > 0 ? computedTotalFees : feeOf(d, student.moduleIds));
+
+  const computedPaid = payments.filter((p) => p.status === "paid").reduce((s, p) => s + (p.amount || 0), 0);
+  const paid = (studentDetail && typeof studentDetail.paidTotal === "number")
+    ? studentDetail.paidTotal
+    : (computedPaid > 0 ? computedPaid : tuitionPaid(d, student.id));
+
+  const outstanding = (studentDetail && typeof studentDetail.outstanding === "number")
+    ? studentDetail.outstanding
+    : Math.max(0, totalFees - paid);
 
   let pendingVerification = payments.filter((p) => p.status === "pending").reduce((s, p) => s + (p.amount || 0), 0);
-  if (!hasLivePayments && outstanding > 0 && hashStr(student.id) % 2 === 0) {
+  if (!studentDetail && outstanding > 0 && hashStr(student.id) % 2 === 0) {
     pendingVerification = Math.min(outstanding, 15000);
     const date = toISO(addDays(new Date(), -2));
     payments.push({
@@ -342,7 +414,7 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
   }
   payments.sort((a, b) => b.date.localeCompare(a.date));
 
-  // Split the unpaid balance into per-module dues
+  // 7. Split the unpaid balance into per-module dues
   const h = hashStr(student.id);
   const offsets = [-8 + (h % 16), 12 + (h % 10), 32];
   let credit = paid;
@@ -368,6 +440,54 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
 
   const overdue = dues.filter((x) => x.status === "overdue").reduce((s, x) => s + x.amount, 0);
 
+  // 8. Attendance Summary & Records
+  let attendanceSummary: StudentAttendanceSummary;
+  let attendanceRecords: StudentAttendanceRecord[] = [];
+
+  if (studentDetail?.attendanceSummary) {
+    const att = studentDetail.attendanceSummary;
+    attendanceSummary = {
+      rate: att.rate ?? 0,
+      present: att.present ?? 0,
+      late: att.late ?? 0,
+      absent: att.absent ?? 0,
+      excused: att.excused ?? 0,
+      total: (att.present ?? 0) + (att.late ?? 0) + (att.absent ?? 0) + (att.excused ?? 0),
+    };
+    attendanceRecords = studentDetail.attendanceRecords ?? [];
+  } else {
+    const myAttendance = (d.attendance || []).filter((a) => a.studentId === student.id);
+    let present = 0;
+    let late = 0;
+    let absent = 0;
+    let excused = 0;
+    for (const r of myAttendance) {
+      if (r.status === "present") present += 1;
+      else if (r.status === "late") late += 1;
+      else if (r.status === "absent") absent += 1;
+      else if (r.status === "excused") excused += 1;
+    }
+    const counted = present + late + absent;
+    const rate = counted === 0 ? 0 : Math.round(((present + late) / counted) * 1000) / 10;
+    attendanceSummary = {
+      rate,
+      present,
+      late,
+      absent,
+      excused,
+      total: myAttendance.length,
+    };
+    attendanceRecords = myAttendance.map((a) => ({
+      id: a.id,
+      studentId: a.studentId,
+      moduleId: a.moduleId,
+      moduleName: (d.modules || []).find((m) => m.id === a.moduleId)?.name ?? a.moduleId,
+      date: a.date,
+      status: a.status as any,
+      method: (a.method ?? "manual") as "manual" | "qr",
+    }));
+  }
+
   return {
     linked: true,
     profile: student,
@@ -387,6 +507,8 @@ export async function getLivePortalData(account: StudentAccount): Promise<Studen
       pendingVerification,
       overdue,
     },
-    instituteName: INSTITUTE_NAME,
+    instituteName: liveInstituteName,
+    attendanceSummary,
+    attendanceRecords,
   };
 }
