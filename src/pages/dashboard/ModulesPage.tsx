@@ -17,7 +17,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import type { BatchItem, ModuleEnrolledStudent, ModuleListItem, ModuleStatus } from "@/types";
+import type { BatchItem, ModuleEnrolledStudent, ModuleListItem } from "@/types";
 import {
   Avatar,
   Badge,

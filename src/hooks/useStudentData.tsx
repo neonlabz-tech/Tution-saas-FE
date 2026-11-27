@@ -44,6 +44,10 @@ export function StudentDataProvider({ children }: { children: ReactNode }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+export function useOptionalStudentData() {
+  return useContext(Ctx);
+}
+
 export function useStudentData() {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("useStudentData must be used inside StudentDataProvider");

@@ -763,7 +763,7 @@ export default function QrScannerPage() {
               initialModuleId={
                 selectedModuleId !== "all"
                   ? selectedModuleId
-                  : verifyData?.module?.id ?? verifyData?.existingAttendance?.moduleId ?? result.moduleIds[0]
+                  : verifyData?.existingAttendance?.moduleId ?? result.moduleIds[0]
               }
               alreadyMarked={verifyData?.alreadyMarked}
               existingRecord={verifyData?.existingAttendance}

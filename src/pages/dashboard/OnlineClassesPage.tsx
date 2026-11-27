@@ -356,14 +356,16 @@ export default function OnlineClassesPage() {
                   <MapPin className="h-4 w-4" />
                 </span>
               ) : null}
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Edit"
-                onClick={() => setForm({ open: true, item: row.original, draft: {} })}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
+              {!isEnded && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Edit"
+                  onClick={() => setForm({ open: true, item: row.original, draft: {} })}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"

@@ -217,6 +217,11 @@ function Inner({
     try {
       let saved: OnlineClassItem;
       if (item) {
+        const now = toLocalDT(new Date());
+        if (item.status === "completed" || item.end < now) {
+          toast.error("Finished classes cannot be edited");
+          return;
+        }
         const payload: UpdateOnlineClassDto = {
           title: v.title.trim(),
           classType: v.classType,
