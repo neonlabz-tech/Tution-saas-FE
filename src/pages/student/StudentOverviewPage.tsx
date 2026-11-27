@@ -122,7 +122,7 @@ export default function StudentOverviewPage() {
 
           {/* Summary cards */}
           <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            <StatCard index={0} label="Registered modules" value={String(data.modules.length)} icon={BookOpen} gradient="from-indigo-500 to-violet-500" color="#6366F1" sub={`${data.modules.filter((m) => m.status === "active").length} currently active`} />
+            <StatCard index={0} label="Registered modules" value={String(data.modules.length)} icon={BookOpen} gradient="from-indigo-500 to-violet-500" color="#6366F1" sub={`${data.modules.length} registered module${data.modules.length === 1 ? "" : "s"}`} />
             <StatCard index={1} label="Classes this week" value={String(view.weekOnline + view.weekPhysical)} icon={CalendarDays} gradient="from-teal-500 to-emerald-500" color="#14B8A6" sub={`${view.weekOnline} online · ${view.weekPhysical} on-site`} />
             <StatCard index={2} label="Attendance rate" value={data.attendanceSummary && data.attendanceSummary.total ? `${data.attendanceSummary.rate}%` : "—"} icon={UserCheck} gradient="from-emerald-500 to-teal-600" color="#10B981" sub={data.attendanceSummary?.total ? `${data.attendanceSummary.present + (data.attendanceSummary.late || 0)}/${data.attendanceSummary.total} attended` : "No sessions marked yet"} />
             <StatCard index={3} label="Open assignments" value={String(view.openAssignments.length)} icon={ClipboardList} gradient="from-fuchsia-500 to-purple-500" color="#A855F7" sub={view.overdueAssignments ? `${view.overdueAssignments} overdue` : "Nothing overdue"} />

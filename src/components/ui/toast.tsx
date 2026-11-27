@@ -4,15 +4,20 @@ import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Kind = "success" | "error" | "info";
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
 interface ToastItem {
   id: number;
   kind: Kind;
   message: string;
+  action?: ToastAction;
 }
 interface ToastApi {
-  success: (m: string) => void;
-  error: (m: string) => void;
-  info: (m: string) => void;
+  success: (m: string, action?: ToastAction) => void;
+  error: (m: string, action?: ToastAction) => void;
+  info: (m: string, action?: ToastAction) => void;
 }
 const Ctx = createContext<ToastApi | null>(null);
 let counter = 0;
@@ -21,15 +26,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const dismiss = useCallback((id: number) => setItems((p) => p.filter((t) => t.id !== id)), []);
   const push = useCallback(
-    (kind: Kind, message: string) => {
+    (kind: Kind, message: string, action?: ToastAction) => {
       const id = ++counter;
-      setItems((p) => [...p.slice(-3), { id, kind, message }]);
-      setTimeout(() => dismiss(id), 3800);
+      setItems((p) => [...p.slice(-3), { id, kind, message, action }]);
+      const duration = action ? 7000 : 3800;
+      setTimeout(() => dismiss(id), duration);
     },
     [dismiss],
   );
   const api = useMemo<ToastApi>(
-    () => ({ success: (m) => push("success", m), error: (m) => push("error", m), info: (m) => push("info", m) }),
+    () => ({
+      success: (m, action) => push("success", m, action),
+      error: (m, action) => push("error", m, action),
+      info: (m, action) => push("info", m, action),
+    }),
     [push],
   );
   const icons = { success: CheckCircle2, error: AlertCircle, info: Info };
@@ -52,6 +62,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               >
                 <Icon className={cn("mt-0.5 h-5 w-5 shrink-0", tones[t.kind])} />
                 <p className="flex-1 text-sm font-medium text-ink">{t.message}</p>
+                {t.action && (
+                  <button
+                    onClick={() => {
+                      t.action?.onClick();
+                      dismiss(t.id);
+                    }}
+                    className="shrink-0 rounded-lg bg-surface-2 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    {t.action.label}
+                  </button>
+                )}
                 <button onClick={() => dismiss(t.id)} className="text-muted hover:text-ink" aria-label="Dismiss">
                   <X className="h-4 w-4" />
                 </button>

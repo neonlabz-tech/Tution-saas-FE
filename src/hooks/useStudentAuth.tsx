@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { studentAuthApi, type RegisterPayload } from "@/lib/studentApi";
+import { clearUserStorage } from "@/lib/api";
 import type { StudentAccount } from "@/types/student";
 
 interface StudentAuthCtx {
@@ -43,8 +44,12 @@ export function StudentAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await studentAuthApi.logout();
-    setAccount(null);
+    try {
+      await studentAuthApi.logout();
+    } finally {
+      setAccount(null);
+      clearUserStorage();
+    }
   }, []);
 
   const updatePassword = useCallback(async (newPassword: string, currentPassword?: string) => {

@@ -25,6 +25,7 @@ export function StudentQRCard({
   const toast = useToast();
   const { config } = useAuth();
   const [confirmRotate, setConfirmRotate] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const effectiveInstituteName =
     instituteName || config?.instituteName || import.meta.env.VITE_INSTITUTE_NAME || "";
@@ -45,13 +46,16 @@ export function StudentQRCard({
   };
 
   const handleRotate = async () => {
+    setIsGenerating(true);
     try {
       const res = await rotateStudentQr(student.id);
       onRotated?.(res);
-      toast.success("QR code rotated. Previous QR card is now invalid.");
+      toast.success("QR code & reference regenerated successfully.");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to rotate QR code");
+      toast.error(err instanceof Error ? err.message : "Failed to generate new reference");
       throw err;
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -84,18 +88,38 @@ export function StudentQRCard({
         <Button variant="soft" size="sm" onClick={() => run(printCard, "Opening print dialog…")}>
           <Printer className="h-3.5 w-3.5" /> Print
         </Button>
-        <Button variant="dangerSoft" size="sm" onClick={() => setConfirmRotate(true)}>
-          <RefreshCw className="h-3.5 w-3.5" /> Rotate QR
+        <Button
+          variant="dangerSoft"
+          size="sm"
+          disabled={isGenerating}
+          onClick={() => setConfirmRotate(true)}
+          title="Rotate QR reference"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isGenerating ? "animate-spin" : ""}`} /> Rotate QR
         </Button>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-[11px] text-muted">
-        <span>
-          Opaque reference: <span className="num font-semibold text-ink">{student.ref.slice(0, 8)}…</span>
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span>
+            Reference: <span className="num font-semibold text-ink" title={student.ref}>{student.ref}</span>
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[11px] font-medium text-primary hover:text-primary-focus"
+            onClick={() => void handleRotate()}
+            disabled={isGenerating}
+            title="Generate new reference number without limit"
+          >
+            <RefreshCw className={`mr-1 h-3 w-3 ${isGenerating ? "animate-spin" : ""}`} />
+            Generate new reference
+          </Button>
+        </div>
         {rotatedAt && (
           <span>
-            Last rotated: <span className="font-medium text-ink">{formatDateTime(rotatedAt)}</span>
+            Last generated: <span className="font-medium text-ink">{formatDateTime(rotatedAt)}</span>
           </span>
         )}
       </div>

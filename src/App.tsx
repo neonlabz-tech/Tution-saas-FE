@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
-import { Component, useEffect, type ErrorInfo, type ReactNode } from "react";
+import { Component, Suspense, lazy, useEffect, useState, type ErrorInfo, type ReactNode } from "react";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { AppDataProvider } from "@/hooks/useAppData";
@@ -17,7 +17,7 @@ import PaymentsPage from "@/pages/dashboard/PaymentsPage";
 import OnlineClassesPage from "@/pages/dashboard/OnlineClassesPage";
 import NoticesPage from "@/pages/dashboard/NoticesPage";
 import NotificationsPage from "@/pages/dashboard/NotificationsPage";
-import QrScannerPage from "@/pages/dashboard/QrScannerPage";
+const QrScannerPage = lazy(() => import("@/pages/dashboard/QrScannerPage"));
 import AnalyticsPage from "@/pages/dashboard/AnalyticsPage";
 import SettingsPage from "@/pages/dashboard/SettingsPage";
 import { StudentRoot, RequireStudent } from "@/components/student/StudentRoot";
@@ -91,13 +91,68 @@ class GlobalErrorBoundary extends Component<
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, refreshUser } = useAuth();
+  const [slowNotice, setSlowNotice] = useState<string>("");
+  const [showRetry, setShowRetry] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setSlowNotice("");
+      setShowRetry(false);
+      return;
+    }
+
+    const t1 = setTimeout(() => {
+      setSlowNotice("Connecting to server and verifying session...");
+    }, 3000);
+
+    const t2 = setTimeout(() => {
+      setSlowNotice("Server is waking up from idle, please hold on...");
+    }, 8000);
+
+    const t3 = setTimeout(() => {
+      setSlowNotice("Session verification is taking longer than expected.");
+      setShowRetry(true);
+    }, 15000);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [loading]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-canvas">
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex max-w-sm flex-col items-center gap-3 p-6 text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-xs text-muted">Verifying session...</p>
+          <p className="text-sm font-semibold text-ink">Verifying session...</p>
+          {slowNotice && (
+            <p className="text-xs text-muted animate-pulse">{slowNotice}</p>
+          )}
+          {showRetry && (
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setShowRetry(false);
+                  setSlowNotice("Retrying session verification...");
+                  void refreshUser();
+                }}
+                className="cursor-pointer rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90"
+              >
+                Retry Verification
+              </button>
+              <button
+                onClick={() => {
+                  window.location.href = "/login";
+                }}
+                className="cursor-pointer rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-medium text-muted hover:text-ink transition hover:bg-surface-3"
+              >
+                Return to Login
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -156,7 +211,14 @@ export default function App() {
                     <Route path="online-classes" element={<OnlineClassesPage />} />
                     <Route path="notices" element={<NoticesPage />} />
                     <Route path="notifications" element={<NotificationsPage />} />
-                    <Route path="qr-scanner" element={<QrScannerPage />} />
+                    <Route
+                      path="qr-scanner"
+                      element={
+                        <Suspense fallback={<div className="p-8 text-center text-sm text-muted">Loading QR Scanner…</div>}>
+                          <QrScannerPage />
+                        </Suspense>
+                      }
+                    />
                     <Route path="analytics" element={<AnalyticsPage />} />
                     <Route path="settings" element={<SettingsPage />} />
                   </Route>

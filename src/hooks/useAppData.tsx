@@ -10,7 +10,7 @@ import type {
 } from "@/types";
 import { buildMockData } from "@/data/mock";
 import { useAuth } from "@/hooks/useAuth";
-import { attendanceApi, modulesApi, notificationsApi, teachersApi, type TeacherListItem, type TeachersMetrics } from "@/lib/api";
+import { attendanceApi, invalidateApiCache, modulesApi, notificationsApi, teachersApi, type TeacherListItem, type TeachersMetrics } from "@/lib/api";
 import { createStudent, deleteStudent as deleteStudentApi, listStudents, updateStudent } from "@/api/students";
 import { makeRef, todayISO, uid } from "@/lib/utils";
 
@@ -46,6 +46,7 @@ interface AppData {
   getStudent: (id: string) => Student | undefined;
   getTeacher: (id: string | null | undefined) => Teacher | undefined;
   getModule: (id: string) => Module | undefined;
+  getModuleName: (id: string | null | undefined) => string;
   teacherModules: (teacherId: string) => Module[];
   moduleStudents: (moduleId: string) => Student[];
   feeTotal: (studentId: string) => number;
@@ -60,7 +61,8 @@ interface AppData {
   deleteModule: (id: string) => Promise<void>;
   setModuleStudents: (moduleId: string, studentIds: string[]) => Promise<void>;
   markAttendance: (studentId: string, moduleId: string, date: string, status: AttendanceStatus, method?: "manual" | "qr") => "created" | "updated";
-  bulkMarkAttendance: (date: string, moduleId?: string, batch?: string, status?: AttendanceStatus) => Promise<number>;
+  bulkMarkAttendance: (date: string, moduleId?: string, batch?: string, status?: AttendanceStatus) => Promise<{ count: number; records: AttendanceRecord[] }>;
+  undoBulkAttendance: (records: AttendanceRecord[]) => Promise<void>;
   deleteAttendanceRecord: (id: string) => Promise<void>;
   saveTransaction: (data: Omit<Transaction, "id">, id?: string) => Transaction;
   deleteTransaction: (id: string) => void;
@@ -71,6 +73,98 @@ interface AppData {
 }
 
 const Ctx = createContext<AppData | null>(null);
+
+export const KNOWN_MODULE_NAMES: Record<string, string> = {
+  mod_acc: "Accounting",
+  acc: "Accounting",
+  mod_ict: "ICT & Programming",
+  ict: "ICT & Programming",
+  mod_mth: "Combined Mathematics",
+  mth: "Combined Mathematics",
+  mod_phy: "Physics",
+  phy: "Physics",
+  mod_che: "Chemistry",
+  che: "Chemistry",
+  mod_bio: "Biology",
+  bio: "Biology",
+  mod_eng: "General English",
+  eng: "General English",
+  mod_bus: "Business Studies",
+  bus: "Business Studies",
+  mod_eco: "Economics",
+  eco: "Economics",
+};
+
+export function formatModuleName(idOrName: string | null | undefined, modules: Module[] = []): string {
+  if (!idOrName) return "—";
+  const clean = idOrName.trim();
+  const lower = clean.toLowerCase();
+
+  // 1. Direct or case-insensitive match on id, code, or name in modules list
+  const found = modules.find(
+    (m) =>
+      m.id.toLowerCase() === lower ||
+      m.code?.toLowerCase() === lower ||
+      m.name?.toLowerCase() === lower,
+  );
+  if (found?.name && !found.name.startsWith("Mod_") && !found.name.startsWith("mod_")) {
+    return found.name;
+  }
+
+  // 2. Known module names mapping
+  if (KNOWN_MODULE_NAMES[lower]) {
+    return KNOWN_MODULE_NAMES[lower];
+  }
+
+  // 3. Check stripped prefix
+  const stripped = clean.replace(/^(mod_|module_)/i, "");
+  const strippedLower = stripped.toLowerCase();
+  if (KNOWN_MODULE_NAMES[strippedLower]) {
+    return KNOWN_MODULE_NAMES[strippedLower];
+  }
+
+  // 4. Hex/random ID like Mod_3c49ac55 (orphan module references)
+  if (/^[0-9a-f]{6,}$/i.test(stripped)) {
+    return "General Module";
+  }
+
+  // 5. Title case fallback
+  return stripped ? stripped.charAt(0).toUpperCase() + stripped.slice(1) : clean;
+}
+
+export function resolveModule(idOrCode: string | null | undefined, modules: Module[] = []): Module | undefined {
+  if (!idOrCode) return undefined;
+  const clean = idOrCode.trim();
+  const lower = clean.toLowerCase();
+
+  const found = modules.find(
+    (m) =>
+      m.id.toLowerCase() === lower ||
+      m.code?.toLowerCase() === lower ||
+      m.name?.toLowerCase() === lower,
+  );
+  if (found) {
+    const formattedName = formatModuleName(found.name, modules);
+    return {
+      ...found,
+      name: formattedName,
+    };
+  }
+
+  const name = formatModuleName(clean, modules);
+  const code = clean.replace(/^(mod_|module_)/i, "").toUpperCase();
+
+  return {
+    id: clean,
+    code: code.length <= 6 ? code : "GEN",
+    name,
+    description: "",
+    fee: 0,
+    duration: "",
+    batches: [],
+    status: "active",
+  };
+}
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -224,7 +318,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       students, studentsLoading, refreshStudents, teachers, teacherMetrics, teachersLoading, refreshTeachers, modules, modulesLoading, refreshModules, attendance, attendanceLoading, refreshAttendance, transactions, classes,
       getStudent: (id) => students.find((s) => s.id === id),
       getTeacher: (id) => (id ? teachers.find((t) => t.id === id) : undefined),
-      getModule: (id) => modules.find((m) => m.id === id),
+      getModule: (id) => resolveModule(id, modules),
+      getModuleName: (id) => formatModuleName(id, modules),
       teacherModules: (tid) => modules.filter((m) => m.teacherId === tid),
       moduleStudents: (mid) => students.filter((s) => s.moduleIds.includes(mid)),
       feeTotal,
@@ -339,9 +434,33 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         return saved;
       },
       deleteTeacher: async (id) => {
-        await teachersApi.remove(id);
+        const prevTeachers = teachers;
+        const prevMetrics = teacherMetrics;
+        const prevClasses = classes;
+
+        const targetTeacher = prevTeachers.find((t) => t.id === id);
+        const wasActive = targetTeacher?.status === "active";
+
+        setTeachers((p) => p.filter((t) => t.id !== id));
+        setTeacherMetrics((m) => ({
+          ...m,
+          totalTeachers: Math.max(0, m.totalTeachers - 1),
+          activeTeachers: Math.max(0, m.activeTeachers - (wasActive ? 1 : 0)),
+          inactiveTeachers: Math.max(0, m.inactiveTeachers - (!wasActive && targetTeacher ? 1 : 0)),
+        }));
         setClasses((p) => p.filter((c) => c.teacherId !== id));
-        await Promise.allSettled([refreshTeachers(), refreshModules()]);
+
+        invalidateApiCache(/teachers|overview|classes/);
+
+        try {
+          await teachersApi.remove(id);
+          void Promise.allSettled([refreshTeachers(), refreshModules()]);
+        } catch (err) {
+          setTeachers(prevTeachers);
+          setTeacherMetrics(prevMetrics);
+          setClasses(prevClasses);
+          throw err;
+        }
       },
 
       saveModule: async (data, id) => {
@@ -362,11 +481,21 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         return saved;
       },
       deleteModule: async (id) => {
-        await modulesApi.remove(id);
+        const prevModules = modules;
+        setModules((p) => p.filter((m) => m.id !== id));
         setStudents((p) => p.map((s) => ({ ...s, moduleIds: s.moduleIds.filter((m) => m !== id) })));
         setClasses((p) => p.filter((c) => c.moduleId !== id));
         setAttendance((p) => p.filter((a) => a.moduleId !== id));
-        await Promise.allSettled([refreshModules(), refreshTeachers()]);
+
+        invalidateApiCache(/modules|overview/);
+
+        try {
+          await modulesApi.remove(id);
+          void Promise.allSettled([refreshModules(), refreshTeachers()]);
+        } catch (err) {
+          setModules(prevModules);
+          throw err;
+        }
       },
       setModuleStudents: async (mid, ids) => {
         await modulesApi.syncEnrollments(mid, ids);
@@ -395,21 +524,22 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         return exists ? "updated" : "created";
       },
       bulkMarkAttendance: async (date, moduleId, batch, status = "present") => {
-        try {
-          const res = await attendanceApi.bulkMarkUnmarked({ date, moduleId, batch, status });
-          if (res.records?.length) {
-            setAttendance((p) => {
-              const map = new Map<string, AttendanceRecord>();
-              p.forEach((a) => map.set(a.id, a));
-              res.records.forEach((a) => map.set(a.id, a));
-              return Array.from(map.values());
-            });
-            return res.markedCount;
-          }
-        } catch {
-          /* fallback to local calculation handled by caller */
+        const res = await attendanceApi.bulkMarkUnmarked({ date, moduleId, batch, status });
+        const records = res.records || [];
+        if (records.length) {
+          setAttendance((p) => {
+            const map = new Map<string, AttendanceRecord>();
+            p.forEach((a) => map.set(a.id, a));
+            records.forEach((a) => map.set(a.id, a));
+            return Array.from(map.values());
+          });
         }
-        return 0;
+        return { count: res.markedCount || records.length, records };
+      },
+      undoBulkAttendance: async (records) => {
+        const idSet = new Set(records.map((r) => r.id));
+        setAttendance((p) => p.filter((a) => !idSet.has(a.id)));
+        await Promise.allSettled(records.map((r) => attendanceApi.deleteRecord(r.id)));
       },
       deleteAttendanceRecord: async (id) => {
         setAttendance((p) => p.filter((a) => a.id !== id));

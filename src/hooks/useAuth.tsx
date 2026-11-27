@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { authApi, getAuthToken, type AuthUser, type LoginConfigResponse, type UserRole } from "@/lib/api";
+import { authApi, clearUserStorage, type AuthUser, type LoginConfigResponse, type UserRole } from "@/lib/api";
 
 interface AuthCtx {
   user: AuthUser | null;
@@ -29,17 +29,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const token = getAuthToken();
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-
-    if (user) {
-      setLoading(false);
-      return;
-    }
     let active = true;
     authApi
       .me()
@@ -61,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onUnauthorized = () => {
       setUser(null);
+      clearUserStorage();
     };
     window.addEventListener("eduflow:unauthorized", onUnauthorized);
     return () => window.removeEventListener("eduflow:unauthorized", onUnauthorized);
@@ -83,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* ignore network errors on logout */
     } finally {
       setUser(null);
+      clearUserStorage();
     }
   }, []);
 

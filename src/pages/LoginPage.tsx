@@ -26,6 +26,22 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REMEMBER_EMAIL_KEY = "eduflow_remember_email";
 const REMEMBER_ME_KEY = "eduflow_remember_me";
 
+function encodeStored(value: string): string {
+  try {
+    return btoa(encodeURIComponent(value));
+  } catch {
+    return value;
+  }
+}
+
+function decodeStored(value: string): string {
+  try {
+    return decodeURIComponent(atob(value));
+  } catch {
+    return value;
+  }
+}
+
 function validateEmail(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) return "Email is required";
@@ -56,6 +72,29 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loginErrors, setLoginErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [loginNotice, setLoginNotice] = useState<string>("");
+
+  useEffect(() => {
+    if (!submitting) {
+      setLoginNotice("");
+      return;
+    }
+    const t1 = setTimeout(() => {
+      setLoginNotice("Connecting to server...");
+    }, 2500);
+    const t2 = setTimeout(() => {
+      setLoginNotice("Server is waking up from idle, please hold on...");
+    }, 7000);
+    const t3 = setTimeout(() => {
+      setLoginNotice("Initial wake-up may take up to 40 seconds. Still communicating with server...");
+    }, 15000);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [submitting]);
 
   // Forgot password state
   const [forgotEmail, setForgotEmail] = useState("");
@@ -70,7 +109,7 @@ export default function LoginPage() {
       const savedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY);
       const savedRemember = localStorage.getItem(REMEMBER_ME_KEY) === "true";
       if (savedRemember && savedEmail) {
-        setEmail(savedEmail);
+        setEmail(decodeStored(savedEmail));
         setRememberMe(true);
       }
     }
@@ -98,7 +137,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       if (rememberMe) {
-        localStorage.setItem(REMEMBER_EMAIL_KEY, email.trim());
+        localStorage.setItem(REMEMBER_EMAIL_KEY, encodeStored(email.trim()));
         localStorage.setItem(REMEMBER_ME_KEY, "true");
       } else {
         localStorage.removeItem(REMEMBER_EMAIL_KEY);
@@ -145,16 +184,18 @@ export default function LoginPage() {
     }
   };
 
+  const brandName = config?.instituteName || "Tuition Management System";
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
-      <Card className="flex min-h-[480px] w-full max-w-[370px] flex-col justify-center px-7 py-10 shadow-pop sm:px-8 sm:py-12">
+    <div className="flex min-h-screen items-center justify-center bg-canvas p-3 sm:p-4 py-3 sm:py-6">
+      <Card className="flex w-full max-w-[370px] flex-col justify-center px-6 py-6 sm:px-8 sm:py-8 shadow-pop my-auto">
         {/* Brand Header */}
-        <div className="mb-7 text-center">
-          <div className="mb-4 flex items-center justify-center gap-3 text-left">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-secondary via-primary to-accent shadow-lg shadow-primary/30">
+        <div className="mb-5 text-center">
+          <div className="mb-3 flex items-center justify-center gap-3 text-left">
+            <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-secondary via-primary to-accent shadow-lg shadow-primary/30">
               <svg
                 viewBox="0 0 24 24"
-                className="h-6 w-6 text-white"
+                className="h-5 w-5 sm:h-6 sm:w-6 text-white"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2.4"
@@ -165,16 +206,16 @@ export default function LoginPage() {
               </svg>
             </div>
             <div>
-              <p className="font-heading text-xl font-extrabold leading-tight">EduFlow</p>
-              <p className="text-xs text-muted">{config?.instituteName ?? "Tuition Management System"}</p>
+              <p className="font-heading text-lg sm:text-xl font-extrabold leading-tight">EduFlow</p>
+              <p className="text-xs text-muted">{brandName}</p>
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-[11px] font-semibold text-muted mb-2">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-[11px] font-semibold text-muted mb-1.5">
             <Shield className="h-3 w-3 text-brand" /> Admin Portal
           </div>
 
-          <h2 className="font-heading text-2xl font-extrabold text-ink">
+          <h2 className="font-heading text-xl sm:text-2xl font-extrabold text-ink">
             {view === "login" ? "Welcome back" : "Reset Password"}
           </h2>
           <p className="mt-1 text-xs text-muted">
@@ -187,14 +228,14 @@ export default function LoginPage() {
         {/* VIEW 1: FORGOT PASSWORD */}
         {view === "forgot" ? (
           forgotSent ? (
-            <div className="space-y-5 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#7D41AB]/15 text-[#7D41AB]">
-                <CheckCircle2 className="h-6 w-6" />
+            <div className="space-y-4 text-center">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#7D41AB]/15 text-[#7D41AB]">
+                <CheckCircle2 className="h-5 w-5" />
               </div>
               <div>
                 <p className="font-heading text-base font-bold">Reset link sent!</p>
                 <p className="mt-1 text-xs text-muted">
-                  If <strong className="text-ink">{forgotEmail}</strong> is an active administrator, a password reset link has been dispatched.
+                  If <strong className="text-ink">{forgotEmail}</strong> is an active administrator of {brandName}, a password reset link has been dispatched.
                 </p>
               </div>
 
@@ -209,7 +250,7 @@ export default function LoginPage() {
 
               <Button
                 variant="soft"
-                className="w-full"
+                className="w-full min-h-[40px]"
                 onClick={() => {
                   setView("login");
                   setForgotSent(false);
@@ -220,12 +261,14 @@ export default function LoginPage() {
               </Button>
             </div>
           ) : (
-            <form onSubmit={onForgotSubmit} noValidate className="space-y-4">
+            <form onSubmit={onForgotSubmit} noValidate className="space-y-3.5">
               <Field label="Admin Email address" error={forgotError}>
                 <div className="relative">
                   <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
                   <Input
                     type="email"
+                    name="email"
+                    autoComplete="email"
                     value={forgotEmail}
                     onChange={(e) => {
                       setForgotEmail(e.target.value);
@@ -241,19 +284,19 @@ export default function LoginPage() {
                 </div>
               </Field>
 
-              <Button type="submit" className="w-full" disabled={forgotSubmitting}>
+              <Button type="submit" className="w-full min-h-[40px]" disabled={forgotSubmitting}>
                 <KeyRound className="h-4 w-4" />
                 {forgotSubmitting ? "Sending link..." : "Send reset link"}
               </Button>
 
-              <div className="text-center pt-2">
+              <div className="text-center pt-1">
                 <button
                   type="button"
                   onClick={() => {
                     setView("login");
                     setForgotError(undefined);
                   }}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted hover:text-ink transition"
+                  className="inline-flex items-center gap-1.5 min-h-[36px] py-1 text-xs font-semibold text-muted hover:text-ink transition"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" /> Back to sign in
                 </button>
@@ -262,18 +305,20 @@ export default function LoginPage() {
           )
         ) : (
           /* VIEW 2: SIGN IN */
-          <form onSubmit={onLoginSubmit} noValidate className="space-y-4">
+          <form onSubmit={onLoginSubmit} noValidate className="space-y-3.5">
             <Field label="Email" error={loginErrors.email}>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
                 <Input
                   type="email"
+                  name="email"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
                     if (loginErrors.email) setLoginErrors((p) => ({ ...p, email: validateEmail(e.target.value) }));
                   }}
-                  placeholder="admin@gmail.com"
+                  placeholder="admin@example.com"
                   aria-invalid={Boolean(loginErrors.email)}
                   className={cn("pl-10", loginErrors.email && "border-[#4D1882] focus:border-[#4D1882]")}
                 />
@@ -285,6 +330,8 @@ export default function LoginPage() {
                 <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
                 <Input
                   type={showPassword ? "text" : "password"}
+                  name="password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -292,7 +339,7 @@ export default function LoginPage() {
                       setLoginErrors((p) => ({ ...p, password: validatePassword(e.target.value, minPasswordLen) }));
                     }
                   }}
-                  placeholder="Enter your password"
+                  placeholder="Enter password"
                   aria-invalid={Boolean(loginErrors.password)}
                   className={cn("pl-10 pr-10", loginErrors.password && "border-[#4D1882] focus:border-[#4D1882]")}
                 />
@@ -300,19 +347,20 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword((s) => !s)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center text-muted hover:text-ink transition-colors"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
 
-              <div className="mt-2 flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-muted hover:text-ink">
+              <div className="mt-1 flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-muted hover:text-ink min-h-[36px] py-1">
                   <input
                     type="checkbox"
+                    name="rememberMe"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-line text-primary focus:ring-primary/20"
+                    className="h-4 w-4 rounded border-line text-primary focus:ring-primary/20"
                   />
                   Remember me
                 </label>
@@ -325,17 +373,23 @@ export default function LoginPage() {
                     setForgotError(undefined);
                     setForgotSent(false);
                   }}
-                  className="text-xs font-semibold text-brand hover:underline"
+                  className="min-h-[36px] py-1 text-xs font-semibold text-brand hover:underline inline-flex items-center"
                 >
                   Forgot password?
                 </button>
               </div>
             </Field>
 
-            <Button type="submit" className="w-full mt-2" disabled={submitting}>
+            <Button type="submit" className="w-full mt-1.5 min-h-[42px]" disabled={submitting}>
               <LogIn className="h-4 w-4" />
               {submitting ? "Signing in..." : "Sign in"}
             </Button>
+
+            {submitting && loginNotice && (
+              <p className="mt-2 text-center text-xs text-muted animate-pulse">
+                {loginNotice}
+              </p>
+            )}
           </form>
         )}
       </Card>

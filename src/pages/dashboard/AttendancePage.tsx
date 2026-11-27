@@ -4,12 +4,15 @@ import * as XLSX from "xlsx";
 import { Bar, BarChart, CartesianGrid, Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   CheckCheck,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Download,
   History,
+  RotateCcw,
   ScanLine,
   Trash2,
+  X,
 } from "lucide-react";
 import type { AttendanceRecord, AttendanceStatus, Module, Student } from "@/types";
 import {
@@ -30,7 +33,7 @@ import {
 import { DataTable, type Columns } from "@/components/ui/data-table";
 import { ConfirmDialog, Modal } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
-import { useAppData } from "@/hooks/useAppData";
+import { useAppData, formatModuleName, resolveModule } from "@/hooks/useAppData";
 import { useAuth } from "@/hooks/useAuth";
 import { createNotification } from "@/api/notifications";
 import { useBatches } from "@/hooks/useBatches";
@@ -77,7 +80,7 @@ interface Summary {
 }
 
 function HistoryModal({ student, onClose }: { student: Student; onClose: () => void }) {
-  const { attendance, getModule } = useAppData();
+  const { attendance, getModule, getModuleName, modules } = useAppData();
   const [historyData, setHistoryData] = useState<StudentHistoryResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -137,10 +140,12 @@ function HistoryModal({ student, onClose }: { student: Student; onClose: () => v
           <div className="p-6 text-center text-xs text-muted">No attendance entries recorded for this student yet.</div>
         ) : (
           records.slice(0, 80).map((r) => {
-            const modName =
+            const modName = formatModuleName(
               "module" in r && r.module && typeof r.module === "object" && "name" in r.module
                 ? String((r.module as { name: string }).name)
-                : getModule(r.moduleId)?.name ?? r.moduleId;
+                : r.moduleId,
+              modules,
+            );
             const remarks = "remarks" in r ? String((r as { remarks?: string }).remarks ?? "") : "";
             return (
               <div key={r.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-surface-2/40 transition">
@@ -170,8 +175,10 @@ export default function AttendancePage() {
     attendance,
     markAttendance,
     bulkMarkAttendance,
+    undoBulkAttendance,
     deleteAttendanceRecord,
     getModule,
+    getModuleName,
     getStudent,
     refreshStudents,
     refreshAttendance,
@@ -190,6 +197,9 @@ export default function AttendancePage() {
   const [historyId, setHistoryId] = useState<string | null>(null);
 
   const [bulkActing, setBulkActing] = useState(false);
+  const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
+  const [recentBulkRecords, setRecentBulkRecords] = useState<AttendanceRecord[]>([]);
+  const [undoing, setUndoing] = useState(false);
   const [delTarget, setDelTarget] = useState<AttendanceRecord | null>(null);
 
   // Server state sync
@@ -199,7 +209,7 @@ export default function AttendancePage() {
   // Only use valid modules defined in the database
   const availableModules = useMemo(() => {
     return modules
-      .map((m) => ({ id: m.id, name: m.name, code: m.code }))
+      .map((m) => ({ id: m.id, name: formatModuleName(m.name || m.id, modules), code: m.code }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [modules]);
 
@@ -312,6 +322,7 @@ export default function AttendancePage() {
     if (view !== "daily") return [];
     const map = new Map(attendance.filter((a) => a.date === date).map((a) => [a.id, a]));
     const raw: Row[] = [];
+    const seenStudentIds = new Set<string>();
 
     // Use server roster entries if available
     if (serverRoster !== null) {
@@ -322,6 +333,12 @@ export default function AttendancePage() {
         if (batch !== "all" && entry.student.batch && entry.student.batch !== batch) {
           return;
         }
+
+        // Each student once per record
+        if (moduleId === "all" && seenStudentIds.has(entry.student.id)) {
+          return;
+        }
+
         const studentObj = students.find((s) => s.id === entry.student.id) ?? {
           id: entry.student.id,
           fullName: entry.student.fullName,
@@ -337,14 +354,38 @@ export default function AttendancePage() {
           enrollmentDate: date,
           status: "active" as const,
         };
-        const moduleObj = modules.find(
-          (m) =>
-            m.id === entry.module.id ||
-            m.code === entry.module.code ||
-            m.code === entry.module.id,
-        );
-        if (!moduleObj) return;
+
+        const moduleObj = resolveModule(entry.module.id, modules) ?? {
+          id: entry.module.id,
+          code: entry.module.code || entry.module.id,
+          name: formatModuleName(entry.module.name || entry.module.id, modules),
+          description: "",
+          fee: 0,
+          duration: "",
+          teacherId: "",
+          batches: [],
+          status: "active" as const,
+        };
+
+        if (!moduleObj.name || moduleObj.name.startsWith("Mod_") || moduleObj.name.startsWith("mod_")) {
+          moduleObj.name = formatModuleName(moduleObj.name || moduleObj.id, modules);
+        }
+
+        // Filter out raw orphan hex references if another module was available or format it
+        if (/^[0-9a-f]{6,}$/i.test(moduleObj.id.replace(/^mod_/i, "")) && studentObj.moduleIds.length > 1) {
+          const otherMid = studentObj.moduleIds.find((id) => !/^[0-9a-f]{6,}$/i.test(id.replace(/^mod_/i, "")));
+          if (otherMid) {
+            const resolvedOther = resolveModule(otherMid, modules);
+            if (resolvedOther) {
+              moduleObj.id = resolvedOther.id;
+              moduleObj.name = resolvedOther.name;
+              moduleObj.code = resolvedOther.code;
+            }
+          }
+        }
+
         const rec = map.get(`att_${studentObj.id}_${moduleObj.id}_${date}`) ?? (entry.record ?? undefined);
+        seenStudentIds.add(studentObj.id);
         raw.push({
           key: `${studentObj.id}_${moduleObj.id}`,
           student: studentObj,
@@ -356,17 +397,30 @@ export default function AttendancePage() {
       // Local calculation fallback
       scope.forEach((s) => {
         if (s.status !== "active") return;
-        s.moduleIds.forEach((mid) => {
-          if (moduleId !== "all" && mid !== moduleId) return;
-          const module = modules.find((m) => m.id === mid);
-          if (!module) return;
+        if (moduleId === "all" && seenStudentIds.has(s.id)) return;
+
+        // Find student modules, filtering out orphan modules
+        const studentModules = s.moduleIds
+          .map((mid) => resolveModule(mid, modules))
+          .filter((m): m is Module => !!m && !/^[0-9a-f]{6,}$/i.test(m.id.replace(/^mod_/i, "")));
+
+        const targetModules =
+          studentModules.length > 0
+            ? studentModules
+            : s.moduleIds.map((mid) => resolveModule(mid, modules)).filter((m): m is Module => !!m);
+
+        for (const module of targetModules) {
+          if (moduleId !== "all" && module.id !== moduleId && module.code !== moduleId) continue;
+
           raw.push({
-            key: `${s.id}_${mid}`,
+            key: `${s.id}_${module.id}`,
             student: s,
             module,
-            record: map.get(`att_${s.id}_${mid}_${date}`),
+            record: map.get(`att_${s.id}_${module.id}_${date}`),
           });
-        });
+          seenStudentIds.add(s.id);
+          if (moduleId === "all") break; // Each student once per record
+        }
       });
     }
 
@@ -411,24 +465,95 @@ export default function AttendancePage() {
     );
   };
 
-  /* Bulk mark all unmarked present */
-  const markAllUnmarked = async () => {
+  /* Bulk mark all unmarked present (single bulk request with confirmation, error rollback, and undo) */
+  const executeMarkAllUnmarked = async () => {
     setBulkActing(true);
+    const prevServerRoster = serverRoster ? [...serverRoster] : null;
     try {
-      const serverMarked = await bulkMarkAttendance(
+      const res = await bulkMarkAttendance(
         date,
         moduleId !== "all" ? moduleId : undefined,
         batch !== "all" ? batch : undefined,
         "present",
       );
 
-      // Local update as backup/optimistic
-      rows.filter((r) => !r.record).forEach((r) => markAttendance(r.student.id, r.module.id, date, "present"));
+      const count = res?.count ?? 0;
+      const records = res?.records ?? [];
+
+      if (!count && records.length === 0) {
+        throw new Error("No unmarked students were updated on the server");
+      }
+
+      setRecentBulkRecords(records);
+      setConfirmBulkOpen(false);
+
       toast.success(
-        `Marked ${serverMarked > 0 ? serverMarked : unmarked} unmarked students present for ${formatShortDate(date)}`,
+        `Marked ${count} unmarked student${count === 1 ? "" : "s"} present for ${formatShortDate(date)}`,
+        records.length > 0
+          ? {
+              label: "Undo",
+              onClick: () => handleUndoBulkMark(records),
+            }
+          : undefined,
       );
+
+      // Re-sync server roster
+      attendanceApi
+        .getDailyRoster({
+          date,
+          moduleId: moduleId !== "all" ? moduleId : undefined,
+          batch: batch !== "all" ? batch : undefined,
+          search: q.trim() || undefined,
+        })
+        .then((r) => {
+          if (r?.rows) setServerRoster(r.rows);
+        })
+        .catch(() => {});
+    } catch (err) {
+      // Rollback and preserve original state
+      setConfirmBulkOpen(false);
+      setRecentBulkRecords([]);
+      setServerRoster(prevServerRoster);
+      void refreshAttendance();
+
+      const errorMsg =
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to mark attendance. The server could not process the request.";
+      toast.error(errorMsg);
     } finally {
       setBulkActing(false);
+    }
+  };
+
+  const handleUndoBulkMark = async (recordsToUndo: AttendanceRecord[]) => {
+    if (!recordsToUndo.length || undoing) return;
+    setUndoing(true);
+    const prevServerRoster = serverRoster ? [...serverRoster] : null;
+    try {
+      await undoBulkAttendance(recordsToUndo);
+      setRecentBulkRecords([]);
+      toast.info(`Undid bulk attendance for ${recordsToUndo.length} student${recordsToUndo.length === 1 ? "" : "s"}`);
+      // Re-sync server roster
+      attendanceApi
+        .getDailyRoster({
+          date,
+          moduleId: moduleId !== "all" ? moduleId : undefined,
+          batch: batch !== "all" ? batch : undefined,
+          search: q.trim() || undefined,
+        })
+        .then((r) => {
+          if (r?.rows) setServerRoster(r.rows);
+        })
+        .catch(() => {});
+    } catch (err) {
+      setServerRoster(prevServerRoster);
+      void refreshAttendance();
+      const errorMsg =
+        err instanceof Error && err.message ? err.message : "Failed to undo bulk attendance";
+      toast.error(errorMsg);
+    } finally {
+      setUndoing(false);
     }
   };
 
@@ -558,17 +683,21 @@ export default function AttendancePage() {
       {
         id: "module",
         header: "Module",
-        accessorFn: (r) => r.module.name,
-        cell: ({ row }) => (
-          <div className="flex flex-col">
-            <span className="font-semibold text-xs text-ink truncate max-w-[190px]">
-              {row.original.module.name || row.original.module.code}
-            </span>
-            {row.original.module.code && row.original.module.code !== row.original.module.name && (
-              <span className="text-[10px] text-muted font-mono">{row.original.module.code}</span>
-            )}
-          </div>
-        ),
+        accessorFn: (r) => formatModuleName(r.module.name || r.module.id, modules),
+        cell: ({ row }) => {
+          const modName = formatModuleName(row.original.module.name || row.original.module.id, modules);
+          const modCode = row.original.module.code;
+          return (
+            <div className="flex flex-col">
+              <span className="font-semibold text-xs text-ink truncate max-w-[190px]">
+                {modName}
+              </span>
+              {modCode && modCode !== modName && !modCode.startsWith("Mod_") && !modCode.startsWith("mod_") && (
+                <span className="text-[10px] text-muted font-mono">{modCode}</span>
+              )}
+            </div>
+          );
+        },
       },
       {
         id: "date",
@@ -708,9 +837,9 @@ export default function AttendancePage() {
       {
         id: "module",
         header: "Module",
-        accessorFn: (r) => getModule(r.moduleId)?.name ?? r.moduleId,
+        accessorFn: (r) => formatModuleName(r.moduleId, modules),
         cell: ({ row }) => (
-          <Badge tone="primary">{getModule(row.original.moduleId)?.code ?? row.original.moduleId}</Badge>
+          <Badge tone="primary">{formatModuleName(row.original.moduleId, modules)}</Badge>
         ),
       },
       {
@@ -771,7 +900,24 @@ export default function AttendancePage() {
     [students, modules],
   );
 
-  const sortedRecs = useMemo(() => [...recs].sort((a, b) => b.date.localeCompare(a.date)), [recs]);
+  const sortedRecs = useMemo(() => {
+    const map = new Map<string, AttendanceRecord>();
+    const sorted = [...recs].sort((a, b) => b.date.localeCompare(a.date));
+    for (const r of sorted) {
+      const key = `${r.studentId}_${r.date}`;
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, r);
+      } else {
+        const isExistingOrphan = /^[0-9a-f]{6,}$/i.test(existing.moduleId.replace(/^mod_/i, ""));
+        const isCurrentOrphan = /^[0-9a-f]{6,}$/i.test(r.moduleId.replace(/^mod_/i, ""));
+        if (isExistingOrphan && !isCurrentOrphan) {
+          map.set(key, r);
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [recs]);
 
   /* Export XLSX */
   const exportXlsx = () => {
@@ -782,7 +928,7 @@ export default function AttendancePage() {
         "Student ID": r.studentId,
         Student: s?.fullName,
         Batch: s?.batch,
-        Module: getModule(r.moduleId)?.name,
+        Module: formatModuleName(r.moduleId, modules),
         Status: r.status,
         Source: r.method,
       };
@@ -804,7 +950,7 @@ export default function AttendancePage() {
         description="Daily roster, batch marking, student verification and real-time attendance analytics."
         actions={
           <>
-            <Link to="/dashboard/qr-scanner">
+            <Link to={moduleId !== "all" ? `/dashboard/qr-scanner?moduleId=${moduleId}` : "/dashboard/qr-scanner"}>
               <Button variant="secondary">
                 <ScanLine className="h-4 w-4" /> QR Scanner
               </Button>
@@ -981,24 +1127,24 @@ export default function AttendancePage() {
             view === "daily"
               ? `${rows.length} class entries · ${unmarked} unmarked · Target date: ${formatShortDate(date)}${
                   moduleId !== "all"
-                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
+                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? formatModuleName(moduleId, modules)}`
                     : ""
                 }`
               : view === "records"
-              ? `${recs.length} total records · ${formatShortDate(range.from)} – ${formatShortDate(range.to)}${
+              ? `${sortedRecs.length} total records · ${formatShortDate(range.from)} – ${formatShortDate(range.to)}${
                   moduleId !== "all"
-                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
+                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? formatModuleName(moduleId, modules)}`
                     : ""
                 }`
               : `${summaries.length} enrolled students in range · ${formatShortDate(range.from)} – ${formatShortDate(range.to)}${
                   moduleId !== "all"
-                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
+                    ? ` · Module: ${availableModules.find((m) => m.id === moduleId)?.name ?? formatModuleName(moduleId, modules)}`
                     : ""
                 }`
           }
           action={
             view === "daily" && unmarked > 0 ? (
-              <Button size="sm" variant="soft" onClick={markAllUnmarked} disabled={bulkActing}>
+              <Button size="sm" variant="soft" onClick={() => setConfirmBulkOpen(true)} disabled={bulkActing}>
                 <CheckCheck className="h-3.5 w-3.5" />
                 {bulkActing ? "Marking…" : `Mark ${unmarked} unmarked present`}
               </Button>
@@ -1006,6 +1152,37 @@ export default function AttendancePage() {
           }
           className="pb-4"
         />
+
+        {/* Undo / Recovery Banner for recent bulk mark action */}
+        {recentBulkRecords.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-primary/20 bg-primary/5 px-5 py-2.5 text-xs sm:text-sm">
+            <div className="flex items-center gap-2 text-ink">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+              <span>
+                Marked <strong>{recentBulkRecords.length}</strong> unmarked students present for {formatShortDate(date)}.
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleUndoBulkMark(recentBulkRecords)}
+                disabled={undoing}
+                className="h-7 px-2.5 text-xs"
+              >
+                <RotateCcw className="mr-1 h-3 w-3" />
+                {undoing ? "Undoing…" : "Undo"}
+              </Button>
+              <button
+                onClick={() => setRecentBulkRecords([])}
+                className="rounded p-1 text-muted hover:text-ink"
+                aria-label="Dismiss"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Module selection dropdown filter for module-wise attendance view */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3 bg-surface-2/40">
@@ -1092,6 +1269,25 @@ export default function AttendancePage() {
           }
         }}
         onClose={() => setDelTarget(null)}
+      />
+
+      {/* Bulk Mark Unmarked Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmBulkOpen}
+        title="Mark All Unmarked Present?"
+        text={`Are you sure you want to mark ${unmarked} unmarked student${
+          unmarked === 1 ? "" : "s"
+        } as present for ${formatShortDate(date)}${
+          moduleId !== "all"
+            ? ` in ${availableModules.find((m) => m.id === moduleId)?.name ?? moduleId}`
+            : ""
+        }? You can undo this action immediately after.`}
+        confirmLabel={`Mark ${unmarked} Present`}
+        confirmLoadingLabel="Marking…"
+        confirmVariant="primary"
+        loading={bulkActing}
+        onConfirm={executeMarkAllUnmarked}
+        onClose={() => setConfirmBulkOpen(false)}
       />
     </>
   );

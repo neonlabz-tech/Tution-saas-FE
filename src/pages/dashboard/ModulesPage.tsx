@@ -17,7 +17,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import type { BatchItem, ModuleEnrolledStudent, ModuleListItem, ModuleStatus } from "@/types";
+import type { BatchItem, ModuleEnrolledStudent, ModuleListItem } from "@/types";
 import {
   Avatar,
   Badge,
@@ -269,11 +269,6 @@ export default function ModulesPage() {
         header: "Enrolled",
         accessorFn: (m) => m.enrolledCount ?? 0,
         cell: (c) => <span className="num font-semibold">{c.getValue() as number}</span>,
-      },
-      {
-        accessorKey: "status",
-        header: "Status",
-        cell: (c) => <StatusBadge status={c.getValue() as string} />,
       },
       {
         id: "actions",
@@ -533,8 +528,7 @@ export default function ModulesPage() {
                       <h3 className="relative mt-1 font-heading text-lg font-extrabold leading-tight">{m.name}</h3>
                     </div>
                     <div className="flex flex-1 flex-col p-5">
-                      <div className="mb-3 flex items-center justify-between">
-                        <StatusBadge status={m.status} />
+                      <div className="mb-3 flex items-center justify-end">
                         <span className="num text-base font-bold">{formatLkrPrice(m.fee)}</span>
                       </div>
                       <p className="line-clamp-2 text-sm text-muted">{m.description}</p>
@@ -834,9 +828,6 @@ export default function ModulesPage() {
                 </div>
               </div>
               <div className="rounded-2xl border border-line p-4">
-                <InfoRow label="Status">
-                  <StatusBadge status={detail.status} />
-                </InfoRow>
                 <InfoRow label="Revenue potential">
                   <span className="num">{formatLkrPrice(detail.revenuePotential)}</span>
                 </InfoRow>
@@ -939,33 +930,43 @@ export default function ModulesPage() {
         open={batchModal.open}
         item={batchModal.item}
         onClose={() => setBatchModal({ open: false, item: null })}
-        onSaved={() => {
-          fetchBatches();
+        onSaved={(saved?: BatchItem) => {
+          if (saved) {
+            setBatches((cur) => cur.map((b) => (b.id === saved.id ? { ...b, ...saved } : b)));
+          }
+          void fetchBatches();
           refetch();
         }}
       />
 
-      <ConfirmDialog
-        open={!!batchDelTarget}
-        onClose={() => setBatchDelTarget(null)}
-        title={batchDelTarget?.category === "grade" ? `Delete grade "${batchDelTarget?.name}"?` : `Delete batch "${batchDelTarget?.name}"?`}
-        text={
-          <div className="space-y-2 text-sm">
-            <p>
-              Are you sure you want to permanently delete {batchDelTarget?.category === "grade" ? "grade" : "batch"} <b>{batchDelTarget?.name}</b>?
-            </p>
-            {((batchDelTarget?.studentCount ?? 0) > 0 || (batchDelTarget?.moduleCount ?? 0) > 0) && (
-              <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-2.5 text-xs font-semibold text-rose-500">
-                Warning: This {batchDelTarget?.category === "grade" ? "grade" : "batch"} currently has {batchDelTarget?.studentCount ?? 0} enrolled student(s) and {batchDelTarget?.moduleCount ?? 0} associated module(s). Deleting it will remove the association.
-              </p>
-            )}
-          </div>
-        }
-        confirmLabel={batchDelTarget?.category === "grade" ? "Delete grade" : "Delete batch"}
-        confirmLoadingLabel="Deleting…"
-        confirmVariant="danger"
-        onConfirm={handleDeleteBatch}
-      />
+      {(() => {
+        const activeDel = batchDelTarget
+          ? batches.find((b) => b.id === batchDelTarget.id) ?? batchDelTarget
+          : null;
+        return (
+          <ConfirmDialog
+            open={!!activeDel}
+            onClose={() => setBatchDelTarget(null)}
+            title={activeDel?.category === "grade" ? `Delete grade "${activeDel?.name}"?` : `Delete batch "${activeDel?.name}"?`}
+            text={
+              <div className="space-y-2 text-sm">
+                <p>
+                  Are you sure you want to permanently delete {activeDel?.category === "grade" ? "grade" : "batch"} <b>{activeDel?.name}</b>?
+                </p>
+                {((activeDel?.studentCount ?? 0) > 0 || (activeDel?.moduleCount ?? 0) > 0) && (
+                  <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-2.5 text-xs font-semibold text-rose-500">
+                    Warning: This {activeDel?.category === "grade" ? "grade" : "batch"} currently has {activeDel?.studentCount ?? 0} enrolled student(s) and {activeDel?.moduleCount ?? 0} associated module(s). Deleting it will remove the association.
+                  </p>
+                )}
+              </div>
+            }
+            confirmLabel={activeDel?.category === "grade" ? "Delete grade" : "Delete batch"}
+            confirmLoadingLabel="Deleting…"
+            confirmVariant="danger"
+            onConfirm={handleDeleteBatch}
+          />
+        );
+      })()}
     </>
   );
 }

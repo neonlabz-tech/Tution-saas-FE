@@ -43,7 +43,36 @@ export function useStudents(params: StudentQueryParams) {
     };
   }, [q, batch, moduleId, status, page, limit, sortBy, sortOrder, reloadTick]);
 
-  return { data, loading, error, refetch };
+  const optimisticUpdate = useCallback((id: string, patch: Partial<StudentListItem>) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        items: prev.items.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+      };
+    });
+  }, []);
+
+  const optimisticDelete = useCallback((id: string) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        items: prev.items.filter((s) => s.id !== id),
+        pagination: {
+          ...prev.pagination,
+          total: Math.max(0, prev.pagination.total - 1),
+        },
+        summary: {
+          ...prev.summary,
+          total: Math.max(0, prev.summary.total - 1),
+          filteredTotal: Math.max(0, prev.summary.filteredTotal - 1),
+        },
+      };
+    });
+  }, []);
+
+  return { data, loading, error, refetch, optimisticUpdate, optimisticDelete };
 }
 
 export function useStudentDetail(studentId: string | null, refreshKey = 0) {

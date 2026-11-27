@@ -996,6 +996,30 @@ export default function PaymentsPage() {
       } catch {
         // non-blocking
       }
+      const targetId = delPaymentItem.id;
+      const targetAmount = delPaymentItem.amount;
+      const targetStudentId = delPaymentItem.studentId;
+
+      setHistoryList((prev) => prev.filter((p) => p.id !== targetId));
+      setHistoryPagination((prev) => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+      setStudentsList((prev) =>
+        prev.map((s) =>
+          s.id === targetStudentId
+            ? {
+                ...s,
+                paidTotal: Math.max(0, s.paidTotal - targetAmount),
+                outstanding: s.outstanding + targetAmount,
+                paymentStatus: (s.outstanding + targetAmount >= s.feeTotal) ? "unpaid" : "partial",
+              }
+            : s,
+        ),
+      );
+      setGlobalSummary((prev) => ({
+        ...prev,
+        totalCollected: Math.max(0, prev.totalCollected - targetAmount),
+        totalOutstanding: prev.totalOutstanding + targetAmount,
+      }));
+
       toast.success("Payment deleted and balances recalculated");
       setDelPaymentItem(null);
       if (tab === "history" && historyList.length <= 1 && historyPage > 1) {
@@ -1709,7 +1733,34 @@ export default function PaymentsPage() {
         studentId={payModal.studentId}
         studentSummary={payModal.summary}
         onClose={() => setPayModal({ open: false })}
-        onDone={triggerRefresh}
+        onDone={(res) => {
+          if (res?.payment) {
+            setHistoryList((prev) => [res.payment, ...prev.filter((p) => p.id !== res.payment.id)]);
+            setHistoryPagination((prev) => ({ ...prev, total: prev.total + 1 }));
+          }
+          if (res?.studentSummary) {
+            const summary = res.studentSummary;
+            setStudentsList((prev) =>
+              prev.map((s) =>
+                s.id === summary.id
+                  ? {
+                      ...s,
+                      feeTotal: summary.feeTotal,
+                      paidTotal: summary.paidTotal,
+                      outstanding: summary.outstanding,
+                      paymentStatus: summary.paymentStatus,
+                    }
+                  : s,
+              ),
+            );
+            setGlobalSummary((prev) => ({
+              ...prev,
+              totalCollected: prev.totalCollected + (res.payment?.amount ?? 0),
+              totalOutstanding: Math.max(0, prev.totalOutstanding - (res.payment?.amount ?? 0)),
+            }));
+          }
+          triggerRefresh();
+        }}
       />
 
       {/* Edit Payment Modal (PATCH /api/payments/:id) */}

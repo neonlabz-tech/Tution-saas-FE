@@ -153,6 +153,7 @@ export interface RotateQrResponse {
   ref: string;
   qrPayload: string;
   qrRotatedAt: string;
+  rotatedAt?: string;
 }
 
 export interface DeleteStudentResponse {

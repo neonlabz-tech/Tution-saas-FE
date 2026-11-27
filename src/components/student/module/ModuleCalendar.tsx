@@ -7,7 +7,7 @@ import type { DatesSetArg, EventClickArg } from "@fullcalendar/core";
 import { CalendarClock, ChevronLeft, ChevronRight, Clock, ExternalLink, MapPin, Video } from "lucide-react";
 import { Badge, Button, Card, CardHeader, Select } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/overlays";
-import { useStudentData } from "@/hooks/useStudentData";
+import { useOptionalStudentData } from "@/hooks/useStudentData";
 import type { OnlineClass } from "@/types";
 import type { PhysicalClass } from "@/types/student";
 import { fmtDate, fmtTime, toLocalDT } from "@/lib/utils";
@@ -25,15 +25,8 @@ export function ModuleCalendar({ online, physical }: { online: OnlineClass[]; ph
     typeof window !== "undefined" && window.innerWidth < 768 ? "listMonth" : "dayGridMonth"
   );
 
-  let instituteName = "On-site Campus";
-  try {
-    const studentData = useStudentData();
-    if (studentData?.data?.instituteName) {
-      instituteName = studentData.data.instituteName;
-    }
-  } catch {
-    // optional outside StudentDataProvider
-  }
+  const studentData = useOptionalStudentData();
+  const instituteName = studentData?.data?.instituteName || "On-site Campus";
 
   const sessions = useMemo<Session[]>(
     () => [...online.map((item) => ({ kind: "online" as const, item })), ...physical.map((item) => ({ kind: "physical" as const, item }))],
@@ -46,9 +39,10 @@ export function ModuleCalendar({ online, physical }: { online: OnlineClass[]; ph
       const isCancelled = s.item.status === "cancelled";
       const isCompleted = s.item.status === "completed" || isPast;
       const color = isCancelled || isCompleted ? "#94a3b8" : s.kind === "online" ? ONLINE : PHYSICAL;
+      const baseTitle = s.item.title?.trim() || (s.kind === "online" ? "Online" : "On-site");
       return {
         id: `${s.kind}:${s.item.id}`,
-        title: s.kind === "online" ? (isCompleted ? "Online (Ended)" : "Online") : (isCompleted ? "On-site (Ended)" : "On-site"),
+        title: isCompleted ? `${baseTitle} (Ended)` : baseTitle,
         start: s.item.start,
         end: s.item.end,
         backgroundColor: color,

@@ -111,7 +111,7 @@ export default function StudentsPage() {
   const sortBy = activeSort && SORTABLE_COLUMNS.has(activeSort.id) ? (activeSort.id as StudentSortBy) : undefined;
   const sortOrder = sortBy ? (activeSort.desc ? "desc" : "asc") : undefined;
 
-  const { data, loading, error, refetch } = useStudents({
+  const { data, loading, error, refetch, optimisticUpdate, optimisticDelete } = useStudents({
     q: debouncedQ || undefined,
     batch,
     moduleId,
@@ -271,11 +271,13 @@ export default function StudentsPage() {
                 title="Verify student registration"
                 onClick={async () => {
                   try {
+                    optimisticUpdate(row.original.id, { status: "active" });
                     await verifyStudent(row.original.id);
                     toast.success(`${row.original.fullName} verified successfully! Portal access activated.`);
                     refetch();
                     void refreshStudents();
                   } catch (err: unknown) {
+                    refetch();
                     toast.error(err instanceof Error ? err.message : "Failed to verify student");
                   }
                 }}
@@ -328,8 +330,9 @@ export default function StudentsPage() {
     if (!delTarget) return;
     const targetId = delTarget.id;
     try {
-      await deleteStudent(targetId);
+      optimisticDelete(targetId);
       if (detailId === targetId) setDetailId(null);
+      await deleteStudent(targetId);
       void refreshStudents();
       toast.success("Student deleted");
       if (items.length <= 1 && page > 1) {
@@ -338,6 +341,7 @@ export default function StudentsPage() {
         refetch();
       }
     } catch (err: unknown) {
+      refetch();
       toast.error(err instanceof Error ? err.message : "Failed to delete student");
       throw err;
     }
@@ -474,7 +478,15 @@ export default function StudentsPage() {
         studentId={payState.studentId}
         studentSummary={payState.summary}
         onClose={() => setPayState({ open: false })}
-        onDone={() => {
+        onDone={(res) => {
+          if (res?.studentSummary) {
+            optimisticUpdate(res.studentSummary.id, {
+              feeTotal: res.studentSummary.feeTotal,
+              paidTotal: res.studentSummary.paidTotal,
+              outstanding: res.studentSummary.outstanding,
+              paymentStatus: res.studentSummary.paymentStatus,
+            });
+          }
           refetch();
           if (detailId) setDetailRefreshKey((k) => k + 1);
         }}

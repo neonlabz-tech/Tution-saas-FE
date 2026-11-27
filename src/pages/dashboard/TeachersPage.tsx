@@ -213,6 +213,16 @@ export default function TeachersPage() {
             >
               <Pencil className="h-4 w-4" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Delete"
+              title="Delete teacher"
+              className="text-muted hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+              onClick={() => setDelId(row.original.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         ),
       },
@@ -306,6 +316,16 @@ export default function TeachersPage() {
                         </Button>
                         <Button variant="ghost" size="icon" aria-label="Edit" title="Edit teacher" onClick={() => setForm({ open: true, item: t })}>
                           <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Delete"
+                          title="Delete teacher"
+                          className="text-muted hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+                          onClick={() => setDelId(t.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
