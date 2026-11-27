@@ -99,7 +99,7 @@ export default function StudentModuleDetailPage() {
           />
 
           {tab === "calendar" && <ModuleCalendar online={scoped.online} physical={scoped.physical} />}
-          {tab === "assignments" && <ModuleAssignments assignments={scoped.assignments} />}
+          {tab === "assignments" && <ModuleAssignments assignments={scoped.assignments} moduleName={mod.name} />}
           {tab === "materials" && <ModuleMaterials materials={scoped.materials} moduleName={mod.name} />}
           {tab === "recordings" && <ModuleRecordings recordings={scoped.recordings} />}
         </>

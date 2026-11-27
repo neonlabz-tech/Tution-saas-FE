@@ -1,13 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
-import type { EventClickArg } from "@fullcalendar/core";
-import { CalendarClock, Clock, Download, ExternalLink, MapPin, Video } from "lucide-react";
-import { Badge, Button, Card, CardHeader } from "@/components/ui/primitives";
+import type { DatesSetArg, EventClickArg } from "@fullcalendar/core";
+import { CalendarClock, ChevronLeft, ChevronRight, Clock, ExternalLink, MapPin, Video } from "lucide-react";
+import { Badge, Button, Card, CardHeader, Select } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/overlays";
-import { exportCalendarIcs } from "@/lib/studentFiles";
 import { useStudentData } from "@/hooks/useStudentData";
 import type { OnlineClass } from "@/types";
 import type { PhysicalClass } from "@/types/student";
@@ -20,6 +19,11 @@ type Session = { kind: "online"; item: OnlineClass } | { kind: "physical"; item:
 
 export function ModuleCalendar({ online, physical }: { online: OnlineClass[]; physical: PhysicalClass[] }) {
   const [open, setOpen] = useState<Session | null>(null);
+  const calendarRef = useRef<FullCalendar | null>(null);
+  const [title, setTitle] = useState("");
+  const [currentView, setCurrentView] = useState(() =>
+    typeof window !== "undefined" && window.innerWidth < 768 ? "listMonth" : "dayGridMonth"
+  );
 
   let instituteName = "On-site Campus";
   try {
@@ -68,46 +72,83 @@ export function ModuleCalendar({ online, physical }: { online: OnlineClass[]; ph
     const id = rest.join(":");
     setOpen(sessions.find((s) => s.kind === kind && s.item.id === id) ?? null);
   };
-  const initialView = typeof window !== "undefined" && window.innerWidth < 768 ? "listMonth" : "dayGridMonth";
+
+  const handleViewChange = (newView: string) => {
+    setCurrentView(newView);
+    calendarRef.current?.getApi().changeView(newView);
+  };
 
   return (
     <>
       <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
         <Card className="min-w-0 p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
             <div className="flex flex-wrap gap-4">
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: ONLINE }} />Online class</span>
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: PHYSICAL }} />Physical class</span>
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() =>
-                exportCalendarIcs(
-                  sessions.map((s) => ({
-                    id: s.item.id,
-                    title: s.item.title,
-                    start: s.item.start,
-                    end: s.item.end,
-                    kind: s.kind,
-                    location: s.kind === "physical" ? s.item.location : undefined,
-                    link: s.kind === "online" ? s.item.link : undefined,
-                    description: s.kind === "online" ? s.item.description : undefined,
-                  })),
-                  "Class Schedule"
-                )
-              }
-              className="inline-flex items-center gap-1.5 text-xs font-semibold"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Export (.ics)
-            </Button>
           </div>
+
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="inline-flex rounded-xl border border-line bg-surface p-0.5 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => calendarRef.current?.getApi().prev()}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink hover:bg-surface-2 transition cursor-pointer"
+                  aria-label="Previous"
+                  title="Previous"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => calendarRef.current?.getApi().next()}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink hover:bg-surface-2 transition cursor-pointer"
+                  aria-label="Next"
+                  title="Next"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => calendarRef.current?.getApi().today()}
+                className="h-9 px-3 text-xs font-semibold"
+              >
+                Today
+              </Button>
+            </div>
+
+            <h2 className="order-first w-full text-center font-heading text-lg font-bold text-ink sm:order-none sm:w-auto">
+              {title}
+            </h2>
+
+            <div className="w-32">
+              <Select
+                value={currentView}
+                onChange={(e) => handleViewChange(e.target.value)}
+                aria-label="Calendar view"
+                className="h-9 text-xs font-semibold"
+              >
+                <option value="dayGridMonth">Month</option>
+                <option value="timeGridWeek">Week</option>
+                <option value="listMonth">List</option>
+              </Select>
+            </div>
+          </div>
+
           <FullCalendar
+            ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
-            initialView={initialView}
-            headerToolbar={{ left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,listMonth" }}
-            buttonText={{ today: "Today", month: "Month", week: "Week", list: "List" }}
+            initialView={currentView}
+            headerToolbar={false}
+            datesSet={(arg: DatesSetArg) => {
+              setTitle(arg.view.title);
+              setCurrentView(arg.view.type);
+            }}
             events={events}
             eventClick={onEvent}
             dayMaxEvents={3}
