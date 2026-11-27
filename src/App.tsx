@@ -30,6 +30,22 @@ import StudentOverviewPage from "@/pages/student/StudentOverviewPage";
 import StudentModulesPage from "@/pages/student/StudentModulesPage";
 import StudentModuleDetailPage from "@/pages/student/StudentModuleDetailPage";
 import StudentPaymentsPage from "@/pages/student/StudentPaymentsPage";
+import { TeacherRoot, RequireTeacher } from "@/components/teacher/TeacherRoot";
+import { TeacherLayout } from "@/components/teacher/TeacherLayout";
+import { BatchLayout } from "@/components/teacher/BatchLayout";
+import TeacherLoginPage from "@/pages/teacher/TeacherLoginPage";
+import TeacherOverviewPage from "@/pages/teacher/TeacherOverviewPage";
+import TeacherBatchesPage from "@/pages/teacher/TeacherBatchesPage";
+import BatchOverviewPage from "@/pages/teacher/BatchOverviewPage";
+import BatchStudentsPage from "@/pages/teacher/BatchStudentsPage";
+import BatchMaterialsPage from "@/pages/teacher/BatchMaterialsPage";
+import BatchRecordingsPage from "@/pages/teacher/BatchRecordingsPage";
+import BatchAssignmentsPage from "@/pages/teacher/BatchAssignmentsPage";
+import AssignmentDetailPage from "@/pages/teacher/AssignmentDetailPage";
+import BatchMarksPage from "@/pages/teacher/BatchMarksPage";
+import TeacherNoticesPage from "@/pages/teacher/TeacherNoticesPage";
+import TeacherPaymentsPage from "@/pages/teacher/TeacherPaymentsPage";
+import PaymentDetailPage from "@/pages/teacher/PaymentDetailPage";
 
 class GlobalErrorBoundary extends Component<
   { children: ReactNode },
@@ -88,6 +104,10 @@ function RequireAuth({ children }: { children: ReactNode }) {
   }
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+  // Teachers have their own portal; they never see the admin dashboard.
+  if (user.role === "teacher") {
+    return <Navigate to="/teacher" replace />;
   }
   return <>{children}</>;
 }
@@ -159,6 +179,33 @@ export default function App() {
                       <Route path="payments" element={<StudentPaymentsPage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/student" replace />} />
+                  </Route>
+                  {/* Teacher portal: /teacher/* (uses the real auth session; role-checked in RequireTeacher) */}
+                  <Route path="/teacher" element={<TeacherRoot />}>
+                    <Route path="login" element={<TeacherLoginPage />} />
+                    <Route
+                      element={
+                        <RequireTeacher>
+                          <TeacherLayout />
+                        </RequireTeacher>
+                      }
+                    >
+                      <Route index element={<TeacherOverviewPage />} />
+                      <Route path="batches" element={<TeacherBatchesPage />} />
+                      <Route path="batches/:batchId" element={<BatchLayout />}>
+                        <Route index element={<BatchOverviewPage />} />
+                        <Route path="students" element={<BatchStudentsPage />} />
+                        <Route path="materials" element={<BatchMaterialsPage />} />
+                        <Route path="recordings" element={<BatchRecordingsPage />} />
+                        <Route path="assignments" element={<BatchAssignmentsPage />} />
+                        <Route path="assignments/:assignmentId" element={<AssignmentDetailPage />} />
+                        <Route path="marks" element={<BatchMarksPage />} />
+                      </Route>
+                      <Route path="notices" element={<TeacherNoticesPage />} />
+                      <Route path="payments" element={<TeacherPaymentsPage />} />
+                      <Route path="payments/:paymentId" element={<PaymentDetailPage />} />
+                    </Route>
+                    <Route path="*" element={<Navigate to="/teacher" replace />} />
                   </Route>
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
