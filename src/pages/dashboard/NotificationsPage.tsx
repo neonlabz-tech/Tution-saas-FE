@@ -13,28 +13,24 @@ import {
   Mail,
   MailOpen,
   Megaphone,
-  Plus,
   RefreshCw,
   ShieldAlert,
   Trash2,
   Wallet,
 } from "lucide-react";
-import type { CreateNotificationDto, NotificationType } from "@/types";
+import type { NotificationType } from "@/types";
 import {
   Badge,
   Button,
   Card,
   EmptyState,
-  Field,
-  Input,
   PageHeader,
   SearchInput,
   Select,
   Skeleton,
   Tabs,
-  Textarea,
 } from "@/components/ui/primitives";
-import { ConfirmDialog, Modal } from "@/components/ui/overlays";
+import { ConfirmDialog } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { useNotifications } from "@/hooks/useNotifications";
 import { cn, fmtNotificationDateTime } from "@/lib/utils";
@@ -102,7 +98,6 @@ export default function NotificationsPage() {
     markAllAsRead,
     deleteNotification,
     clearRead,
-    createNotification,
   } = useNotifications();
 
   // Filters & Search
@@ -115,15 +110,6 @@ export default function NotificationsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Modals & Dialogs
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [createSubmitting, setCreateSubmitting] = useState(false);
-  const [createForm, setCreateForm] = useState<CreateNotificationDto>({
-    type: "system",
-    title: "",
-    subtitle: "",
-    link: "",
-  });
-
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [clearingBusy, setClearingBusy] = useState(false);
   const [singleDeleteId, setSingleDeleteId] = useState<string | null>(null);
@@ -278,31 +264,6 @@ export default function NotificationsPage() {
     }
   };
 
-  // Create Notification Form Submission
-  const handleCreateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!createForm.title.trim()) {
-      toast.error("Please enter a title");
-      return;
-    }
-    setCreateSubmitting(true);
-    try {
-      await createNotification(createForm);
-      toast.success("Notification created successfully");
-      setIsCreateOpen(false);
-      setCreateForm({
-        type: "system",
-        title: "",
-        subtitle: "",
-        link: "",
-      });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create notification");
-    } finally {
-      setCreateSubmitting(false);
-    }
-  };
-
   return (
     <>
       <PageHeader
@@ -342,10 +303,6 @@ export default function NotificationsPage() {
             >
               <Trash2 className="h-3.5 w-3.5" />
               Clear read
-            </Button>
-            <Button size="sm" onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-3.5 w-3.5" />
-              Create alert
             </Button>
           </div>
         }
@@ -702,80 +659,7 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      {/* Modal: Create Alert */}
-      <Modal
-        open={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        title="Create System Notification"
-        description="Dispatch a custom alert to the notification feed for administrative review."
-        size="md"
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setIsCreateOpen(false)}
-              disabled={createSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateSubmit}
-              disabled={createSubmitting || !createForm.title.trim()}
-            >
-              {createSubmitting ? "Creating…" : "Dispatch notification"}
-            </Button>
-          </div>
-        }
-      >
-        <form onSubmit={handleCreateSubmit} className="space-y-4">
-          <Field label="Category / Type">
-            <Select
-              value={createForm.type}
-              onChange={(e) =>
-                setCreateForm((p) => ({
-                  ...p,
-                  type: e.target.value as NotificationType,
-                }))
-              }
-            >
-              <option value="system">System Alert</option>
-              <option value="payment">Payment & Fee Alert</option>
-              <option value="class">Online Class Reminder</option>
-              <option value="notice">Notice Announcement</option>
-              <option value="attendance">Attendance Alert</option>
-            </Select>
-          </Field>
 
-          <Field label="Title" hint="Brief headline of the alert">
-            <Input
-              value={createForm.title}
-              onChange={(e) => setCreateForm((p) => ({ ...p, title: e.target.value }))}
-              placeholder="e.g. Server maintenance scheduled"
-              required
-            />
-          </Field>
-
-          <Field label="Description / Message">
-            <Textarea
-              value={createForm.subtitle}
-              onChange={(e) => setCreateForm((p) => ({ ...p, subtitle: e.target.value }))}
-              placeholder="Provide context or instructions for this notification…"
-              rows={3}
-            />
-          </Field>
-
-          <Field
-            label="Target Link (optional)"
-            hint="Internal page URL (e.g., /dashboard/payments, /dashboard/notices)"
-          >
-            <Input
-              value={createForm.link}
-              onChange={(e) => setCreateForm((p) => ({ ...p, link: e.target.value }))}
-              placeholder="/dashboard/..."
-            />
-          </Field>
-        </form>
-      </Modal>
 
       {/* Confirmation Dialog: Clear All Read */}
       <ConfirmDialog
