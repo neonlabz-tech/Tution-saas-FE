@@ -102,6 +102,7 @@ function Notifications() {
   return (
     <Dropdown
       width="w-84 sm:w-96"
+      mobileFixed
       trigger={({ toggle }) => (
         <button
           onClick={toggle}

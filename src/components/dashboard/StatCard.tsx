@@ -42,7 +42,7 @@ export function StatCard({
           <div className={cn("flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg", gradient)}>
             <Icon className="h-5 w-5" />
           </div>
-          {delta !== undefined && (
+          {delta !== undefined && delta !== null && delta !== 0 && (
             <span className={cn("inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold", good ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400")}>
               {delta >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
               {Math.abs(delta)}%

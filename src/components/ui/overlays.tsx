@@ -209,11 +209,13 @@ export function Dropdown({
   children,
   align = "right",
   width = "w-72",
+  mobileFixed = false,
 }: {
   trigger: (p: { open: boolean; toggle: () => void }) => ReactNode;
   children: (close: () => void) => ReactNode;
   align?: "left" | "right";
   width?: string;
+  mobileFixed?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -238,7 +240,21 @@ export function Dropdown({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className={cn("absolute top-full z-50 mt-2 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-line bg-surface shadow-pop", width, align === "right" ? "right-0" : "left-0")}
+            className={cn(
+              "z-50 overflow-hidden rounded-2xl border border-line bg-surface shadow-pop",
+              mobileFixed
+                ? cn(
+                    "max-sm:fixed max-sm:left-3 max-sm:right-3 max-sm:top-[74px] max-sm:w-auto max-sm:max-w-none",
+                    "sm:absolute sm:top-full sm:mt-2 sm:max-w-[calc(100vw-2rem)]",
+                    width,
+                    align === "right" ? "sm:right-0" : "sm:left-0",
+                  )
+                : cn(
+                    "absolute top-full mt-2 max-w-[calc(100vw-2rem)]",
+                    width,
+                    align === "right" ? "right-0" : "left-0",
+                  ),
+            )}
           >
             {children(() => setOpen(false))}
           </motion.div>

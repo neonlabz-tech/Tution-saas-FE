@@ -52,15 +52,6 @@ export async function listNotifications(
       }
     }
 
-    // If still missing, check subtitle or message for an embedded date like "Enrolled 2026-11-20"
-    if (!createdAt) {
-      const combinedText = `${item.subtitle || ""} ${item.message || ""} ${item.title || ""}`;
-      const match = combinedText.match(/\b(\d{4}-\d{2}-\d{2})\b/);
-      if (match) {
-        createdAt = new Date(match[1]).toISOString();
-      }
-    }
-
     return {
       id: String(item.id || item._id || `notif_${idx}`),
       type: item.type || "system",

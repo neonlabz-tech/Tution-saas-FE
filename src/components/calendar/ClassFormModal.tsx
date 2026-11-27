@@ -335,11 +335,14 @@ function Inner({
         ) : (
           <Select {...register("moduleId")}>
             <option value="">Select module…</option>
-            {modules.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
+            {modules
+              .filter((m) => m.status !== "archived" || m.id === watch("moduleId"))
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                  {m.status === "archived" ? " (Archived)" : ""}
+                </option>
+              ))}
           </Select>
         )}
       </Field>
@@ -349,11 +352,14 @@ function Inner({
         ) : (
           <Select {...register("teacherId")}>
             <option value="">Select teacher…</option>
-            {teachers.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.fullName}
-              </option>
-            ))}
+            {teachers
+              .filter((t) => t.status === "active" || t.id === watch("teacherId"))
+              .map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.fullName}
+                  {t.status === "inactive" ? " (Inactive)" : ""}
+                </option>
+              ))}
           </Select>
         )}
       </Field>

@@ -133,7 +133,7 @@ function Inner({
         <Field label="Amount (LKR)" error={errors.amount?.message}>
           <Input
             type="number"
-            step={100}
+            step="any"
             min={0}
             disabled={isSubmitting}
             onKeyDown={(e) => {

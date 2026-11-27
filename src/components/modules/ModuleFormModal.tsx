@@ -167,8 +167,25 @@ function Inner({
     }
   };
 
+  const onInvalid = (fieldErrors: typeof errors) => {
+    const firstKey = Object.keys(fieldErrors)[0];
+    if (firstKey) {
+      const el = document.querySelector(`[name="${firstKey}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        if ("focus" in el && typeof (el as HTMLElement).focus === "function") {
+          (el as HTMLElement).focus();
+        }
+      }
+      const first = Object.values(fieldErrors)[0];
+      if (first?.message) {
+        toast.error(first.message);
+      }
+    }
+  };
+
   return (
-    <form id="module-form" onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="grid gap-4 sm:grid-cols-2">
+    <form id="module-form" onSubmit={(e) => void handleSubmit(onSubmit, onInvalid)(e)} className="grid gap-4 sm:grid-cols-2">
       <Field label="Module code" error={errors.code?.message}>
         <Input {...register("code")} className="num uppercase" placeholder="MTH-101" />
       </Field>
@@ -182,7 +199,7 @@ function Inner({
         <Input
           type="number"
           min={0}
-          step={500}
+          step="any"
           onKeyDown={(e) => {
             if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
           }}
@@ -199,11 +216,14 @@ function Inner({
         ) : (
           <Select {...register("teacherId")}>
             <option value="">Unassigned</option>
-            {teachers.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.fullName}
-              </option>
-            ))}
+            {teachers
+              .filter((t) => t.status === "active" || t.id === watch("teacherId"))
+              .map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.fullName}
+                  {t.status === "inactive" ? " (Inactive)" : ""}
+                </option>
+              ))}
           </Select>
         )}
       </Field>

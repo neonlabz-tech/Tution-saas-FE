@@ -78,6 +78,7 @@ export default function QrScannerPage() {
     const q = manual.trim().toLowerCase();
     if (q.length < 2) return [];
     return students
+      .filter((s) => s.status === "active")
       .filter((s) => {
         return (
           s.fullName.toLowerCase().includes(q) ||
@@ -174,6 +175,23 @@ export default function QrScannerPage() {
           outstanding: verifyRes.student.outstanding,
           paymentStatus: verifyRes.student.paymentStatus,
         };
+
+        if (currentStudent.status !== "active") {
+          playScanFeedback("error");
+          toast.error(`${currentStudent.fullName} is ${currentStudent.status}. QR attendance is rejected.`);
+          setError(`${currentStudent.fullName} is ${currentStudent.status}. Attendance can only be recorded for active students.`);
+          setResult(null);
+          setVerifyData(null);
+          const entry: RecentScan = {
+            id: currentStudent.id,
+            name: currentStudent.fullName,
+            status: "Failed",
+            ok: false,
+            at,
+          };
+          setRecent((r) => [entry, ...r].slice(0, 10));
+          return false;
+        }
 
         setResult(currentStudent);
         setError("");
