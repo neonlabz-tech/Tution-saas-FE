@@ -417,6 +417,7 @@ export default function NotificationsPage() {
             }}
             items={[
               { id: "all", label: `All (${counts.all})` },
+              { id: "student", label: `Students (${counts.student})` },
               { id: "payment", label: `Payments (${counts.payment})` },
               { id: "attendance", label: `Attendance (${counts.attendance})` },
               { id: "class", label: `Classes (${counts.class})` },

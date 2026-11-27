@@ -952,7 +952,7 @@ export default function FinancePage() {
 
       {tab === "overview" && (
         <div className="space-y-6">
-          <Card>
+          <Card className="min-w-0">
             <CardHeader
               title="Income vs expenses"
               subtitle="Net balance shown as line"
@@ -1093,7 +1093,7 @@ export default function FinancePage() {
             ))}
           </div>
 
-          <Card>
+          <Card className="min-w-0">
             <CardHeader title="Latest transactions" className="pb-4" />
             <DataTable
               data={overviewList}
@@ -1172,8 +1172,8 @@ export default function FinancePage() {
       )}
 
       {tab === "payments" && (
-        <div className="grid gap-6 xl:grid-cols-3">
-          <Card className="xl:col-span-2">
+        <div className="grid min-w-0 max-w-full gap-6 xl:grid-cols-3">
+          <Card className="min-w-0 max-w-full overflow-hidden xl:col-span-2">
             <CardHeader
               title="Payment history"
               subtitle={`${historyPagination.total} student payments recorded`}
@@ -1200,7 +1200,7 @@ export default function FinancePage() {
             />
           </Card>
 
-          <Card>
+          <Card className="min-w-0">
             <CardHeader
               title="Outstanding balances"
               subtitle={

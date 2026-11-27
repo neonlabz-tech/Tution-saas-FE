@@ -387,11 +387,14 @@ export default function StudentsPage() {
             aria-label="Filter by module"
           >
             <option value="all">All modules</option>
-            {modules.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
+            {modules
+              .filter((m) => m.status !== "archived")
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                  {m.status === "upcoming" ? " (Upcoming)" : ""}
+                </option>
+              ))}
           </Select>
           <Select
             value={status}

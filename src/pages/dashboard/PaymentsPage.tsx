@@ -353,7 +353,7 @@ function EditPaymentModal({
               <Input
                 type="number"
                 min={0}
-                step={100}
+                step="any"
                 value={amount}
                 disabled={submitting}
                 onKeyDown={(e) => {
@@ -367,7 +367,7 @@ function EditPaymentModal({
               <Input
                 type="number"
                 min={0}
-                step={100}
+                step="any"
                 value={discount}
                 disabled={submitting}
                 onKeyDown={(e) => {
@@ -1577,7 +1577,7 @@ export default function PaymentsPage() {
             </div>
           </Card>
 
-          <Card>
+          <Card className="min-w-0">
             <CardHeader
               title="Student Fee Status"
               subtitle={`${studentsPagination.total} students matching filters · click any row to view full payment ledger`}
@@ -1657,7 +1657,7 @@ export default function PaymentsPage() {
             </div>
           </Card>
 
-          <Card>
+          <Card className="min-w-0">
             <CardHeader
               title="Payment History & Receipts"
               subtitle="Download official PDF receipts, edit entries, or record a new fee payment"

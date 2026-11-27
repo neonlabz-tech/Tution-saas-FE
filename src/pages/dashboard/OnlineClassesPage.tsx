@@ -116,6 +116,23 @@ export default function OnlineClassesPage() {
     q: debouncedQ || undefined,
   });
 
+  useEffect(() => {
+    if (view !== "calendar") return;
+    const timer = setTimeout(() => {
+      const prevBtn = document.querySelector(".fc-prev-button");
+      const nextBtn = document.querySelector(".fc-next-button");
+      if (prevBtn) {
+        prevBtn.setAttribute("aria-label", "Previous");
+        prevBtn.setAttribute("title", "Previous");
+      }
+      if (nextBtn) {
+        nextBtn.setAttribute("aria-label", "Next");
+        nextBtn.setAttribute("title", "Next");
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [view, calendarRange]);
+
   const moduleMap = useMemo(() => new Map(modules.map((m) => [m.id, m])), [modules]);
   const teacherMap = useMemo(() => new Map(teachers.map((t) => [t.id, t])), [teachers]);
   const moduleIndexMap = useMemo(() => new Map(modules.map((m, idx) => [m.id, idx])), [modules]);
@@ -517,6 +534,13 @@ export default function OnlineClassesPage() {
                   week: "Week",
                   day: "Day",
                   list: "List",
+                  prev: "Previous",
+                  next: "Next",
+                }}
+                buttonHints={{
+                  prev: "Previous",
+                  next: "Next",
+                  today: "Today",
                 }}
                 events={events}
                 editable

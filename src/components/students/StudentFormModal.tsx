@@ -312,6 +312,16 @@ function Inner({
   }
 
   const onInvalid = (fieldErrors: typeof errors) => {
+    const firstKey = Object.keys(fieldErrors)[0];
+    if (firstKey) {
+      const el = document.querySelector(`[name="${firstKey}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        if ("focus" in el && typeof (el as HTMLElement).focus === "function") {
+          (el as HTMLElement).focus();
+        }
+      }
+    }
     const first = Object.values(fieldErrors)[0];
     if (first?.message) {
       toast.error(first.message);
@@ -342,8 +352,12 @@ function Inner({
           className="num"
         />
       </Field>
-      <Field label="Date of birth" error={errors.dob?.message}>
-        <Input type="date" {...register("dob")} />
+      <Field
+        label="Date of birth"
+        error={errors.dob?.message}
+        hint="Format: DD/MM/YYYY"
+      >
+        <Input type="date" lang="en-GB" {...register("dob")} placeholder="dd/mm/yyyy" />
       </Field>
       <Field label="Enrollment date" error={errors.enrollmentDate?.message}>
         <Input type="date" {...register("enrollmentDate")} />
@@ -424,7 +438,16 @@ function Inner({
               <MultiSelect
                 value={field.value}
                 onChange={field.onChange}
-                options={modules.map((m) => ({ value: m.id, label: m.name }))}
+                options={modules
+                  .filter(
+                    (m) =>
+                      m.status !== "archived" ||
+                      (field.value && field.value.includes(m.id)),
+                  )
+                  .map((m) => ({
+                    value: m.id,
+                    label: m.name + (m.status === "archived" ? " (Archived)" : ""),
+                  }))}
               />
             )}
           />

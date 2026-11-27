@@ -186,10 +186,25 @@ function PaymentForm({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sid) return setError("Search and select a student first.");
-    if (owed <= 0) return setError("This student has no outstanding balance.");
-    if (amt <= 0) return setError("Enter a payment amount greater than zero.");
-    if (amt > owed) return setError(`Amount exceeds the outstanding balance of ${formatLkrPrice(owed)}.`);
+    if (!sid) {
+      toast.error("Search and select a student first.");
+      return setError("Search and select a student first.");
+    }
+    if (owed <= 0) {
+      toast.error("This student has no outstanding balance.");
+      return setError("This student has no outstanding balance.");
+    }
+    if (amt <= 0) {
+      toast.error("Enter a payment amount greater than zero.");
+      return setError("Enter a payment amount greater than zero.");
+    }
+    if (amt > owed) {
+      const msg = `Amount exceeds the outstanding balance of ${formatLkrPrice(owed)}.`;
+      toast.error(msg);
+      setError(msg);
+      document.getElementById("amount-field")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
 
     setError("");
     setSubmitting(true);
@@ -376,12 +391,12 @@ function PaymentForm({
         </div>
       )}
 
-      <div>
-        <Field label="Amount (LKR)">
+      <div id="amount-field">
+        <Field label="Amount (LKR)" error={error || undefined}>
           <Input
             type="number"
-            min={0}
-            step={100}
+            min={1}
+            step="any"
             placeholder="0"
             value={amount}
             disabled={submitting}
@@ -409,9 +424,11 @@ function PaymentForm({
             >
               50% partial
             </Button>
-            <Button size="sm" variant="soft" disabled={submitting} onClick={() => setAmount(String(Math.min(owed, 10000)))}>
-              LKR 10,000
-            </Button>
+            {owed >= 10000 && (
+              <Button size="sm" variant="soft" disabled={submitting} onClick={() => setAmount(String(10000))}>
+                LKR 10,000
+              </Button>
+            )}
             {amt > 0 && amt <= owed && (
               <Badge tone={amt === owed ? "green" : "amber"}>
                 {amt === owed ? "Settles in full" : `Partial · ${formatLkrPrice(owed - amt)} remains`}
