@@ -162,19 +162,80 @@ export type TeacherPayload = Omit<Teacher, "id"> & { moduleIds: string[] };
 
 const TOKEN_KEY = "eduflow_access_token";
 
+export const USER_STORAGE_KEYS = [
+  "eduflow_access_token",
+  "eduflow_notif_read_ids_v1",
+  "eduflow_notif_deleted_ids_v1",
+  "eduflow_remember_email",
+  "eduflow_remember_me",
+  "eduflow-student-read-notifs",
+  "student_notif_read_v1",
+] as const;
+
+export function clearUserStorage(): void {
+  if (typeof window === "undefined") return;
+  for (const key of USER_STORAGE_KEYS) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+  }
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (
+        k &&
+        (k.startsWith("eduflow_notif_") ||
+          k.startsWith("eduflow_remember_") ||
+          k.startsWith("eduflow_access_") ||
+          k.startsWith("student_notif_") ||
+          k === "eduflow-student-read-notifs")
+      ) {
+        toRemove.push(k);
+      }
+    }
+    for (const k of toRemove) {
+      localStorage.removeItem(k);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// In-memory token reference for the current runtime session; never persisted in localStorage
+let inMemoryToken: string | null = null;
+
+// Purge any legacy access token that may have been saved to localStorage
+if (typeof window !== "undefined") {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export function getAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return inMemoryToken;
 }
 
 export function setAuthToken(token: string): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(TOKEN_KEY, token);
+  inMemoryToken = token;
+  // Ensure token is never stored in localStorage to protect against XSS script access
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export function clearAuthToken(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(TOKEN_KEY);
+  inMemoryToken = null;
+  clearUserStorage();
+  invalidateApiCache();
 }
 
 export class ApiError extends Error {
@@ -211,9 +272,39 @@ interface ApiEnvelope<T> {
   details?: ApiErrorDetail[];
 }
 
-export async function requestWithMeta<T>(
+export interface RequestMetaOptions extends RequestInit {
+  skipCache?: boolean;
+  cacheTtlMs?: number;
+}
+
+interface CacheEntry<T> {
+  data: T;
+  message?: string;
+  expiresAt: number;
+}
+
+const inFlightRequests = new Map<string, Promise<{ data: any; message?: string }>>();
+const apiCache = new Map<string, CacheEntry<any>>();
+
+// Short-lived default cache TTL: 25 seconds (prevents refetching on every tab navigation)
+const DEFAULT_CACHE_TTL = 25_000;
+
+export function invalidateApiCache(pattern?: string | RegExp): void {
+  if (!pattern) {
+    apiCache.clear();
+    return;
+  }
+  for (const key of apiCache.keys()) {
+    const match = typeof pattern === "string" ? key.includes(pattern) : pattern.test(key);
+    if (match) {
+      apiCache.delete(key);
+    }
+  }
+}
+
+async function executeFetch<T>(
   path: string,
-  init?: RequestInit,
+  init?: RequestMetaOptions,
 ): Promise<{ data: T; message?: string }> {
   const token = getAuthToken();
   const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
@@ -258,7 +349,67 @@ export async function requestWithMeta<T>(
   return { data, message };
 }
 
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function requestWithMeta<T>(
+  path: string,
+  init?: RequestMetaOptions,
+): Promise<{ data: T; message?: string }> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const token = getAuthToken();
+
+  // If a mutation occurs, invalidate associated cached GET requests immediately
+  if (method !== "GET") {
+    if (path.includes("/teachers")) invalidateApiCache(/teachers|overview|classes/);
+    else if (path.includes("/modules")) invalidateApiCache(/modules|overview/);
+    else if (path.includes("/students")) invalidateApiCache(/students|overview|payments/);
+    else if (path.includes("/attendance")) invalidateApiCache(/attendance|overview/);
+    else if (path.includes("/payments") || path.includes("/transactions")) {
+      invalidateApiCache(/payments|transactions|overview|students/);
+    } else if (path.includes("/batches")) {
+      invalidateApiCache(/batches|modules|students|teachers|overview/);
+    } else if (path.includes("/classes")) invalidateApiCache(/classes|overview/);
+    else if (path.includes("/notifications")) invalidateApiCache(/notifications/);
+    else invalidateApiCache(/overview/);
+
+    return executeFetch<T>(path, init);
+  }
+
+  // GET request caching and in-flight deduplication
+  const cacheKey = `${path}:${token ?? ""}`;
+
+  if (!init?.skipCache) {
+    const cached = apiCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return { data: cached.data as T, message: cached.message };
+    }
+
+    const inFlight = inFlightRequests.get(cacheKey);
+    if (inFlight) {
+      return inFlight as Promise<{ data: T; message?: string }>;
+    }
+  }
+
+  const promise = executeFetch<T>(path, init)
+    .then((result) => {
+      if (!init?.skipCache) {
+        const ttl = typeof init?.cacheTtlMs === "number" ? init.cacheTtlMs : DEFAULT_CACHE_TTL;
+        if (ttl > 0) {
+          apiCache.set(cacheKey, { data: result.data, message: result.message, expiresAt: Date.now() + ttl });
+        }
+      }
+      return result;
+    })
+    .finally(() => {
+      inFlightRequests.delete(cacheKey);
+    });
+
+  if (!init?.skipCache) {
+    inFlightRequests.set(cacheKey, promise);
+  }
+
+  return promise;
+}
+
+export async function request<T>(path: string, init?: RequestMetaOptions): Promise<T> {
   const { data } = await requestWithMeta<T>(path, init);
   return data;
 }

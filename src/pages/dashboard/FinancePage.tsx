@@ -458,6 +458,12 @@ export default function FinancePage() {
     if (!delTx) return;
     setIsDeleting(true);
     try {
+      const targetId = delTx.id;
+      setOverviewList((p) => p.filter((x) => x.id !== targetId));
+      setIncomeList((p) => p.filter((x) => x.id !== targetId));
+      setExpenseList((p) => p.filter((x) => x.id !== targetId));
+      setHistoryList((p) => p.filter((x) => x.id !== targetId));
+
       await deleteTransaction(delTx.id);
       toast.success("Transaction deleted");
       setDelTx(null);
@@ -1416,7 +1422,27 @@ export default function FinancePage() {
         studentId={pay.studentId}
         studentSummary={pay.summary}
         onClose={() => setPay({ open: false })}
-        onDone={triggerRefresh}
+        onDone={(res) => {
+          if (res?.payment) {
+            const p = res.payment;
+            const newTx = {
+              id: p.id,
+              type: "income" as const,
+              category: "Tuition fees",
+              amount: p.amount,
+              date: p.date,
+              description: p.description || `Tuition payment — ${p.studentName || ""}`,
+              method: p.method,
+              studentId: p.studentId,
+              studentName: p.studentName,
+              reference: p.receiptNo,
+            };
+            setOverviewList((prev) => [newTx, ...prev]);
+            setIncomeList((prev) => [newTx, ...prev]);
+            setHistoryList((prev) => [p, ...prev]);
+          }
+          triggerRefresh();
+        }}
       />
       <ConfirmDialog
         open={!!delTx}

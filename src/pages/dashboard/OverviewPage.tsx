@@ -10,7 +10,6 @@ import {
   ClipboardCheck,
   CreditCard,
   GraduationCap,
-  Megaphone,
   Percent,
   RefreshCw,
   ScanLine,
@@ -100,16 +99,15 @@ export default function OverviewPage() {
     { label: "Add Student", icon: UserPlus, to: "/dashboard/students?new=1" },
     { label: "Mark Attendance", icon: ClipboardCheck, to: "/dashboard/attendance" },
     { label: "Record Payment", icon: CreditCard, action: () => setPay(true) },
-    { label: "Create Notice", icon: Megaphone, to: "/dashboard/notices?new=1" },
     { label: "Open QR Scanner", icon: ScanLine, to: "/dashboard/qr-scanner" },
   ];
 
   const kpis = [
     { label: "Total students", value: String(kpiData.totalStudents.value), icon: GraduationCap, gradient: "from-[#8B51BE] to-[#6D3599]", color: "#8B51BE", spark: kpiData.totalStudents.spark, delta: kpiData.totalStudents.delta },
-    { label: "Active students", value: String(kpiData.activeStudents.value), icon: UserCheck, gradient: "from-[#A771CF] to-[#552780]", color: "#A771CF", sub: `${kpiData.activeStudents.percentOfEnrollment}% of enrollment`, spark: kpiData.activeStudents.spark },
+    { label: "Active students", value: String(kpiData.activeStudents.value), icon: UserCheck, gradient: "from-[#A771CF] to-[#552780]", color: "#A771CF", sub: kpiData.activeStudents.percentOfEnrollment > 0 ? `${kpiData.activeStudents.percentOfEnrollment}% of enrollment` : undefined, spark: kpiData.activeStudents.spark },
     { label: "Total teachers", value: String(kpiData.totalTeachers.value), icon: Users, gradient: "from-[#BC99D9] to-[#713E99]", color: "#9A6DBC", sub: `${kpiData.totalTeachers.activeTeachers} currently active` },
     { label: "Active modules", value: String(kpiData.activeModules.value), icon: BookOpen, gradient: "from-[#CBADE3] to-[#A774D1]", color: "#A774D1", sub: `${kpiData.activeModules.totalModules} modules in total` },
-    { label: "Today's attendance", value: kpiData.todayAttendance.markedCount ? `${kpiData.todayAttendance.rate}%` : "—", icon: Percent, gradient: "from-[#7948A2] to-[#461A71]", color: "#7948A2", sub: `${kpiData.todayAttendance.markedCount} students marked today`, spark: kpiData.todayAttendance.spark },
+    { label: "Today's attendance", value: kpiData.todayAttendance.markedCount && kpiData.todayAttendance.rate > 0 ? `${kpiData.todayAttendance.rate}%` : "—", icon: Percent, gradient: "from-[#7948A2] to-[#461A71]", color: "#7948A2", sub: kpiData.todayAttendance.markedCount > 0 ? `${kpiData.todayAttendance.markedCount} students marked today` : undefined, spark: kpiData.todayAttendance.spark },
     { label: "Monthly income", value: formatLkrPrice(kpiData.monthlyIncome.value), icon: TrendingUp, gradient: "from-[#8B51BE] to-[#6D3599]", color: "#7D41AB", spark: kpiData.monthlyIncome.spark, delta: kpiData.monthlyIncome.delta },
     { label: "Monthly expenses", value: formatLkrPrice(kpiData.monthlyExpenses.value), icon: TrendingDown, gradient: "from-[#4D1882] to-[#2B0A4D]", color: "#4D1882", spark: kpiData.monthlyExpenses.spark, delta: kpiData.monthlyExpenses.delta, deltaGoodWhenUp: false },
     { label: "Outstanding payments", value: formatLkrPrice(kpiData.outstandingPayments.value), icon: Banknote, gradient: "from-[#693AA0] to-[#2F164E]", color: "#693AA0", sub: `${kpiData.outstandingPayments.studentsWithBalances} students with balances` },

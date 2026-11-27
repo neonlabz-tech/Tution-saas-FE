@@ -82,7 +82,7 @@ export function StudentDetail({
             ...prev,
             ref: rotated.ref,
             qrPayload: rotated.qrPayload,
-            qrRotatedAt: rotated.qrRotatedAt,
+            qrRotatedAt: rotated.qrRotatedAt || rotated.rotatedAt,
           }
         : prev,
     );

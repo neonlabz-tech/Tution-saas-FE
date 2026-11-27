@@ -68,13 +68,32 @@ export function ClassDetailDrawer({
     }
   };
 
+  const now = toLocalDT(new Date());
+  const isPast = item ? item.end < now : false;
+  const isFuture = item ? (item.start > now || new Date(item.start).getTime() > Date.now()) : false;
+  const isCancelled = item?.status === "cancelled";
+  const isCompleted = item?.status === "completed";
+  const isEnded = isPast || isCompleted;
+
   const handleStatusChange = async (status: ClassStatus) => {
     if (!item || updatingStatus || item.status === status) return;
+
+    if (status === "completed" && isFuture) {
+      toast.error("Future classes cannot be completed early before their date");
+      return;
+    }
+
     setUpdatingStatus(true);
+    const prevItem = item;
+    const optimisticUpdated: OnlineClassItem = { ...item, status };
+    setItem(optimisticUpdated);
+    onUpdated(optimisticUpdated);
+
     try {
       const updated = await updateOnlineClass(item.id, { status });
-      setItem({ ...item, ...updated });
-      onUpdated({ ...item, ...updated });
+      const finalItem = { ...optimisticUpdated, ...updated, status: updated.status ?? status };
+      setItem(finalItem);
+      onUpdated(finalItem);
       toast.success(
         status === "cancelled"
           ? "Class cancelled"
@@ -83,17 +102,13 @@ export function ClassDetailDrawer({
             : "Class marked scheduled",
       );
     } catch (err: unknown) {
+      setItem(prevItem);
+      onUpdated(prevItem);
       toast.error(err instanceof Error ? err.message : "Failed to update class status");
     } finally {
       setUpdatingStatus(false);
     }
   };
-
-  const now = toLocalDT(new Date());
-  const isPast = item ? item.end < now : false;
-  const isCancelled = item?.status === "cancelled";
-  const isCompleted = item?.status === "completed";
-  const isEnded = isPast || isCompleted;
 
   return (
     <Drawer
@@ -186,9 +201,11 @@ export function ClassDetailDrawer({
                     <MapPin className="h-3.5 w-3.5" /> Location: {item.hall}
                   </div>
                 ) : null}
-                <Button size="sm" variant="soft" onClick={() => onEdit(item)} disabled={updatingStatus}>
-                  <Pencil className="h-3.5 w-3.5" /> Edit / Reschedule
-                </Button>
+                {!isEnded && (
+                  <Button size="sm" variant="soft" onClick={() => onEdit(item)} disabled={updatingStatus}>
+                    <Pencil className="h-3.5 w-3.5" /> Edit / Reschedule
+                  </Button>
+                )}
               </div>
 
             <div className="rounded-2xl border border-line p-4">
@@ -250,7 +267,8 @@ export function ClassDetailDrawer({
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={updatingStatus}
+                      disabled={updatingStatus || isFuture}
+                      title={isFuture ? "Future class cannot be completed early" : "Mark class completed"}
                       onClick={() => void handleStatusChange("completed")}
                     >
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Mark completed

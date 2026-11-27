@@ -12,7 +12,7 @@ import type {
 import { Avatar, Badge, Button, ProgressBar, Select, Skeleton, StatusBadge } from "@/components/ui/primitives";
 import { RecordPaymentModal } from "@/components/finance/RecordPaymentModal";
 import { useToast } from "@/components/ui/toast";
-import { useAppData } from "@/hooks/useAppData";
+import { useAppData, formatModuleName } from "@/hooks/useAppData";
 import { getStudentById } from "@/api/students";
 import { attendanceApi } from "@/lib/api";
 import { formatLkrPrice, todayISO } from "@/lib/utils";
@@ -56,11 +56,11 @@ export function ScanResult({
   onDismiss,
   onMarkSuccess,
 }: ScanResultProps) {
-  const { getModule, outstanding, feeTotal, paidTotal, attendance, markAttendance } = useAppData();
+  const { modules, getModule, outstanding, feeTotal, paidTotal, attendance, markAttendance } = useAppData();
   const toast = useToast();
 
-  const defaultModule = initialModuleId && student.moduleIds.includes(initialModuleId)
-    ? initialModuleId
+  const defaultModule = initialModuleId && student.moduleIds.some((id) => id.toLowerCase() === initialModuleId.toLowerCase())
+    ? (student.moduleIds.find((id) => id.toLowerCase() === initialModuleId.toLowerCase()) ?? initialModuleId)
     : (student.moduleIds[0] ?? "");
 
   const [moduleId, setModuleId] = useState(defaultModule);
@@ -130,13 +130,28 @@ export function ScanResult({
   const paymentStatus = liveBalance?.paymentStatus ?? deriveStatus(resolvedPaidTotal, owed);
   const today = todayISO();
 
-  const localExisting = attendance.find((a) => a.id === `att_${student.id}_${moduleId}_${today}`);
-  const existing = initialExistingRecord && initialExistingRecord.moduleId === moduleId
-    ? initialExistingRecord
-    : localExisting;
+  const localExisting = attendance.find(
+    (a) =>
+      a.studentId.toLowerCase() === student.id.toLowerCase() &&
+      a.date === today &&
+      (a.moduleId.toLowerCase() === moduleId.toLowerCase() ||
+        getModule(a.moduleId)?.code?.toLowerCase() === moduleId.toLowerCase() ||
+        getModule(a.moduleId)?.id?.toLowerCase() === moduleId.toLowerCase()),
+  );
+  const existing =
+    initialExistingRecord &&
+    (initialExistingRecord.moduleId.toLowerCase() === moduleId.toLowerCase() ||
+      getModule(initialExistingRecord.moduleId)?.code?.toLowerCase() === moduleId.toLowerCase() ||
+      getModule(initialExistingRecord.moduleId)?.id?.toLowerCase() === moduleId.toLowerCase())
+      ? initialExistingRecord
+      : localExisting;
 
-  const isDuplicate = initialAlreadyMarked || existing?.status === "present";
-  const isEnrolledInSelected = !moduleId || student.moduleIds.includes(moduleId);
+  const isDuplicate =
+    existing?.status === "present" ||
+    (Boolean(initialAlreadyMarked) &&
+      (!initialModuleId || moduleId.toLowerCase() === initialModuleId.toLowerCase()));
+  const recordedMethod = existing?.method || initialExistingRecord?.method || "manual";
+  const isEnrolledInSelected = !moduleId || student.moduleIds.some((id) => id.toLowerCase() === moduleId.toLowerCase());
 
   const handleMark = async (status: AttendanceStatus = "present") => {
     if (!moduleId) {
@@ -144,7 +159,7 @@ export function ScanResult({
       return;
     }
     if (!isEnrolledInSelected) {
-      toast.error(`${student.fullName} is not enrolled in ${getModule(moduleId)?.name ?? "this module"}.`);
+      toast.error(`${student.fullName} is not enrolled in ${formatModuleName(getModule(moduleId)?.name ?? moduleId, modules)}.`);
       return;
     }
 
@@ -165,13 +180,13 @@ export function ScanResult({
 
       toast.success(
         res.isNew
-          ? `${student.fullName} marked ${status} in ${res.module?.name ?? getModule(moduleId)?.name} (QR scan recorded)`
+          ? `${student.fullName} marked ${status} in ${res.module?.name ?? formatModuleName(getModule(moduleId)?.name ?? moduleId, modules)} (QR scan recorded)`
           : `Updated ${student.fullName} attendance to ${status}`,
       );
     } catch {
       // Offline fallback
       markAttendance(student.id, moduleId, today, status, "qr");
-      toast.success(`${student.fullName} marked ${status} — ${getModule(moduleId)?.name}`);
+      toast.success(`${student.fullName} marked ${status} — ${formatModuleName(getModule(moduleId)?.name ?? moduleId, modules)}`);
     } finally {
       setMarking(false);
     }
@@ -247,8 +262,9 @@ export function ScanResult({
             <div className="text-xs text-amber-900 dark:text-amber-200">
               <p className="font-semibold">Student already recorded today</p>
               <p className="mt-0.5 opacity-90">
-                Marked as <b className="capitalize">{existing?.status ?? "present"}</b> via {existing?.method ?? "qr"} for module{" "}
-                <b>{getModule(moduleId)?.name}</b>.
+                Marked as <b className="capitalize">{existing?.status ?? initialExistingRecord?.status ?? "present"}</b> via{" "}
+                <b className="font-semibold">{recordedMethod}</b> for module{" "}
+                <b>{formatModuleName(getModule(moduleId)?.name ?? moduleId, modules)}</b>.
               </p>
             </div>
           </div>
@@ -259,20 +275,41 @@ export function ScanResult({
           <p className="mb-2 text-xs font-semibold text-muted">Registered modules</p>
           <div className="flex flex-wrap gap-1.5">
             {student.moduleIds.length > 0 ? (
-              student.moduleIds.map((id) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setModuleId(id)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
-                    moduleId === id
-                      ? "bg-primary text-white font-semibold shadow-sm"
-                      : "bg-surface-2 text-muted hover:text-ink hover:bg-surface-3"
-                  }`}
-                >
-                  {getModule(id)?.name ?? id}
-                </button>
-              ))
+              student.moduleIds.map((id) => {
+                const isMarkedThis = attendance.some(
+                  (a) =>
+                    a.studentId === student.id &&
+                    (a.moduleId.toLowerCase() === id.toLowerCase() ||
+                      getModule(a.moduleId)?.code?.toLowerCase() === id.toLowerCase()) &&
+                    a.date === today &&
+                    a.status === "present",
+                );
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setModuleId(id)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                      moduleId.toLowerCase() === id.toLowerCase()
+                        ? "bg-primary text-white font-semibold shadow-sm"
+                        : "bg-surface-2 text-muted hover:text-ink hover:bg-surface-3"
+                    }`}
+                  >
+                    <span>{formatModuleName(getModule(id)?.name ?? id, modules)}</span>
+                    {isMarkedThis && (
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                          moduleId.toLowerCase() === id.toLowerCase()
+                            ? "bg-white/20 text-white"
+                            : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        }`}
+                      >
+                        ✓ Present
+                      </span>
+                    )}
+                  </button>
+                );
+              })
             ) : (
               <span className="text-xs text-rose-500">No modules registered</span>
             )}
@@ -376,11 +413,22 @@ export function ScanResult({
               onChange={(e) => setModuleId(e.target.value)}
               aria-label="Module to mark"
             >
-              {student.moduleIds.map((id) => (
-                <option key={id} value={id}>
-                  {getModule(id)?.name} ({getModule(id)?.code})
-                </option>
-              ))}
+              {student.moduleIds.map((id) => {
+                const mod = getModule(id);
+                const isMarkedThis = attendance.some(
+                  (a) =>
+                    a.studentId === student.id &&
+                    (a.moduleId.toLowerCase() === id.toLowerCase() ||
+                      getModule(a.moduleId)?.code?.toLowerCase() === id.toLowerCase()) &&
+                    a.date === today &&
+                    a.status === "present",
+                );
+                return (
+                  <option key={id} value={id}>
+                    {formatModuleName(mod?.name ?? id, modules)} ({mod?.code ?? id}){isMarkedThis ? " — ✓ Present" : ""}
+                  </option>
+                );
+              })}
             </Select>
 
             <div className="flex gap-2">

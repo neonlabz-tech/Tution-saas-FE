@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, Bell, CalendarClock, CheckCheck, ChevronRight, LogOut, Menu, Moon, PanelLeft, Receipt, Sun, Wallet } from "lucide-react";
-import { Avatar, Badge, Button } from "@/components/ui/primitives";
+import { Avatar, Badge } from "@/components/ui/primitives";
 import { Dropdown } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { useTheme } from "@/hooks/useTheme";
 import { useStudentAuth } from "@/hooks/useStudentAuth";
 import { useStudentData } from "@/hooks/useStudentData";
 import { STUDENT_HOME, STUDENT_NAV } from "@/lib/studentNav";
-import { notificationsApi } from "@/lib/api";
 import { fmtDate, fmtLKR, fmtTime, toLocalDT, todayISO } from "@/lib/utils";
 
 const READ_KEY = "eduflow-student-read-notifs";
@@ -31,25 +30,6 @@ function writeSet(set: Set<string>) {
 function Notifications() {
   const { data } = useStudentData();
   const [readIds, setReadIds] = useState<Set<string>>(() => readSet());
-  const [liveNotifs, setLiveNotifs] = useState<any[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    const fetchNotifs = notificationsApi.list ?? notificationsApi.get;
-    if (typeof fetchNotifs === "function") {
-      fetchNotifs
-        .call(notificationsApi)
-        .then((res) => {
-          if (active && res && Array.isArray(res.items)) {
-            setLiveNotifs(res.items);
-          }
-        })
-        .catch(() => {});
-    }
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const items = useMemo(() => {
     const list: { id: string; icon: any; tone: string; title: string; sub: string; to: string }[] = [];
@@ -113,23 +93,8 @@ function Notifications() {
         });
       });
 
-    // 5. Backend system announcements
-    liveNotifs
-      .filter((n) => n.persisted && !n.id.startsWith("stu_reg_"))
-      .slice(0, 3)
-      .forEach((n) => {
-        list.push({
-          id: `sys_${n.id}`,
-          icon: Bell,
-          tone: "bg-primary/10 text-brand",
-          title: n.title,
-          sub: n.subtitle || "Announcement",
-          to: n.link || STUDENT_HOME,
-        });
-      });
-
     return list;
-  }, [data, liveNotifs]);
+  }, [data]);
 
   const unreadCount = useMemo(() => items.filter((i) => !readIds.has(i.id)).length, [items, readIds]);
 
@@ -138,7 +103,6 @@ function Notifications() {
     items.forEach((i) => updated.add(i.id));
     setReadIds(updated);
     writeSet(updated);
-    notificationsApi.markAllAsRead().catch(() => {});
   };
 
   const markOneRead = (id: string) => {
@@ -147,7 +111,6 @@ function Notifications() {
       updated.add(id);
       setReadIds(updated);
       writeSet(updated);
-      notificationsApi.markAsRead(id).catch(() => {});
     }
   };
 

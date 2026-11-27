@@ -46,9 +46,10 @@ export function ModuleCalendar({ online, physical }: { online: OnlineClass[]; ph
       const isCancelled = s.item.status === "cancelled";
       const isCompleted = s.item.status === "completed" || isPast;
       const color = isCancelled || isCompleted ? "#94a3b8" : s.kind === "online" ? ONLINE : PHYSICAL;
+      const baseTitle = s.item.title?.trim() || (s.kind === "online" ? "Online" : "On-site");
       return {
         id: `${s.kind}:${s.item.id}`,
-        title: s.kind === "online" ? (isCompleted ? "Online (Ended)" : "Online") : (isCompleted ? "On-site (Ended)" : "On-site"),
+        title: isCompleted ? `${baseTitle} (Ended)` : baseTitle,
         start: s.item.start,
         end: s.item.end,
         backgroundColor: color,

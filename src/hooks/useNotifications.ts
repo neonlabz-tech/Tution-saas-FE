@@ -16,6 +16,16 @@ import { todayISO } from "@/lib/utils";
 const LOCAL_READ_KEY = "eduflow_notif_read_ids_v1";
 const LOCAL_DELETED_KEY = "eduflow_notif_deleted_ids_v1";
 
+export function clearNotificationStorage(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(LOCAL_READ_KEY);
+    localStorage.removeItem(LOCAL_DELETED_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 function getStorageSet(key: string): Set<string> {
   try {
     const raw = localStorage.getItem(key);
@@ -52,12 +62,41 @@ export function sortNotificationsNewestFirst(a: AppNotification, b: AppNotificat
   return b.id.localeCompare(a.id);
 }
 
+// Shared module-level notification coordinator to eliminate duplicate requests and runaway polling
+let sharedBackendItems: AppNotification[] = [];
+let lastFetchTimestamp = 0;
+let inFlightNotificationPromise: Promise<AppNotification[]> | null = null;
+const notificationListeners = new Set<(items: AppNotification[]) => void>();
+
+async function fetchSharedNotifications(force = false, signal?: AbortSignal): Promise<AppNotification[]> {
+  const now = Date.now();
+  if (!force && now - lastFetchTimestamp < 20_000 && sharedBackendItems.length > 0) {
+    return sharedBackendItems;
+  }
+  if (inFlightNotificationPromise) {
+    return inFlightNotificationPromise;
+  }
+
+  inFlightNotificationPromise = listNotifications({ limit: 100 }, signal)
+    .then((res) => {
+      sharedBackendItems = res.items;
+      lastFetchTimestamp = Date.now();
+      notificationListeners.forEach((fn) => fn(sharedBackendItems));
+      return sharedBackendItems;
+    })
+    .finally(() => {
+      inFlightNotificationPromise = null;
+    });
+
+  return inFlightNotificationPromise;
+}
+
 export function useNotifications() {
   const { user } = useAuth();
   const { students, outstanding, classes } = useAppData();
 
-  const [backendItems, setBackendItems] = useState<AppNotification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [backendItems, setBackendItems] = useState<AppNotification[]>(() => sharedBackendItems);
+  const [loading, setLoading] = useState(sharedBackendItems.length === 0);
   const [error, setError] = useState<string | null>(null);
 
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(() => getStorageSet(LOCAL_READ_KEY));
@@ -65,17 +104,42 @@ export function useNotifications() {
 
   const inFlightRef = useRef<Set<string>>(new Set());
 
-  // Load from backend
+  // Subscribe to shared module notifications
+  useEffect(() => {
+    const listener = (items: AppNotification[]) => {
+      setBackendItems(items);
+      setLoading(false);
+    };
+    notificationListeners.add(listener);
+    return () => {
+      notificationListeners.delete(listener);
+    };
+  }, []);
+
+  // Automatically reset notifications and clear local storage keys when user logs out
+  useEffect(() => {
+    if (!user) {
+      sharedBackendItems = [];
+      lastFetchTimestamp = 0;
+      setBackendItems([]);
+      setLocalReadIds(new Set());
+      setLocalDeletedIds(new Set());
+      clearNotificationStorage();
+    }
+  }, [user]);
+
+  // Load from backend - only for admin/staff inside the dashboard
   const fetchBackendNotifications = useCallback(
-    async (signal?: AbortSignal) => {
-      if (!user) {
+    async (force = false, signal?: AbortSignal) => {
+      const isStudentPath = typeof window !== "undefined" && window.location.pathname.startsWith("/student");
+      if (!user || user.role === "student" || isStudentPath) {
         setBackendItems([]);
         setLoading(false);
         return;
       }
       try {
-        const res = await listNotifications({ limit: 100 }, signal);
-        setBackendItems(res.items);
+        const items = await fetchSharedNotifications(force, signal);
+        setBackendItems(items);
         setError(null);
       } catch (err) {
         if (err instanceof Error && err.name !== "AbortError") {
@@ -88,31 +152,40 @@ export function useNotifications() {
     [user],
   );
 
-  // Initial fetch, instant custom event listener, and 30s background polling
+  // Controlled background polling: 60s interval, throttled, pauses on hidden tab
   useEffect(() => {
-    const controller = new AbortController();
-    fetchBackendNotifications(controller.signal);
+    const isStudentPath = typeof window !== "undefined" && window.location.pathname.startsWith("/student");
+    if (!user || user.role === "student" || isStudentPath) return;
 
-    // Fast polling every 15s to keep counters fresh
+    const controller = new AbortController();
+    void fetchBackendNotifications(false, controller.signal);
+
+    // Steady 60s background polling (avoids excessive polling while keeping alerts fresh)
     const interval = setInterval(() => {
-      fetchBackendNotifications();
-    }, 15000);
+      if (typeof document !== "undefined" && document.hidden) return;
+      void fetchBackendNotifications(false);
+    }, 60000);
 
     const onFocus = () => {
-      fetchBackendNotifications();
+      if (Date.now() - lastFetchTimestamp > 30000) {
+        void fetchBackendNotifications(false);
+      }
     };
 
-    // Instant local event listeners for 0ms lag
     const onNotifsUpdated = () => {
-      fetchBackendNotifications();
+      if (Date.now() - lastFetchTimestamp > 5000) {
+        void fetchBackendNotifications(true);
+      }
     };
+
     const onNewNotification = (e: Event) => {
       const customEvent = e as CustomEvent<AppNotification>;
       if (customEvent.detail) {
-        setBackendItems((prev) => {
-          if (prev.some((p) => p.id === customEvent.detail.id)) return prev;
-          return [customEvent.detail, ...prev];
-        });
+        const newNotif = customEvent.detail;
+        if (!sharedBackendItems.some((p) => p.id === newNotif.id)) {
+          sharedBackendItems = [newNotif, ...sharedBackendItems];
+          notificationListeners.forEach((fn) => fn(sharedBackendItems));
+        }
       }
     };
 
@@ -127,7 +200,7 @@ export function useNotifications() {
       window.removeEventListener("notifications-updated", onNotifsUpdated);
       window.removeEventListener("eduflow:new-notification", onNewNotification);
     };
-  }, [fetchBackendNotifications]);
+  }, [user, fetchBackendNotifications]);
 
   // Contextual smart alerts (Student debtors & 15-Minute Class Reminders)
   const contextualItems = useMemo(() => {

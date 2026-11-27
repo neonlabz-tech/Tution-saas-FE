@@ -40,20 +40,14 @@ const schema = z
   .superRefine((v, ctx) => {
     if (v.classType === "online") {
       const trimmed = v.link.trim();
-      if (!trimmed) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["link"],
-          message: "Enter a valid meeting URL",
-        });
-      } else {
+      if (trimmed) {
         try {
           new URL(trimmed);
         } catch {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["link"],
-            message: "Enter a valid URL, e.g. https://meet.example.com/room",
+            message: "Enter a valid URL (e.g. https://meet.google.com/...)",
           });
         }
       }
@@ -103,7 +97,7 @@ function toFormValues(item: OnlineClassItem | null, draft: ClassDraft): Values {
     date: draft.date ?? todayISO(),
     startTime: draft.startTime ?? "18:00",
     endTime: draft.endTime ?? "19:30",
-    link: "https://meet.example.com/eduflow-room",
+    link: "",
     hall: "",
     description: "",
     status: "scheduled",
@@ -404,9 +398,6 @@ function Inner({
               checked={classType === "online"}
               onChange={() => {
                 setValue("classType", "online", { shouldValidate: true, shouldDirty: true });
-                if (!watch("link")) {
-                  setValue("link", "https://meet.example.com/eduflow-room");
-                }
               }}
               className="h-4 w-4 rounded border-line text-brand accent-brand focus:ring-brand"
             />
@@ -441,9 +432,9 @@ function Inner({
       </div>
 
       {classType === "online" ? (
-        <Field label="Meeting link" error={errors.link?.message} className="sm:col-span-2">
+        <Field label="Meeting link (optional)" error={errors.link?.message} className="sm:col-span-2">
           <div className="flex gap-2">
-            <Input {...register("link")} placeholder="https://meet.example.com/eduflow-room" />
+            <Input {...register("link")} placeholder="https://meet.google.com/... (optional)" />
             {validHref ? (
               <a
                 href={(link || "").trim()}

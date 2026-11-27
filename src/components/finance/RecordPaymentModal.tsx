@@ -224,6 +224,9 @@ function PaymentForm({
 
       const receiptSuffix = result.payment?.receiptNo ? ` · Receipt ${result.payment.receiptNo}` : "";
       toast.success(`${formatLkrPrice(amt)} payment recorded for ${activeStudent?.fullName ?? sid}${receiptSuffix}`);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("eduflow:payment-recorded", { detail: result }));
+      }
       onDone?.(result);
       onClose();
     } catch (err: unknown) {

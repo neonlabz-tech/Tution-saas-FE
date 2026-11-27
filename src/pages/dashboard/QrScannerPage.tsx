@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import {
   AlertCircle,
+  BookOpen,
   Camera,
   CameraOff,
   History,
@@ -23,7 +25,7 @@ import {
 } from "@/components/ui/primitives";
 import { ScanResult } from "@/components/qr/ScanResult";
 import { useToast } from "@/components/ui/toast";
-import { useAppData } from "@/hooks/useAppData";
+import { useAppData, formatModuleName } from "@/hooks/useAppData";
 import { attendanceApi, type VerifyQrResponse } from "@/lib/api";
 import { parseQrPayload, playScanFeedback, todayISO } from "@/lib/utils";
 
@@ -38,8 +40,9 @@ interface RecentScan {
 }
 
 export default function QrScannerPage() {
-  const { students, modules, markAttendance, refreshStudents } = useAppData();
+  const { students, modules, classes, attendance, getModule, markAttendance, refreshStudents } = useAppData();
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     void refreshStudents();
@@ -54,8 +57,35 @@ export default function QrScannerPage() {
   const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
 
-  const [selectedModuleId] = useState<string>("all");
-  const [autoMark] = useState(true);
+  const paramModule = searchParams.get("moduleId") || "all";
+  const [selectedModuleId, setSelectedModuleId] = useState<string>(paramModule);
+
+  useEffect(() => {
+    const pm = searchParams.get("moduleId");
+    if (pm && pm !== selectedModuleId) {
+      setSelectedModuleId(pm);
+    }
+  }, [searchParams]);
+
+  const handleModuleChange = (newModuleId: string) => {
+    setSelectedModuleId(newModuleId);
+    if (newModuleId !== "all") {
+      setSearchParams({ moduleId: newModuleId });
+    } else {
+      const next = new URLSearchParams(searchParams);
+      next.delete("moduleId");
+      setSearchParams(next);
+    }
+  };
+
+  const availableModules = useMemo(() => {
+    return modules
+      .map((m) => ({ id: m.id, name: formatModuleName(m.name || m.id, modules), code: m.code }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [modules]);
+
+  // Require manual module selection before marking present (prevent automatic mark on scan)
+  const [autoMark] = useState(false);
 
   type ScannedStudent = Student & {
     feeTotal?: number;
@@ -101,22 +131,7 @@ export default function QrScannerPage() {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
-  // Discover available cameras
-  useEffect(() => {
-    Html5Qrcode.getCameras()
-      .then((devs) => {
-        if (devs && devs.length > 0) {
-          setCameras(devs.map((d) => ({ id: d.id, label: d.label || `Camera ${d.id.slice(0, 4)}` })));
-          // Prefer back/environment camera if available
-          const back = devs.find((d) => /back|rear|environment/i.test(d.label));
-          setSelectedCameraId(back ? back.id : devs[0].id);
-        }
-      })
-      .catch(() => {
-        // Will prompt on user start action
-      });
-  }, []);
-
+  // Camera list is populated only on user-initiated start
   const stop = useCallback(async () => {
     const sc = scannerRef.current;
     if (sc && runningRef.current) {
@@ -135,22 +150,83 @@ export default function QrScannerPage() {
     async (raw: string) => {
       const code = parseQrPayload(raw);
       const at = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      const targetModule = selectedModuleId !== "all" ? selectedModuleId : undefined;
+      const today = todayISO();
+
+      // Find local student if possible to check enrollments
+      const local = students.find(
+        (s) => s.ref === code || s.id.toLowerCase() === code.toLowerCase(),
+      );
+
+      const studentMids = local?.moduleIds ?? [];
+      const validStudentMids = studentMids.filter(
+        (mid) => !/^[0-9a-f]{6,}$/i.test(mid.replace(/^mod_/i, "")),
+      );
+
+      // Determine target subject for multi-subject students:
+      let targetModule: string | undefined = undefined;
+
+      if (selectedModuleId !== "all") {
+        targetModule = selectedModuleId;
+      } else if (validStudentMids.length > 0) {
+        // Multi-subject student handling:
+        // 1. Check if an active/scheduled class exists today for one of the student's enrolled modules
+        const todayClass = classes.find((c) => {
+          if (c.status === "cancelled") return false;
+          const cDate = c.start.slice(0, 10);
+          return (
+            cDate === today &&
+            validStudentMids.some(
+              (mid) =>
+                mid.toLowerCase() === c.moduleId.toLowerCase() ||
+                getModule(mid)?.code?.toLowerCase() === c.moduleId.toLowerCase(),
+            )
+          );
+        });
+
+        // 2. Check today's attendance records to find which enrolled modules are already marked
+        const markedMidsToday = new Set(
+          attendance
+            .filter(
+              (a) =>
+                (a.studentId === local?.id || a.studentId.toLowerCase() === code.toLowerCase()) &&
+                a.date === today &&
+                a.status === "present",
+            )
+            .map((a) => a.moduleId.toLowerCase()),
+        );
+
+        const unmarkedMids = validStudentMids.filter(
+          (mid) =>
+            !markedMidsToday.has(mid.toLowerCase()) &&
+            !markedMidsToday.has(getModule(mid)?.id?.toLowerCase() ?? ""),
+        );
+
+        if (
+          todayClass &&
+          unmarkedMids.some(
+            (mid) =>
+              mid.toLowerCase() === todayClass.moduleId.toLowerCase() ||
+              getModule(mid)?.id?.toLowerCase() === todayClass.moduleId.toLowerCase(),
+          )
+        ) {
+          targetModule = todayClass.moduleId;
+        } else if (unmarkedMids.length > 0) {
+          targetModule = unmarkedMids[0];
+        } else {
+          targetModule = validStudentMids[0];
+        }
+      }
 
       try {
         const verifyRes = await attendanceApi.verifyQr({
           code,
           moduleId: targetModule,
-          date: todayISO(),
+          date: today,
         });
 
         setVerifyData(verifyRes);
 
         // Find or build student object
-        const local = students.find(
-          (s) => s.id.toLowerCase() === verifyRes.student.id.toLowerCase() || s.ref === verifyRes.student.ref,
-        );
-
         const baseStudent: Student = local ?? {
           id: verifyRes.student.id,
           ref: verifyRes.student.ref,
@@ -164,7 +240,7 @@ export default function QrScannerPage() {
           batch: verifyRes.student.batch ?? "2026",
           status: (verifyRes.student.status as Student["status"]) ?? "active",
           moduleIds: verifyRes.student.moduleIds ?? [],
-          enrollmentDate: todayISO(),
+          enrollmentDate: today,
         };
 
         const currentStudent: ScannedStudent = {
@@ -178,32 +254,12 @@ export default function QrScannerPage() {
         setResult(currentStudent);
         setError("");
 
-        // Check if student was already marked today in this module
-        if (verifyRes.alreadyMarked) {
-          playScanFeedback("warning");
-          toast.info(
-            `${currentStudent.fullName} is already marked for today in ${
-              modules.find((m) => m.id === targetModule)?.code ?? "this module"
-            }`,
-          );
-          const entry: RecentScan = {
-            id: currentStudent.id,
-            name: currentStudent.fullName,
-            status: "Duplicate",
-            ok: true,
-            at,
-          };
-          setRecent((r) => [entry, ...r].slice(0, 10));
-          return true;
-        }
-
         // Check enrollment if module selected
         if (targetModule && verifyRes.enrolledInModule === false) {
           playScanFeedback("warning");
+          const modName = formatModuleName(targetModule, modules);
           toast.error(
-            `${currentStudent.fullName} is not enrolled in ${
-              modules.find((m) => m.id === targetModule)?.name ?? "this module"
-            }`,
+            `${currentStudent.fullName} is not enrolled in ${modName}`,
           );
           const entry: RecentScan = {
             id: currentStudent.id,
@@ -216,20 +272,40 @@ export default function QrScannerPage() {
           return false;
         }
 
+        // Check if student was already marked today in this module
+        if (verifyRes.alreadyMarked) {
+          playScanFeedback("warning");
+          const modName = formatModuleName(targetModule, modules);
+          const method = verifyRes.existingAttendance?.method ?? "manual";
+          toast.info(
+            `${currentStudent.fullName} is already marked for today in ${modName} (via ${method})`,
+          );
+          const entry: RecentScan = {
+            id: currentStudent.id,
+            name: currentStudent.fullName,
+            status: "Duplicate",
+            ok: true,
+            at,
+          };
+          setRecent((r) => [entry, ...r].slice(0, 10));
+          return true;
+        }
+
         // Auto-mark present if enabled
         const moduleToMark = targetModule ?? currentStudent.moduleIds[0];
         if (autoMark && moduleToMark) {
+          const modName = formatModuleName(moduleToMark, modules);
           try {
             await attendanceApi.markQr({
               code: currentStudent.id,
               moduleId: moduleToMark,
-              date: todayISO(),
+              date: today,
               status: "present",
             });
-            markAttendance(currentStudent.id, moduleToMark, todayISO(), "present", "qr");
+            markAttendance(currentStudent.id, moduleToMark, today, "present", "qr");
             playScanFeedback("success");
             toast.success(
-              `Marked ${currentStudent.fullName} present (${modules.find((m) => m.id === moduleToMark)?.code ?? ""})`,
+              `Marked ${currentStudent.fullName} present in ${modName}`,
             );
             const entry: RecentScan = {
               id: currentStudent.id,
@@ -240,9 +316,9 @@ export default function QrScannerPage() {
             };
             setRecent((r) => [entry, ...r].slice(0, 10));
           } catch {
-            markAttendance(currentStudent.id, moduleToMark, todayISO(), "present", "qr");
+            markAttendance(currentStudent.id, moduleToMark, today, "present", "qr");
             playScanFeedback("success");
-            toast.success(`Marked ${currentStudent.fullName} present`);
+            toast.success(`Marked ${currentStudent.fullName} present in ${modName}`);
             const entry: RecentScan = {
               id: currentStudent.id,
               name: currentStudent.fullName,
@@ -254,7 +330,7 @@ export default function QrScannerPage() {
           }
         } else {
           playScanFeedback("success");
-          toast.success(`Verified ${currentStudent.fullName}`);
+          toast.success(`Verified ${currentStudent.fullName}. Select module to mark attendance.`);
           const entry: RecentScan = {
             id: currentStudent.id,
             name: currentStudent.fullName,
@@ -292,7 +368,7 @@ export default function QrScannerPage() {
             setRecent((r) => [entry, ...r].slice(0, 10));
           } else {
             playScanFeedback("success");
-            toast.success(`Scanned ${local.fullName}`);
+            toast.success(`Verified ${local.fullName}. Select module to mark attendance.`);
             const entry: RecentScan = {
               id: local.id,
               name: local.fullName,
@@ -322,7 +398,7 @@ export default function QrScannerPage() {
         return false;
       }
     },
-    [selectedModuleId, students, modules, autoMark, markAttendance, toast],
+    [selectedModuleId, students, modules, classes, attendance, getModule, autoMark, markAttendance, toast],
   );
 
   const handleSelectStudent = useCallback(
@@ -343,11 +419,28 @@ export default function QrScannerPage() {
     setStarting(true);
 
     try {
+      let targetCamId = selectedCameraId;
+      if (cameras.length === 0) {
+        try {
+          const devs = await Html5Qrcode.getCameras();
+          if (devs && devs.length > 0) {
+            setCameras(devs.map((d) => ({ id: d.id, label: d.label || `Camera ${d.id.slice(0, 4)}` })));
+            if (!targetCamId) {
+              const back = devs.find((d) => /back|rear|environment/i.test(d.label));
+              targetCamId = back ? back.id : devs[0].id;
+              setSelectedCameraId(targetCamId);
+            }
+          }
+        } catch {
+          /* Fall back to standard environment camera */
+        }
+      }
+
       const sc = scannerRef.current ?? new Html5Qrcode(READER_ID);
       scannerRef.current = sc;
 
-      const cameraConfig = selectedCameraId
-        ? { deviceId: { exact: selectedCameraId } }
+      const cameraConfig = targetCamId
+        ? { deviceId: { exact: targetCamId } }
         : { facingMode: "environment" };
 
       await sc.start(
@@ -396,6 +489,41 @@ export default function QrScannerPage() {
         title="QR Scanner"
         description="Fast contactless attendance marking & student verification using high-speed QR camera scanning."
       />
+
+      {/* Active Subject / Class Toolbar */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface-2/60 p-3.5 px-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-brand" />
+            <span className="text-xs font-semibold text-ink">Active Class / Subject:</span>
+          </div>
+          <div className="w-64 max-w-full">
+            <Select
+              value={selectedModuleId}
+              onChange={(e) => handleModuleChange(e.target.value)}
+              aria-label="Select target class or subject"
+              className="h-9 text-xs font-semibold bg-surface"
+            >
+              <option value="all">⚡ Auto-detect subject</option>
+              {availableModules.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({m.code})
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+
+        {selectedModuleId !== "all" ? (
+          <Badge tone="primary" className="text-xs font-semibold py-1 px-3">
+            Targeting: {availableModules.find((m) => m.id === selectedModuleId)?.name ?? selectedModuleId}
+          </Badge>
+        ) : (
+          <span className="text-xs text-muted">
+            Auto-detects active/unmarked subject for students with multiple enrollments
+          </span>
+        )}
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Left Column: Camera Viewfinder & Manual Entry */}
@@ -632,7 +760,11 @@ export default function QrScannerPage() {
           {result ? (
             <ScanResult
               student={result}
-              initialModuleId={selectedModuleId !== "all" ? selectedModuleId : undefined}
+              initialModuleId={
+                selectedModuleId !== "all"
+                  ? selectedModuleId
+                  : verifyData?.module?.id ?? verifyData?.existingAttendance?.moduleId ?? result.moduleIds[0]
+              }
               alreadyMarked={verifyData?.alreadyMarked}
               existingRecord={verifyData?.existingAttendance}
               verificationMessage={verifyData?.message}

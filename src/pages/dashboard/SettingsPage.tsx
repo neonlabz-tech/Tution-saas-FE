@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Building2, ImagePlus, Mail, Trash2, UserCog } from "lucide-react";
 import { Avatar, Button, Card, CardHeader, Field, Input, PageHeader, Textarea } from "@/components/ui/primitives";
+import { ConfirmDialog } from "@/components/ui/overlays";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { authApi, settingsApi, storageApi } from "@/lib/api";
@@ -25,7 +26,12 @@ export default function SettingsPage() {
     role: user?.role ? user.role.replace("_", " ") : "Administrator",
   });
   const [saving, setSaving] = useState<"institute" | "profile" | null>(null);
+  const [instErrors, setInstErrors] = useState<{ email?: string; name?: string }>({});
+  const [profileErrors, setProfileErrors] = useState<{ email?: string; name?: string }>({});
   const [sendingReset, setSendingReset] = useState(false);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+
+  const isValidEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
 
   useEffect(() => {
     let active = true;
@@ -77,9 +83,15 @@ export default function SettingsPage() {
   };
 
   const saveInstitute = async () => {
+    const trimmedEmail = inst.email.trim();
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      setInstErrors((p) => ({ ...p, email: "Please enter a valid email address (e.g. contact@example.com)" }));
+      return;
+    }
+    setInstErrors((p) => ({ ...p, email: undefined }));
     setSaving("institute");
     try {
-      await settingsApi.updateInstitute({ ...inst, logo });
+      await settingsApi.updateInstitute({ ...inst, email: trimmedEmail, logo });
       toast.success("Institute profile saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save institute profile");
@@ -89,11 +101,17 @@ export default function SettingsPage() {
   };
 
   const saveProfile = async () => {
+    const trimmedEmail = profile.email.trim();
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      setProfileErrors((p) => ({ ...p, email: "Please enter a valid email address" }));
+      return;
+    }
+    setProfileErrors((p) => ({ ...p, email: undefined }));
     setSaving("profile");
     try {
       await settingsApi.updateProfile({
         fullName: profile.name,
-        email: profile.email,
+        email: trimmedEmail,
       });
       await refreshUser();
       toast.success("Profile updated");
@@ -142,7 +160,16 @@ export default function SettingsPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Institute name"><Input value={inst.name} onChange={(e) => setInst({ ...inst, name: e.target.value })} /></Field>
-              <Field label="Contact email"><Input type="email" value={inst.email} onChange={(e) => setInst({ ...inst, email: e.target.value })} /></Field>
+              <Field label="Contact email" error={instErrors.email}>
+                <Input
+                  type="email"
+                  value={inst.email}
+                  onChange={(e) => {
+                    setInst({ ...inst, email: e.target.value });
+                    if (instErrors.email) setInstErrors((p) => ({ ...p, email: undefined }));
+                  }}
+                />
+              </Field>
               <Field label="Phone"><Input value={inst.phone} onChange={(e) => setInst({ ...inst, phone: e.target.value })} className="num" /></Field>
               <Field label="Address"><Input value={inst.address} onChange={(e) => setInst({ ...inst, address: e.target.value })} /></Field>
               <Field label="About" className="sm:col-span-2"><Textarea value={inst.about} onChange={(e) => setInst({ ...inst, about: e.target.value })} /></Field>
@@ -167,7 +194,16 @@ export default function SettingsPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Full name"><Input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></Field>
-              <Field label="Email"><Input type="email" value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} /></Field>
+              <Field label="Email" error={profileErrors.email}>
+                <Input
+                  type="email"
+                  value={profile.email}
+                  onChange={(e) => {
+                    setProfile({ ...profile, email: e.target.value });
+                    if (profileErrors.email) setProfileErrors((p) => ({ ...p, email: undefined }));
+                  }}
+                />
+              </Field>
             </div>
             <Button onClick={() => void saveProfile()} disabled={saving === "profile"}>
               {saving === "profile" ? "Updating..." : "Update profile"}
@@ -179,7 +215,7 @@ export default function SettingsPage() {
                 <Button
                   variant="soft"
                   size="sm"
-                  onClick={() => void handleSendResetLink()}
+                  onClick={() => setConfirmResetOpen(true)}
                   disabled={sendingReset}
                 >
                   <Mail className="h-3.5 w-3.5" />
@@ -190,6 +226,26 @@ export default function SettingsPage() {
           </div>
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={confirmResetOpen}
+        onClose={() => {
+          if (!sendingReset) setConfirmResetOpen(false);
+        }}
+        title="Send password reset link?"
+        text={
+          <>
+            A password reset link will be sent to <b>{profile.email}</b>. Are you sure you want to proceed?
+          </>
+        }
+        confirmLabel="Send Reset Link"
+        confirmLoadingLabel="Sending..."
+        loading={sendingReset}
+        onConfirm={async () => {
+          await handleSendResetLink();
+          setConfirmResetOpen(false);
+        }}
+      />
     </>
   );
 }

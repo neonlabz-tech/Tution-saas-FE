@@ -396,6 +396,18 @@ export default function OnlineClassesPage() {
     }
   };
 
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 768 : false,
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const initialView =
     typeof window !== "undefined" && window.innerWidth < 768 ? "listWeek" : "timeGridWeek";
 
@@ -506,11 +518,19 @@ export default function OnlineClassesPage() {
               <FullCalendar
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
                 initialView={initialView}
-                headerToolbar={{
-                  left: "prev,next today",
-                  center: "title",
-                  right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
-                }}
+                headerToolbar={
+                  isMobile
+                    ? {
+                        left: "prev,next",
+                        center: "title",
+                        right: "today listWeek,timeGridDay,dayGridMonth",
+                      }
+                    : {
+                        left: "prev,next today",
+                        center: "title",
+                        right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
+                      }
+                }
                 buttonText={{
                   today: "Today",
                   month: "Month",
@@ -529,6 +549,22 @@ export default function OnlineClassesPage() {
                 slotMinTime="07:00:00"
                 slotMaxTime="22:00:00"
                 firstDay={1}
+                slotEventOverlap={false}
+                eventMinHeight={26}
+                slotDuration="00:30:00"
+                expandRows={true}
+                views={{
+                  timeGridWeek: {
+                    slotEventOverlap: false,
+                    dayMaxEvents: 2,
+                  },
+                  timeGridDay: {
+                    slotEventOverlap: false,
+                  },
+                  dayGridMonth: {
+                    dayMaxEvents: 3,
+                  },
+                }}
                 eventTimeFormat={{ hour: "numeric", minute: "2-digit", meridiem: "short" }}
                 datesSet={handleDatesSet}
                 dateClick={onDateClick}
@@ -616,10 +652,18 @@ export default function OnlineClassesPage() {
         moduleMap={moduleMap}
         teacherMap={teacherMap}
         onClose={() => setDetailId(null)}
-        onEdit={(item) => setForm({ open: true, item, draft: {} })}
+        onEdit={(item) => {
+          const now = toLocalDT(new Date());
+          if (item.status === "completed" || item.end < now) {
+            toast.error("Finished classes cannot be edited");
+            return;
+          }
+          setForm({ open: true, item, draft: {} });
+        }}
         onDelete={(target) => setDelTarget(target)}
         onUpdated={(updated) => {
           setClasses((cur) => cur.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
+          setDetailRefreshKey((k) => k + 1);
           refetch();
         }}
       />
